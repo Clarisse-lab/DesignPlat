@@ -9,13 +9,12 @@ interface StockPhoto {
   id: number;
   alt: string;
   photographer: string;
-  photographerUrl: string;
   pageUrl: string;
   thumb: string;
   full: string;
 }
 
-/** Janela de busca de fotos gratuitas (Pexels). A foto escolhida volta como data URL. */
+/** Janela de busca de fotos gratuitas (Pixabay). A foto escolhida volta como data URL. */
 export function PhotoSearch({ onPick, onClose }: { onPick: (dataUrl: string, credit: string) => void; onClose: () => void }) {
   const [query, setQuery] = useState("");
   const [photos, setPhotos] = useState<StockPhoto[]>([]);
@@ -51,7 +50,7 @@ export function PhotoSearch({ onPick, onClose }: { onPick: (dataUrl: string, cre
       if (!response.ok) throw new Error("Não foi possível baixar a foto.");
       const blob = await response.blob();
       const dataUrl = await imageFileToDataUrl(new File([blob], "foto", { type: blob.type }), { maxSide: 1600 });
-      onPick(dataUrl, `Foto: ${photo.photographer} / Pexels`);
+      onPick(dataUrl, `Foto: ${photo.photographer} / Pixabay`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao usar a foto.");
     } finally {
@@ -96,7 +95,7 @@ export function PhotoSearch({ onPick, onClose }: { onPick: (dataUrl: string, cre
 
         <div className="mt-4 min-h-[120px] flex-1 overflow-y-auto">
           {photos.length === 0 && !loading && !error && (
-            <p className="py-10 text-center text-[13px] text-ink-faint">Busque em português ou inglês. As fotos são gratuitas para uso comercial.</p>
+            <p className="py-10 text-center text-[13px] text-ink-faint">Busque em português ou inglês, por exemplo: café, escritório, mulher sorrindo.</p>
           )}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
             {photos.map((photo) => (
@@ -134,10 +133,10 @@ export function PhotoSearch({ onPick, onClose }: { onPick: (dataUrl: string, cre
         </div>
         <p className="mt-3 text-[11px] text-ink-faint">
           Fotos fornecidas pelo{" "}
-          <a href="https://www.pexels.com" target="_blank" rel="noreferrer" className="underline">
-            Pexels
+          <a href="https://pixabay.com" target="_blank" rel="noreferrer" className="underline">
+            Pixabay
           </a>
-          .
+          , gratuitas para uso comercial.
         </p>
       </div>
     </div>

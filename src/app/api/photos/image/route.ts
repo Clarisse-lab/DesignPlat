@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
-import { isPexelsImageUrl } from "@/lib/photos/pexels";
+import { isPixabayImageUrl } from "@/lib/photos/pixabay";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 15_000_000;
 
 /**
- * GET /api/photos/image?url=https://images.pexels.com/... — baixa a foto escolhida
+ * GET /api/photos/image?url=https://pixabay.com/get/... — baixa a foto escolhida
  * pelo servidor, para o navegador poder redimensioná-la e embuti-la no slide.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url).searchParams.get("url") ?? "";
-  if (!isPexelsImageUrl(url)) return NextResponse.json({ error: "Imagem não permitida." }, { status: 400 });
+  if (!isPixabayImageUrl(url)) return NextResponse.json({ error: "Imagem não permitida." }, { status: 400 });
 
   try {
     const response = await fetch(url, { cache: "no-store", redirect: "error" });

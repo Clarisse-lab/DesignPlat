@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { PhotosUnavailableError, searchPexels } from "@/lib/photos/pexels";
+import { PhotosUnavailableError, searchPixabay } from "@/lib/photos/pixabay";
 
 export const runtime = "nodejs";
 
-/** GET /api/photos/search?q=café&page=1 — busca fotos gratuitas no Pexels. */
+/** GET /api/photos/search?q=café&page=1 — busca fotos gratuitas no Pixabay. */
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const query = (params.get("q") ?? "").trim().slice(0, 100);
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   if (query.length < 2) return NextResponse.json({ error: "Digite o que procura." }, { status: 400 });
 
   try {
-    return NextResponse.json(await searchPexels(query, page));
+    return NextResponse.json(await searchPixabay(query, page));
   } catch (error) {
     if (error instanceof PhotosUnavailableError) {
       return NextResponse.json({ error: error.message }, { status: 503 });

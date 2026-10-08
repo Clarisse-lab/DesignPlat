@@ -5,7 +5,7 @@ Plataforma para transformar texto em peças visuais prontas para publicar.
 | Ferramenta | Status |
 |---|---|
 | **Carrossel Tweet**: slides no estilo post do X/Twitter, escritos com IA e exportados em PNG | ✅ Pronto |
-| **Post de Feed**: posts e carrosséis de Instagram com a identidade da marca: 8 layouts, ícones, decorações, 5 fontes de título, fotos do Pexels e imagem de referência (cores e posição sem IA, ou estilo completo com IA) | ✅ Pronto |
+| **Post de Feed**: posts e carrosséis de Instagram com a identidade da marca: 8 layouts, ícones, decorações, 5 fontes de título, fotos do Pixabay e imagem de referência (cores e posição sem IA, ou estilo completo com IA) | ✅ Pronto |
 | Story (Instagram) | Planejado |
 | Apresentação (PPTX/PDF) | Planejado |
 
@@ -43,7 +43,7 @@ src/
 │       ├── tweet/render/route.ts   # POST: devolve PNG (?index=N) ou .zip com todos
 │       ├── feed/render/route.ts    # idem, para o Post de Feed
 │       ├── feed/reference-style/   # POST: referência → estilo + layout com IA
-│       └── photos/                 # busca no Pexels e download seguro da foto escolhida
+│       └── photos/                 # busca no Pixabay e download seguro da foto escolhida
 ├── components/
 │   ├── SlideFrame.tsx              # preview fiel de qualquer template HTML
 │   ├── editor/                     # peças compartilhadas pelos editores (painéis, faixa de slides, preview…)
@@ -86,7 +86,7 @@ npm test
 | `ANTHROPIC_API_KEY` | Sim, para "Gerar slides" | Geração de texto com Claude |
 | `CLAUDE_MODEL` | Não | Troca o modelo (padrão: `claude-opus-5-5`) |
 | `CHROMIUM_PATH` | Não | Caminho do Chromium usado na renderização |
-| `PEXELS_API_KEY` | Não | Busca de fotos gratuitas no Post de Feed ([criar chave](https://www.pexels.com/api/)) |
+| `PIXABAY_API_KEY` | Não | Busca de fotos gratuitas no Post de Feed ([criar chave](https://pixabay.com/api/docs/)) |
 
 ## Deploy
 
