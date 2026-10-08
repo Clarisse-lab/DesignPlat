@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-import { generateTweetCarousel, GenerationError } from "@/lib/ai/tweet-carousel";
+import { GenerationError } from "@/lib/ai/claude";
+import { generateTweetCarousel } from "@/lib/ai/tweet-carousel";
 import { generateRequestSchema } from "@/lib/tweet/schema";
 
 export const runtime = "nodejs";

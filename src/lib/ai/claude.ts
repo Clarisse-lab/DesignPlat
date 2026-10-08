@@ -5,3 +5,6 @@ import Anthropic from "@anthropic-ai/sdk";
 export const anthropic = new Anthropic();
 
 export const CLAUDE_MODEL = process.env.CLAUDE_MODEL || "claude-opus-5-5";
+
+/** Erro com mensagem pronta para mostrar ao usuário (recusa, resposta incompleta…). */
+export class GenerationError extends Error {}
