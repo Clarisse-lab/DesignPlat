@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { usePersistentState } from "@/components/editor/usePersistentState";
 import type { TweetProfile, TweetStyle } from "@/lib/templates/tweet";
 
 export interface EditorSlide {
@@ -36,38 +36,13 @@ function initialDraft(): TweetDraft {
   };
 }
 
-function readStoredDraft(): TweetDraft | null {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as TweetDraft;
-    return Array.isArray(parsed?.slides) && parsed.slides.length > 0 ? parsed : null;
-  } catch {
-    return null;
-  }
+function isDraft(value: unknown): value is TweetDraft {
+  const draft = value as TweetDraft | null;
+  return Array.isArray(draft?.slides) && draft.slides.length > 0 && Boolean(draft.profile && draft.style);
 }
 
 /** Rascunho do carrossel, salvo no navegador para não se perder ao recarregar. */
 export function useTweetDraft() {
-  const [draft, setDraft] = useState<TweetDraft>(initialDraft);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    const stored = readStoredDraft();
-    // Restaurar do localStorage só é possível depois de montar no navegador.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (stored) setDraft(stored);
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-    } catch {
-      // armazenamento cheio ou bloqueado: o editor continua funcionando sem salvar
-    }
-  }, [draft, loaded]);
-
+  const [draft, setDraft] = usePersistentState(STORAGE_KEY, initialDraft, isDraft);
   return { draft, setDraft, reset: () => setDraft(initialDraft()) };
 }

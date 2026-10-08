@@ -54,3 +54,27 @@ ${css}
 <body>${body}</body>
 </html>`;
 }
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** Só aceita cores no formato #RRGGBB, para o valor não injetar CSS. */
+export function safeColor(value: string | undefined | null, fallback: string): string {
+  return value && HEX_COLOR.test(value) ? value : fallback;
+}
+
+/** Escolhe texto claro ou escuro para ficar legível sobre a cor de fundo. */
+export function contrastText(background: string): string {
+  const hex = safeColor(background, "#000000").slice(1);
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const channel = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return luminance > 0.179 ? "#111111" : "#FFFFFF";
+}
+
+/** Primeiro tamanho cujo limite de caracteres comporta o texto. */
+export function sizeByLength(text: string, steps: [maxChars: number, size: number][], fallback: number): number {
+  const length = text.trim().length;
+  return steps.find(([max]) => length <= max)?.[1] ?? fallback;
+}

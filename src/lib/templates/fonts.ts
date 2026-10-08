@@ -12,6 +12,10 @@ export const FONT_FILES = [
   { file: "inter-latin-700-normal.woff2", family: "Inter", weight: 700, range: LATIN_RANGE },
   { file: "inter-latin-ext-400-normal.woff2", family: "Inter", weight: 400, range: LATIN_EXT_RANGE },
   { file: "inter-latin-ext-700-normal.woff2", family: "Inter", weight: 700, range: LATIN_EXT_RANGE },
+  { file: "playfair-display-latin-400-normal.woff2", family: "Playfair Display", weight: 400, range: LATIN_RANGE },
+  { file: "playfair-display-latin-700-normal.woff2", family: "Playfair Display", weight: 700, range: LATIN_RANGE },
+  { file: "playfair-display-latin-ext-400-normal.woff2", family: "Playfair Display", weight: 400, range: LATIN_EXT_RANGE },
+  { file: "playfair-display-latin-ext-700-normal.woff2", family: "Playfair Display", weight: 700, range: LATIN_EXT_RANGE },
 ] as const;
 
 export function fontFaceCss(resolveUrl: (file: string) => string): string {

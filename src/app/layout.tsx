@@ -21,6 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/tweet" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
                 Carrossel Tweet
               </Link>
+              <Link href="/feed" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
+                Post de Feed
+              </Link>
             </nav>
           </div>
         </header>

@@ -1,22 +1,22 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Copy, Download, ImagePlus, Loader2, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import {
-  ArrowLeft,
-  ArrowRight,
-  ChevronLeft,
-  ChevronRight,
-  Copy,
-  Download,
-  ImagePlus,
-  Loader2,
-  Plus,
-  RotateCcw,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
-import { SlideFrame } from "@/components/SlideFrame";
+  Field,
+  IconButton,
+  ImagePicker,
+  inputClass,
+  insertAt,
+  Notice,
+  Panel,
+  PreviewPane,
+  Segmented,
+  SlideStrip,
+  swap,
+  ToolbarButton,
+  type NoticeMessage,
+} from "@/components/editor/ui";
 import { downloadRender, generateCarousel } from "@/lib/client/api";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { CANVAS_SIZES, TWEET_CANVAS_SIZES } from "@/lib/formats";
@@ -28,86 +28,6 @@ import { newSlide, useTweetDraft, type EditorSlide } from "./useTweetDraft";
 const RECOMMENDED_MAX_CHARS = 220;
 const SLIDE_COUNT_OPTIONS = [5, 7, 10, 12];
 
-const inputClass =
-  "w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] outline-none transition-colors placeholder:text-ink-faint focus:border-accent";
-
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-line bg-surface p-4">
-      <h2 className="mb-3 text-[12px] font-bold uppercase tracking-wider text-ink-faint">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function Segmented<T extends string | number>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: { value: T; label: string }[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="flex gap-1 rounded-lg bg-canvas p-1">
-      {options.map((option) => (
-        <button
-          key={String(option.value)}
-          type="button"
-          onClick={() => onChange(option.value)}
-          className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-medium transition-colors ${
-            value === option.value ? "bg-surface text-ink shadow-sm" : "text-ink-soft hover:text-ink"
-          }`}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ToolbarButton({
-  onClick,
-  disabled,
-  busy,
-  icon: Icon,
-  children,
-  primary,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  busy?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-  primary?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled || busy}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors disabled:opacity-50 ${
-        primary
-          ? "bg-ink text-white hover:bg-ink/90"
-          : "border border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink"
-      }`}
-    >
-      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
-      {children}
-    </button>
-  );
-}
-
 export function TweetEditor() {
   const { draft, setDraft, reset } = useTweetDraft();
   const { profile, style, slides, caption } = draft;
@@ -118,10 +38,9 @@ export function TweetEditor() {
   const [brandContext, setBrandContext] = useState("");
   const [generating, setGenerating] = useState(false);
   const [downloading, setDownloading] = useState<"one" | "all" | null>(null);
-  const [message, setMessage] = useState<{ kind: "error" | "info"; text: string } | null>(null);
+  const [message, setMessage] = useState<NoticeMessage | null>(null);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
   const active = slides[safeIndex];
@@ -140,11 +59,7 @@ export function TweetEditor() {
 
   const addSlide = () => {
     if (slides.length >= MAX_SLIDES) return;
-    setDraft((d) => {
-      const next = [...d.slides];
-      next.splice(safeIndex + 1, 0, newSlide(`Slide ${d.slides.length + 1}`));
-      return { ...d, slides: next };
-    });
+    setDraft((d) => ({ ...d, slides: insertAt(d.slides, safeIndex + 1, newSlide(`Slide ${d.slides.length + 1}`)) }));
     setActiveIndex(safeIndex + 1);
   };
 
@@ -157,22 +72,14 @@ export function TweetEditor() {
   const moveSlide = (index: number, delta: -1 | 1) => {
     const target = index + delta;
     if (target < 0 || target >= slides.length) return;
-    setDraft((d) => {
-      const next = [...d.slides];
-      [next[index], next[target]] = [next[target], next[index]];
-      return { ...d, slides: next };
-    });
+    setDraft((d) => ({ ...d, slides: swap(d.slides, index, target) }));
     setActiveIndex(target);
   };
 
-  const pickImage = async (file: File | undefined, target: "avatar" | "slide") => {
+  const pickAvatar = async (file: File | undefined) => {
     if (!file) return;
     try {
-      if (target === "avatar") {
-        updateProfile({ avatar: await imageFileToDataUrl(file, { maxSide: 400, square: true }) });
-      } else {
-        updateActive({ image: await imageFileToDataUrl(file, { maxSide: 1400 }) });
-      }
+      updateProfile({ avatar: await imageFileToDataUrl(file, { maxSide: 400, square: true }) });
     } catch {
       setMessage({ kind: "error", text: "Não foi possível ler essa imagem." });
     }
@@ -210,8 +117,9 @@ export function TweetEditor() {
     setMessage(null);
     try {
       await downloadRender(
+        "/api/tweet/render",
         { profile, style, slides: slides.map(({ text, image }) => ({ text, image })) },
-        mode === "one" ? safeIndex : undefined,
+        { index: mode === "one" ? safeIndex : undefined, zipName: "carrossel-tweet.zip" },
       );
     } catch (error) {
       setMessage({ kind: "error", text: error instanceof Error ? error.message : "Erro ao exportar." });
@@ -251,19 +159,7 @@ export function TweetEditor() {
         </div>
       </div>
 
-      {message && (
-        <div
-          role="status"
-          className={`mb-4 flex items-center justify-between gap-3 rounded-xl px-4 py-2.5 text-[13px] ${
-            message.kind === "error" ? "bg-orange-50 text-danger" : "bg-accent-soft text-accent"
-          }`}
-        >
-          {message.text}
-          <button type="button" onClick={() => setMessage(null)} aria-label="Fechar aviso">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      <Notice message={message} onClose={() => setMessage(null)} />
 
       <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_400px]">
         {/* Configurações */}
@@ -333,7 +229,7 @@ export function TweetEditor() {
                   accept="image/*"
                   className="hidden"
                   onChange={(e) => {
-                    pickImage(e.target.files?.[0], "avatar");
+                    pickAvatar(e.target.files?.[0]);
                     e.target.value = "";
                   }}
                 />
@@ -401,39 +297,13 @@ export function TweetEditor() {
 
         {/* Slides + editor */}
         <section className="min-w-0 space-y-4">
-          <div className="rounded-2xl border border-line bg-surface p-3">
-            <div className="mb-2 flex items-center justify-between px-1">
-              <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Slides · {slides.length}</span>
-              <button
-                type="button"
-                onClick={addSlide}
-                disabled={slides.length >= MAX_SLIDES}
-                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[12.5px] font-medium text-accent hover:bg-accent-soft disabled:opacity-40"
-              >
-                <Plus className="h-3.5 w-3.5" /> Adicionar
-              </button>
-            </div>
-            <ol className="flex gap-2 overflow-x-auto pb-1">
-              {slides.map((slide, index) => (
-                <li key={slide.id} className="shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setActiveIndex(index)}
-                    className={`flex h-[76px] w-[150px] flex-col rounded-xl border p-2.5 text-left transition-colors ${
-                      index === safeIndex ? "border-accent bg-accent-soft" : "border-line hover:border-line-strong"
-                    }`}
-                  >
-                    <span className={`text-[11px] font-bold ${index === safeIndex ? "text-accent" : "text-ink-soft"}`}>
-                      {index + 1}. {slide.label || "Sem rótulo"}
-                    </span>
-                    <span className="mt-1 line-clamp-2 text-[11.5px] leading-snug text-ink-faint">
-                      {slide.text.replace(/\*\*/g, "") || "Vazio"}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ol>
-          </div>
+          <SlideStrip
+            items={slides.map((s) => ({ id: s.id, label: s.label, preview: s.text }))}
+            activeIndex={safeIndex}
+            onSelect={setActiveIndex}
+            onAdd={addSlide}
+            canAdd={slides.length < MAX_SLIDES}
+          />
 
           <div className="rounded-2xl border border-line bg-surface p-4">
             <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -468,32 +338,12 @@ export function TweetEditor() {
             </div>
 
             <div className="mt-4">
-              <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  pickImage(e.target.files?.[0], "slide");
-                  e.target.value = "";
-                }}
+              <ImagePicker
+                value={active.image}
+                onChange={(image) => updateActive({ image })}
+                onError={(text) => setMessage({ kind: "error", text })}
+                label={active.image ? "Imagem abaixo do texto" : "Adicionar imagem ao slide (opcional)"}
               />
-              {active.image ? (
-                <div className="flex items-center gap-3 rounded-xl border border-line p-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={active.image} alt="" className="h-12 w-16 rounded-md object-cover" />
-                  <span className="flex-1 text-[12.5px] text-ink-soft">Imagem abaixo do texto</span>
-                  <IconButton label="Remover imagem" onClick={() => updateActive({ image: null })} icon={X} danger />
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => imageInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-line-strong px-3 py-2 text-[12.5px] text-ink-soft hover:text-ink"
-                >
-                  <ImagePlus className="h-4 w-4" /> Adicionar imagem ao slide (opcional)
-                </button>
-              )}
             </div>
           </div>
 
@@ -517,60 +367,9 @@ export function TweetEditor() {
 
         {/* Preview */}
         <section className="lg:col-span-2 xl:col-span-1">
-          <div className="xl:sticky xl:top-6">
-            <div className="mx-auto max-w-[400px]">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Preview</span>
-                <span className="text-[12px] text-ink-faint">
-                  {width}×{height}
-                </span>
-              </div>
-              <SlideFrame html={previewHtml} width={width} height={height} className="rounded-2xl border border-line shadow-sm" />
-              <div className="mt-3 flex items-center justify-between">
-                <IconButton label="Slide anterior" onClick={() => setActiveIndex(Math.max(0, safeIndex - 1))} disabled={safeIndex === 0} icon={ChevronLeft} />
-                <span className="text-[12.5px] text-ink-soft">
-                  {safeIndex + 1} / {slides.length}
-                </span>
-                <IconButton
-                  label="Próximo slide"
-                  onClick={() => setActiveIndex(Math.min(slides.length - 1, safeIndex + 1))}
-                  disabled={safeIndex === slides.length - 1}
-                  icon={ChevronRight}
-                />
-              </div>
-            </div>
-          </div>
+          <PreviewPane html={previewHtml} width={width} height={height} index={safeIndex} total={slides.length} onNavigate={setActiveIndex} />
         </section>
       </div>
     </div>
-  );
-}
-
-function IconButton({
-  label,
-  onClick,
-  disabled,
-  icon: Icon,
-  danger,
-}: {
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      title={label}
-      className={`grid h-8 w-8 place-items-center rounded-lg border border-line text-ink-soft transition-colors disabled:opacity-30 ${
-        danger ? "hover:border-danger hover:text-danger" : "hover:border-line-strong hover:text-ink"
-      }`}
-    >
-      <Icon className="h-4 w-4" />
-    </button>
   );
 }

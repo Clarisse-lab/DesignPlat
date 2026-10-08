@@ -13,3 +13,6 @@ export type CanvasSizeId = keyof typeof CANVAS_SIZES;
 
 export const TWEET_CANVAS_SIZES = ["portrait-3x4", "portrait-4x5", "square-1x1"] as const satisfies readonly CanvasSizeId[];
 export type TweetCanvasSizeId = (typeof TWEET_CANVAS_SIZES)[number];
+
+export const FEED_CANVAS_SIZES = ["portrait-4x5", "square-1x1", "portrait-3x4"] as const satisfies readonly CanvasSizeId[];
+export type FeedCanvasSizeId = (typeof FEED_CANVAS_SIZES)[number];
