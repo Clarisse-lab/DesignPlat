@@ -1,5 +1,7 @@
 # Progresso do projeto
 
+> A plataforma se chama **Design Mantora** (antes "DesignPlat"; o repositório continua `Clarisse-lab/DesignPlat`).
+
 Anotações para retomar o trabalho em qualquer conversa. Última atualização: 08/10/2026.
 
 ## Origem
@@ -12,7 +14,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 ## O que já está pronto
 
 - **Carrossel Tweet** funcionando: editor, geração de texto com IA, preview e exportação em PNG ou `.zip`.
-- Publicado no Railway: https://web-production-78e6c.up.railway.app/tweet
+- Publicado no Railway: https://designmantora.up.railway.app (endereço antigo `web-production-78e6c.up.railway.app` desativado em 08/10/2026)
   - Projeto `designplat`, serviço `web`, região us-west2
   - Publicado a partir do branch `claude/happy-tesla-j36oft`
 - Pull request: https://github.com/Clarisse-lab/DesignPlat/pull/1 (aguardando merge)

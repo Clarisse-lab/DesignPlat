@@ -1,4 +1,4 @@
-# DesignPlat
+# Design Mantora
 
 Plataforma para transformar texto em peças visuais prontas para publicar.
 
