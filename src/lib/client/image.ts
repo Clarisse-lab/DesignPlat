@@ -31,3 +31,23 @@ export async function imageFileToDataUrl(
     bitmap.close();
   }
 }
+
+/** Desenha a imagem reduzida num canvas e devolve os pixels, para análise no navegador. */
+export async function loadImageForAnalysis(file: Blob, maxSide: number) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas indisponível");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    return { canvas, pixels: data, width: canvas.width, height: canvas.height };
+  } finally {
+    bitmap.close();
+  }
+}

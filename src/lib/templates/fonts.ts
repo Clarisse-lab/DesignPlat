@@ -16,7 +16,27 @@ export const FONT_FILES = [
   { file: "playfair-display-latin-700-normal.woff2", family: "Playfair Display", weight: 700, range: LATIN_RANGE },
   { file: "playfair-display-latin-ext-400-normal.woff2", family: "Playfair Display", weight: 400, range: LATIN_EXT_RANGE },
   { file: "playfair-display-latin-ext-700-normal.woff2", family: "Playfair Display", weight: 700, range: LATIN_EXT_RANGE },
+  { file: "bebas-neue-latin-400-normal.woff2", family: "Bebas Neue", weight: 400, range: LATIN_RANGE },
+  { file: "bebas-neue-latin-ext-400-normal.woff2", family: "Bebas Neue", weight: 400, range: LATIN_EXT_RANGE },
+  { file: "montserrat-latin-400-normal.woff2", family: "Montserrat", weight: 400, range: LATIN_RANGE },
+  { file: "montserrat-latin-800-normal.woff2", family: "Montserrat", weight: 800, range: LATIN_RANGE },
+  { file: "montserrat-latin-ext-400-normal.woff2", family: "Montserrat", weight: 400, range: LATIN_EXT_RANGE },
+  { file: "montserrat-latin-ext-800-normal.woff2", family: "Montserrat", weight: 800, range: LATIN_EXT_RANGE },
+  { file: "caveat-latin-700-normal.woff2", family: "Caveat", weight: 700, range: LATIN_RANGE },
+  { file: "caveat-latin-ext-700-normal.woff2", family: "Caveat", weight: 700, range: LATIN_EXT_RANGE },
 ] as const;
+
+/** Fontes de título disponíveis nos templates (família, peso e ajustes de tipografia). */
+export const TITLE_FONTS = {
+  sans: { label: "Moderna", stack: '"Inter", Arial, sans-serif', weight: 700, scale: 1, uppercase: false, tracking: "-0.02em" },
+  serif: { label: "Elegante", stack: '"Playfair Display", Georgia, serif', weight: 700, scale: 1, uppercase: false, tracking: "-0.01em" },
+  display: { label: "Impacto", stack: '"Bebas Neue", Impact, sans-serif', weight: 400, scale: 1.3, uppercase: true, tracking: "0.01em" },
+  geometric: { label: "Geométrica", stack: '"Montserrat", Arial, sans-serif', weight: 800, scale: 0.92, uppercase: false, tracking: "-0.02em" },
+  hand: { label: "Manuscrita", stack: '"Caveat", cursive', weight: 700, scale: 1.3, uppercase: false, tracking: "0" },
+} as const;
+
+export type TitleFontId = keyof typeof TITLE_FONTS;
+export const TITLE_FONT_IDS = Object.keys(TITLE_FONTS) as TitleFontId[];
 
 export function fontFaceCss(resolveUrl: (file: string) => string): string {
   return FONT_FILES.map(

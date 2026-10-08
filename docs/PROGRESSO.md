@@ -17,7 +17,13 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Publicado a partir do branch `claude/happy-tesla-j36oft`
 - Pull request: https://github.com/Clarisse-lab/DesignPlat/pull/1 (aguardando merge)
 - Testado pela Clarisse em produção: a página e o download do `.zip` funcionam.
-- **Post de Feed** (`/feed`): 4 layouts por slide (Destaque, Texto, Citação, Foto), 5 paletas prontas + cores personalizadas, fonte de título moderna (Inter) ou elegante (Playfair Display), logo e @ da marca, numeração, proporções 4:5, 1:1 e 3:4. Cria os slides a partir de um texto colado (cada parágrafo vira um slide). Sem IA por enquanto.
+- **Post de Feed** (`/feed`):
+  - 8 layouts por slide: Destaque, Texto, Lista, Número, Citação, Antes × Depois, Foto e Celular (mockup), mais "Da referência" quando criado pela IA.
+  - 32 ícones, decorações de fundo (formas, pontos, degradê, moldura), alinhamento e posição do texto, tamanho dos títulos, fundo do Destaque.
+  - 5 fontes de título: Moderna (Inter), Elegante (Playfair Display), Impacto (Bebas Neue), Geométrica (Montserrat), Manuscrita (Caveat). 8 paletas prontas + cores personalizadas.
+  - Cria os slides a partir de um texto colado (cada parágrafo vira um slide).
+  - Busca de fotos grátis no Pexels (precisa de `PEXELS_API_KEY`).
+  - Imagem de referência: "Inspirar" (grátis, sem IA: cores + OCR para posição/alinhamento/layout) e "Copiar estilo com IA" (Claude cria um layout HTML/CSS no estilo; precisa da chave da Anthropic).
 
 ## Decisões tomadas
 
@@ -26,6 +32,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **Railway em vez de Netlify:** o Netlify tem limite de 60 s por requisição e 6 MB por payload, e não vem com Chromium. O Railway roda o `Dockerfile` sem limite de tempo.
 - **IA:** Claude Opus 5.5 por padrão (pode trocar com `CLAUDE_MODEL`), com fallback automático em caso de recusa.
 - **Fonte Inter** guardada no projeto, no lugar da Chirp (que vinha do site do X).
+- **Ilustrações e fotos geradas por IA ficaram de fora por enquanto:** a Clarisse preferiu explorar ao máximo o HTML (layouts, ícones, decorações) e fotos reais do Pexels.
+- **OCR servido pela própria plataforma** (sem CDN), para funcionar mesmo se um CDN estiver bloqueado.
 - **Rascunho salvo só no navegador** (`localStorage`). Nada fica salvo no servidor e as imagens só existem se forem baixadas.
 - Bugs da Central Mantora corrigidos aqui: o formato `carrossel-tweet` não ativava o prompt de tweet, e o preview era diferente da imagem final.
 
@@ -37,7 +45,9 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 4. **Histórico de carrosséis salvos** com Supabase (opcional, se for útil).
 5. **Próximas ferramentas:** Story e Apresentação (PPTX/PDF). O README explica como encaixar cada uma.
 6. **IA no Post de Feed:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
+7. **Chave do Pexels:** a Clarisse vai criar a conta gratuita e configurar `PEXELS_API_KEY` no Railway.
 
 ## Pendências de teste
 
-- Geração com IA usando a chave real (até agora só foi testada contra uma API simulada).
+- Geração com IA usando a chave real (até agora só foi testada contra uma API simulada): Carrossel Tweet e "Copiar estilo com IA".
+- Busca de fotos com a chave real do Pexels.

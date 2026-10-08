@@ -36,13 +36,18 @@ export function initials(name: string): string {
   return letters || "?";
 }
 
-/** Envolve o corpo num documento HTML completo com tamanho fixo de canvas. */
+/**
+ * Envolve o corpo num documento HTML completo com tamanho fixo de canvas.
+ * A política de segurança (CSP) impede scripts e qualquer carregamento externo:
+ * só estilos embutidos, imagens em data URL e as fontes da própria plataforma.
+ */
 export function htmlDocument(params: { width: number; height: number; fontCss: string; css: string; body: string }): string {
   const { width, height, fontCss, css, body } = params;
   return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'self' data:"/>
 <style>
 ${fontCss}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -62,15 +67,25 @@ export function safeColor(value: string | undefined | null, fallback: string): s
   return value && HEX_COLOR.test(value) ? value : fallback;
 }
 
-/** Escolhe texto claro ou escuro para ficar legível sobre a cor de fundo. */
-export function contrastText(background: string): string {
-  const hex = safeColor(background, "#000000").slice(1);
+/** Luminância relativa (WCAG) de uma cor #RRGGBB. */
+export function relativeLuminance(color: string): number {
+  const hex = safeColor(color, "#000000").slice(1);
   const [r, g, b] = [0, 2, 4].map((i) => {
     const channel = parseInt(hex.slice(i, i + 2), 16) / 255;
     return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
   });
-  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  return luminance > 0.179 ? "#111111" : "#FFFFFF";
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Razão de contraste (WCAG) entre duas cores: 1 a 21. */
+export function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/** Escolhe texto claro ou escuro para ficar legível sobre a cor de fundo. */
+export function contrastText(background: string): string {
+  return relativeLuminance(background) > 0.179 ? "#111111" : "#FFFFFF";
 }
 
 /** Primeiro tamanho cujo limite de caracteres comporta o texto. */

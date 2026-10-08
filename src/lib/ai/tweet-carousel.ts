@@ -1,6 +1,6 @@
 import "server-only";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { anthropic, CLAUDE_MODEL } from "./claude";
+import { anthropic, CLAUDE_MODEL, GenerationError } from "./claude";
 import { generatedCarouselSchema, type GeneratedCarousel, type GenerateRequest } from "../tweet/schema";
 
 const SYSTEM_PROMPT = `Você é um redator especializado em carrosséis de Instagram no formato "tweet": cada slide simula um post do X/Twitter, com texto direto, opinativo e altamente compartilhável. Escreva em português do Brasil.
@@ -26,8 +26,6 @@ Evite:
 - Travessões (—).
 
 A legenda do Instagram deve ter um gancho nos primeiros 125 caracteres, 2 ou 3 parágrafos curtos, um CTA no final e de 5 a 10 hashtags relevantes.`;
-
-export class GenerationError extends Error {}
 
 export async function generateTweetCarousel(input: GenerateRequest): Promise<GeneratedCarousel> {
   const handle = input.handle.trim().replace(/^@+/, "") || "perfil";
