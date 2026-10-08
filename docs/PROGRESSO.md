@@ -17,6 +17,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Publicado a partir do branch `claude/happy-tesla-j36oft`
 - Pull request: https://github.com/Clarisse-lab/DesignPlat/pull/1 (aguardando merge)
 - Testado pela Clarisse em produção: a página e o download do `.zip` funcionam.
+- **Post de Feed** (`/feed`): 4 layouts por slide (Destaque, Texto, Citação, Foto), 5 paletas prontas + cores personalizadas, fonte de título moderna (Inter) ou elegante (Playfair Display), logo e @ da marca, numeração, proporções 4:5, 1:1 e 3:4. Cria os slides a partir de um texto colado (cada parágrafo vira um slide). Sem IA por enquanto.
 
 ## Decisões tomadas
 
@@ -30,11 +31,12 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 ## Próximos passos
 
-1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic.
+1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic. (A Clarisse decidiu adiar enquanto a IA não for ligada.)
 2. **Configurar `ANTHROPIC_API_KEY`** no Railway (serviço `web` → Variables) e testar o "Gerar slides" com a chave real.
 3. **Fazer o merge do PR** e apontar o Railway para o branch `main`.
 4. **Histórico de carrosséis salvos** com Supabase (opcional, se for útil).
-5. **Próximas ferramentas:** Post de Feed, Story e Apresentação (PPTX/PDF). O README explica como encaixar cada uma.
+5. **Próximas ferramentas:** Story e Apresentação (PPTX/PDF). O README explica como encaixar cada uma.
+6. **IA no Post de Feed:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
 
 ## Pendências de teste
 

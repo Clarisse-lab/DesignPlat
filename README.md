@@ -5,7 +5,7 @@ Plataforma para transformar texto em peças visuais prontas para publicar.
 | Ferramenta | Status |
 |---|---|
 | **Carrossel Tweet**: slides no estilo post do X/Twitter, escritos com IA e exportados em PNG | ✅ Pronto |
-| Post de Feed (Instagram) | Planejado |
+| **Post de Feed**: posts e carrosséis de Instagram com a identidade da marca (4 layouts, paletas, logo), criados a partir do texto do conteúdo | ✅ Pronto |
 | Story (Instagram) | Planejado |
 | Apresentação (PPTX/PDF) | Planejado |
 
@@ -32,18 +32,22 @@ src/
 ├── app/
 │   ├── page.tsx                    # tela inicial com as ferramentas
 │   ├── tweet/page.tsx              # editor do Carrossel Tweet
-│   └── api/tweet/
-│       ├── generate/route.ts       # POST: gera slides + legenda com Claude
-│       └── render/route.ts         # POST: devolve PNG (?index=N) ou .zip com todos
+│   ├── feed/page.tsx               # editor do Post de Feed
+│   └── api/
+│       ├── tweet/generate/route.ts # POST: gera slides + legenda com Claude
+│       ├── tweet/render/route.ts   # POST: devolve PNG (?index=N) ou .zip com todos
+│       └── feed/render/route.ts    # idem, para o Post de Feed
 ├── components/
 │   ├── SlideFrame.tsx              # preview fiel de qualquer template HTML
-│   └── tweet/                      # editor e estado (rascunho salvo no navegador)
+│   ├── editor/                     # peças compartilhadas pelos editores (painéis, faixa de slides, preview…)
+│   ├── tweet/                      # editor do Carrossel Tweet e rascunho salvo no navegador
+│   └── feed/                       # editor do Post de Feed e rascunho salvo no navegador
 └── lib/
     ├── formats.ts                  # tamanhos de canvas (3:4, 4:5, 1:1, 9:16, 16:9)
-    ├── templates/                  # templates HTML (tweet.ts) + fontes + utilitários
-    ├── render/                     # Chromium (singleton) e HTML → PNG
+    ├── templates/                  # templates HTML (tweet.ts, feed.ts) + fontes + utilitários
+    ├── render/                     # Chromium (singleton), HTML → PNG e resposta PNG/.zip
     ├── ai/                         # cliente Claude e prompt do carrossel
-    ├── tweet/schema.ts             # contratos das rotas (Zod)
+    ├── tweet/schema.ts, feed/schema.ts  # contratos das rotas (Zod)
     └── client/                     # chamadas à API e redimensionamento de imagens
 ```
 
@@ -81,7 +85,7 @@ O projeto precisa de um servidor Node com Chromium; plataformas serverless puras
 
 ## Como adicionar as próximas ferramentas
 
-**Post de Feed e Story:** crie um template em `src/lib/templates/` (ex.: `feed.ts`, `story.ts`) usando `htmlDocument()` e um tamanho de `formats.ts` (`portrait-4x5`, `square-1x1`, `story-9x16`). O renderizador e o `SlideFrame` funcionam sem mudanças. Depois, crie a rota de geração de texto em `src/lib/ai/` e a página do editor.
+**Story:** siga o caminho do Post de Feed: um template em `src/lib/templates/story.ts` usando `htmlDocument()` e o tamanho `story-9x16`, um schema, uma rota `api/story/render` (que só monta o HTML e chama `respondWithImages`) e um editor montado com as peças de `components/editor/`.
 
 **Apresentação:** os slides também serão templates HTML em 16:9 (`slide-16x9`), com preview pelo mesmo `SlideFrame`. Para exportar:
 - **PDF**: `page.pdf()` do Puppeteer sobre o mesmo HTML;
