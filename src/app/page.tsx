@@ -17,10 +17,11 @@ const TOOLS = [
     ready: true,
   },
   {
+    href: "/story",
     title: "Story",
-    description: "Sequências de stories 9:16 geradas a partir do mesmo conteúdo.",
+    description: "Sequências de stories 9:16 com a mesma identidade do feed, com espaço para enquete, perguntas e link.",
     icon: RectangleVertical,
-    ready: false,
+    ready: true,
   },
   {
     title: "Apresentação",

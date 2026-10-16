@@ -2,7 +2,7 @@
 
 import { RotateCcw } from "lucide-react";
 import { Field, inputClass, Panel, Segmented } from "@/components/editor/ui";
-import { CANVAS_SIZES, FEED_CANVAS_SIZES } from "@/lib/formats";
+import { CANVAS_SIZES, type PostCanvasSizeId } from "@/lib/formats";
 import { FEED_DECOR_LABELS, FEED_DECORS, FEED_PALETTES, type FeedPalette, type FeedStyle } from "@/lib/templates/feed";
 import { TITLE_FONT_IDS, TITLE_FONTS } from "@/lib/templates/fonts";
 
@@ -19,10 +19,12 @@ const chipClass = (active: boolean) =>
 
 export function StylePanel({
   style,
+  sizes,
   onChange,
   onReset,
 }: {
   style: FeedStyle;
+  sizes: readonly PostCanvasSizeId[];
   onChange: (patch: Partial<FeedStyle>) => void;
   onReset: () => void;
 }) {
@@ -132,15 +134,17 @@ export function StylePanel({
           </div>
         </Field>
 
-        <Field label="Proporção">
-          <select value={style.size} onChange={(e) => onChange({ size: e.target.value as FeedStyle["size"] })} className={inputClass}>
-            {FEED_CANVAS_SIZES.map((id) => (
-              <option key={id} value={id}>
-                {CANVAS_SIZES[id].label}
-              </option>
-            ))}
-          </select>
-        </Field>
+        {sizes.length > 1 && (
+          <Field label="Proporção">
+            <select value={style.size} onChange={(e) => onChange({ size: e.target.value as FeedStyle["size"] })} className={inputClass}>
+              {sizes.map((id) => (
+                <option key={id} value={id}>
+                  {CANVAS_SIZES[id].label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         <label className="flex items-center gap-2 text-[13px] text-ink-soft">
           <input
             type="checkbox"

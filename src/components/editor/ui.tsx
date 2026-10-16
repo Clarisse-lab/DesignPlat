@@ -196,6 +196,9 @@ export function PreviewPane({
   index,
   total,
   onNavigate,
+  overlay,
+  controls,
+  maxWidth = 400,
 }: {
   html: string;
   width: number;
@@ -203,17 +206,26 @@ export function PreviewPane({
   index: number;
   total: number;
   onNavigate: (index: number) => void;
+  /** Guias desenhadas por cima do preview (não fazem parte da imagem exportada). */
+  overlay?: React.ReactNode;
+  /** Controles extras abaixo do preview. */
+  controls?: React.ReactNode;
+  maxWidth?: number;
 }) {
   return (
     <div className="xl:sticky xl:top-6">
-      <div className="mx-auto max-w-[400px]">
+      <div className="mx-auto" style={{ maxWidth }}>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Preview</span>
           <span className="text-[12px] text-ink-faint">
             {width}×{height}
           </span>
         </div>
-        <SlideFrame html={html} width={width} height={height} className="rounded-2xl border border-line shadow-sm" />
+        <div className="relative">
+          <SlideFrame html={html} width={width} height={height} className="rounded-2xl border border-line shadow-sm" />
+          {overlay && <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">{overlay}</div>}
+        </div>
+        {controls}
         <div className="mt-3 flex items-center justify-between">
           <IconButton label="Slide anterior" onClick={() => onNavigate(Math.max(0, index - 1))} disabled={index === 0} icon={ChevronLeft} />
           <span className="text-[12.5px] text-ink-soft">

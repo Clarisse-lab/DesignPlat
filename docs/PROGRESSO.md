@@ -16,8 +16,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **Carrossel Tweet** funcionando: editor, geração de texto com IA, preview e exportação em PNG ou `.zip`. Fonte do card: Inter ou Poppins.
 - Publicado no Railway: https://designmantora.up.railway.app (endereço antigo `web-production-78e6c.up.railway.app` desativado em 08/10/2026)
   - Projeto `designplat`, serviço `web`, região us-west2
-  - Publicado a partir do branch `claude/happy-tesla-j36oft`
-- PR #1 (primeira versão do Carrossel Tweet) mergeado em 08/10/2026. O restante (Post de Feed, Pixabay, nome Design Mantora, Poppins) foi para um PR novo.
+  - Publicado a partir do branch `main`: o que é feito no branch `claude/happy-tesla-j36oft` só entra no ar depois do merge do PR
+- PR #1 (primeira versão do Carrossel Tweet) e PR #2 (Post de Feed, Pixabay, nome Design Mantora, Poppins) mergeados.
 - Testado pela Clarisse em produção: a página e o download do `.zip` funcionam.
 - **Post de Feed** (`/feed`):
   - 8 layouts por slide: Destaque, Texto, Lista, Número, Citação, Antes × Depois, Foto e Celular (mockup), mais "Da referência" quando criado pela IA.
@@ -26,6 +26,12 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Cria os slides a partir de um texto colado (cada parágrafo vira um slide).
   - Busca de fotos grátis no Pixabay (`PIXABAY_API_KEY`, já configurada no Railway). O Pexels foi descartado porque pausou a emissão de chaves novas.
   - Imagem de referência: "Inspirar" (grátis, sem IA: cores + OCR para posição/alinhamento/layout) e "Copiar estilo com IA" (Claude cria um layout HTML/CSS no estilo; precisa da chave da Anthropic).
+- **Story** (`/story`), 16/10/2026:
+  - Mesmo editor e template do Post de Feed, em 1080×1920. Rascunho separado (`designplat:story-draft:v1`) e download em `stories.zip`.
+  - Faixas de segurança: 13% no topo (perfil e barra) e 17% na base (campo de resposta) ficam livres de texto. O preview mostra essas faixas (dá para esconder).
+  - Layouts exclusivos: "Enquete / Pergunta" (deixa um espaço vazio, marcado no preview, para colar o sticker no Instagram) e "Chamada (link)" (botão "Toque no link").
+  - Celular e Antes × Depois ficam empilhados no formato vertical.
+  - Botão "Importar do Post de Feed" traz os slides do rascunho do Feed.
 
 ## Decisões tomadas
 
@@ -43,10 +49,9 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic. (A Clarisse decidiu adiar enquanto a IA não for ligada.)
 2. **Configurar `ANTHROPIC_API_KEY`** no Railway (serviço `web` → Variables) e testar o "Gerar slides" com a chave real.
-3. **Fazer o merge do PR** e apontar o Railway para o branch `main`.
-4. **Histórico de carrosséis salvos** com Supabase (opcional, se for útil).
-5. **Próximas ferramentas:** Story e Apresentação (PPTX/PDF). O README explica como encaixar cada uma.
-6. **IA no Post de Feed:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
+3. **Histórico de carrosséis salvos** com Supabase (opcional, se for útil).
+4. **Próxima ferramenta:** Apresentação (PPTX/PDF). O README explica como encaixar.
+5. **IA no Post de Feed e no Story:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
 
 ## Pendências de teste
 

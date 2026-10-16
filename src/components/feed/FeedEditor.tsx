@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, Download, Wand2 } from "lucide-react";
+import { Copy, Download, Import, Wand2 } from "lucide-react";
 import {
   Field,
   ImagePicker,
@@ -23,14 +23,20 @@ import { browserFontCss } from "@/lib/templates/fonts";
 import { ReferencePanel, type AiReferenceResult } from "./ReferencePanel";
 import { SlideFields } from "./SlideFields";
 import { StylePanel } from "./StylePanel";
-import { newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
+import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
+import { StoryGuides } from "./StoryGuides";
+import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
 const VERTICAL_LABELS = { top: "no topo", center: "no meio", bottom: "na base" } as const;
 
-export function FeedEditor() {
-  const { draft, setDraft, reset } = useFeedDraft();
+/** Editor de posts com a identidade da marca: Post de Feed ou Story (mesmo template, tamanhos e layouts diferentes). */
+export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
+  const config = POST_MODES[mode];
+  const isStory = mode === "story";
+  const { draft, setDraft, reset } = useFeedDraft(config.storageKey, config.initialDraft);
   const { brand, style, slides } = draft;
+  const [showGuides, setShowGuides] = useState(true);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [content, setContent] = useState("");
@@ -81,14 +87,14 @@ export function FeedEditor() {
     showInfo(`${created.length} slide(s) criados. Ajuste o layout de cada um se quiser.`);
   };
 
-  const handleDownload = async (mode: "one" | "all") => {
-    setDownloading(mode);
+  const handleDownload = async (target: "one" | "all") => {
+    setDownloading(target);
     setMessage(null);
     try {
       await downloadRender(
         "/api/feed/render",
         { brand, style, slides: slides.map(({ layout, title, body, image, icon }) => ({ layout, title, body, image, icon })) },
-        { index: mode === "one" ? safeIndex : undefined, zipName: "post-feed.zip" },
+        { index: target === "one" ? safeIndex : undefined, zipName: config.zipName },
       );
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erro ao exportar.");
@@ -105,6 +111,28 @@ export function FeedEditor() {
     } catch {
       showError("Não foi possível copiar.");
     }
+  };
+
+  /** Traz marca, estilo e slides do rascunho do Post de Feed, já no tamanho do Story. */
+  const importFromFeed = () => {
+    let feed: unknown = null;
+    try {
+      feed = JSON.parse(window.localStorage.getItem(FEED_STORAGE_KEY) ?? "null");
+    } catch {
+      // rascunho ilegível: trata como inexistente
+    }
+    if (!isFeedDraft(feed)) {
+      showError("Não encontrei um rascunho do Post de Feed neste navegador.");
+      return;
+    }
+    if (!window.confirm(`Trazer os ${feed.slides.length} slide(s), a marca e o estilo do Post de Feed? Os stories atuais serão substituídos.`)) return;
+    setDraft({
+      brand: feed.brand,
+      style: { ...feed.style, size: config.sizes[0], customLayout: null },
+      slides: feed.slides.map((slide) => newFeedSlide({ ...slide, layout: slide.layout === "referencia" ? "texto" : slide.layout })),
+    });
+    setActiveIndex(0);
+    showInfo("Conteúdo do Post de Feed importado. Confira cada story: o formato vertical pode pedir ajustes de texto.");
   };
 
   const applyInspiration: Parameters<typeof ReferencePanel>[0]["onInspire"] = ({ palette, layout }) => {
@@ -132,10 +160,15 @@ export function FeedEditor() {
     <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-tight">Post de Feed</h1>
-          <p className="text-[13px] text-ink-soft">Posts e carrosséis com a identidade da sua marca. O preview é a imagem final.</p>
+          <h1 className="text-xl font-bold tracking-tight">{config.title}</h1>
+          <p className="max-w-2xl text-[13px] text-ink-soft">{config.subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {isStory && (
+            <ToolbarButton icon={Import} onClick={importFromFeed}>
+              Importar do Post de Feed
+            </ToolbarButton>
+          )}
           <ToolbarButton icon={Copy} onClick={copyTexts}>
             Copiar textos
           </ToolbarButton>
@@ -213,6 +246,7 @@ export function FeedEditor() {
 
           <StylePanel
             style={style}
+            sizes={config.sizes}
             onChange={updateStyle}
             onReset={() => {
               if (window.confirm("Apagar o rascunho atual e começar de novo?")) {
@@ -236,6 +270,7 @@ export function FeedEditor() {
             slide={active}
             index={safeIndex}
             total={slides.length}
+            availableLayouts={config.layouts}
             hasCustomLayout={Boolean(style.customLayout)}
             onChange={updateActive}
             onMove={moveSlide}
@@ -247,7 +282,24 @@ export function FeedEditor() {
 
         {/* Preview */}
         <section className="lg:col-span-2 xl:col-span-1">
-          <PreviewPane html={previewHtml} width={width} height={height} index={safeIndex} total={slides.length} onNavigate={setActiveIndex} />
+          <PreviewPane
+            html={previewHtml}
+            width={width}
+            height={height}
+            index={safeIndex}
+            total={slides.length}
+            onNavigate={setActiveIndex}
+            maxWidth={isStory ? 340 : 400}
+            overlay={isStory && showGuides ? <StoryGuides showStickerSlot={active.layout === "sticker"} /> : undefined}
+            controls={
+              isStory ? (
+                <label className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-ink-soft">
+                  <input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} className="h-4 w-4 accent-accent" />
+                  Mostrar áreas cobertas pelo Instagram
+                </label>
+              ) : undefined
+            }
+          />
         </section>
       </div>
     </div>

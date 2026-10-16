@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { styleFromReference } from "@/lib/ai/reference-style";
 import { GenerationError } from "@/lib/ai/claude";
-import { FEED_CANVAS_SIZES } from "@/lib/formats";
+import { POST_CANVAS_SIZES } from "@/lib/formats";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -13,7 +13,7 @@ const requestSchema = z.object({
     .string()
     .max(6_000_000)
     .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/),
-  size: z.enum(FEED_CANVAS_SIZES),
+  size: z.enum(POST_CANVAS_SIZES),
 });
 
 /** POST: recebe uma imagem de referência e devolve estilo + layout personalizado criados pela IA. */
