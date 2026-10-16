@@ -2,7 +2,7 @@
 
 > A plataforma se chama **Design Mantora** (antes "DesignPlat"; o repositório continua `Clarisse-lab/DesignPlat`).
 
-Anotações para retomar o trabalho em qualquer conversa. Última atualização: 08/10/2026.
+Anotações para retomar o trabalho em qualquer conversa. Última atualização: 16/10/2026.
 
 ## Origem
 
@@ -13,11 +13,11 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 ## O que já está pronto
 
-- **Carrossel Tweet** funcionando: editor, geração de texto com IA, preview e exportação em PNG ou `.zip`.
+- **Carrossel Tweet** funcionando: editor, geração de texto com IA, preview e exportação em PNG ou `.zip`. Fonte do card: Inter ou Poppins.
 - Publicado no Railway: https://designmantora.up.railway.app (endereço antigo `web-production-78e6c.up.railway.app` desativado em 08/10/2026)
   - Projeto `designplat`, serviço `web`, região us-west2
   - Publicado a partir do branch `claude/happy-tesla-j36oft`
-- Pull request: https://github.com/Clarisse-lab/DesignPlat/pull/1 (aguardando merge)
+- PR #1 (primeira versão do Carrossel Tweet) mergeado em 08/10/2026. O restante (Post de Feed, Pixabay, nome Design Mantora, Poppins) foi para um PR novo.
 - Testado pela Clarisse em produção: a página e o download do `.zip` funcionam.
 - **Post de Feed** (`/feed`):
   - 8 layouts por slide: Destaque, Texto, Lista, Número, Citação, Antes × Depois, Foto e Celular (mockup), mais "Da referência" quando criado pela IA.

@@ -26,7 +26,7 @@ export function newSlide(label: string, text = ""): EditorSlide {
 function initialDraft(): TweetDraft {
   return {
     profile: { name: "Seu Nome", handle: "seuusuario", avatar: null, verified: true },
-    style: { theme: "light", size: "portrait-3x4" },
+    style: { theme: "light", size: "portrait-3x4", font: "inter" },
     slides: [
       newSlide("Hook", "Enquanto você estuda a teoria,\nseu concorrente está **aplicando**."),
       newSlide("Argumento", "O erro mais comum é achar que precisa estar pronto para começar.\n\nVocê aprende **fazendo**."),

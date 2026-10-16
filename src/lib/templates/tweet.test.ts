@@ -45,6 +45,14 @@ describe("renderTweetSlide", () => {
   });
 });
 
+describe("fonte do card", () => {
+  it("usa Inter por padrão e Poppins quando escolhida", () => {
+    expect(renderTweetSlide({ slide: { text: "x" }, profile, style, fontCss: "" })).toContain('font-family:"Inter"');
+    const html = renderTweetSlide({ slide: { text: "x" }, profile, style: { ...style, font: "poppins" }, fontCss: "" });
+    expect(html).toContain('font-family:"Poppins"');
+  });
+});
+
 describe("tweetFontSize", () => {
   it("diminui a fonte conforme o texto cresce", () => {
     expect(tweetFontSize("curto", false)).toBeGreaterThan(tweetFontSize("x".repeat(300), false));

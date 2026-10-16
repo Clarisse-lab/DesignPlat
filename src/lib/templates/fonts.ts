@@ -24,7 +24,20 @@ export const FONT_FILES = [
   { file: "montserrat-latin-ext-800-normal.woff2", family: "Montserrat", weight: 800, range: LATIN_EXT_RANGE },
   { file: "caveat-latin-700-normal.woff2", family: "Caveat", weight: 700, range: LATIN_RANGE },
   { file: "caveat-latin-ext-700-normal.woff2", family: "Caveat", weight: 700, range: LATIN_EXT_RANGE },
+  { file: "poppins-latin-400-normal.woff2", family: "Poppins", weight: 400, range: LATIN_RANGE },
+  { file: "poppins-latin-700-normal.woff2", family: "Poppins", weight: 700, range: LATIN_RANGE },
+  { file: "poppins-latin-ext-400-normal.woff2", family: "Poppins", weight: 400, range: LATIN_EXT_RANGE },
+  { file: "poppins-latin-ext-700-normal.woff2", family: "Poppins", weight: 700, range: LATIN_EXT_RANGE },
 ] as const;
+
+/** Fontes do Carrossel Tweet (nome, perfil e texto). A Poppins é mais larga, por isso sai um pouco menor. */
+export const TWEET_FONTS = {
+  inter: { label: "Inter", stack: '"Inter", Arial, sans-serif', scale: 1 },
+  poppins: { label: "Poppins", stack: '"Poppins", Arial, sans-serif', scale: 0.93 },
+} as const;
+
+export type TweetFontId = keyof typeof TWEET_FONTS;
+export const TWEET_FONT_IDS = Object.keys(TWEET_FONTS) as TweetFontId[];
 
 /** Fontes de título disponíveis nos templates (família, peso e ajustes de tipografia). */
 export const TITLE_FONTS = {

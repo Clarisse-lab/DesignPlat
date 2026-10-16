@@ -20,7 +20,7 @@ import {
 import { downloadRender, generateCarousel } from "@/lib/client/api";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { CANVAS_SIZES, TWEET_CANVAS_SIZES } from "@/lib/formats";
-import { browserFontCss } from "@/lib/templates/fonts";
+import { browserFontCss, TWEET_FONT_IDS, TWEET_FONTS } from "@/lib/templates/fonts";
 import { renderTweetSlide, type TweetProfile, type TweetStyle } from "@/lib/templates/tweet";
 import { MAX_SLIDES } from "@/lib/tweet/schema";
 import { newSlide, useTweetDraft, type EditorSlide } from "./useTweetDraft";
@@ -268,6 +268,13 @@ export function TweetEditor() {
                     { value: "light", label: "Claro" },
                     { value: "dark", label: "Escuro" },
                   ]}
+                />
+              </Field>
+              <Field label="Fonte">
+                <Segmented
+                  value={style.font ?? "inter"}
+                  onChange={(font) => updateStyle({ font })}
+                  options={TWEET_FONT_IDS.map((id) => ({ value: id, label: TWEET_FONTS[id].label }))}
                 />
               </Field>
               <Field label="Proporção">

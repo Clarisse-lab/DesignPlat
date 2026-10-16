@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { TWEET_CANVAS_SIZES } from "../formats";
+import { TWEET_FONT_IDS, type TweetFontId } from "../templates/fonts";
 
 // Data URLs de imagem já vêm redimensionadas do navegador; o limite evita payloads abusivos.
 const imageDataUrl = z.string().max(3_000_000).nullish();
@@ -18,6 +19,7 @@ export const tweetProfileSchema = z.object({
 export const tweetStyleSchema = z.object({
   theme: z.enum(["light", "dark"]),
   size: z.enum(TWEET_CANVAS_SIZES),
+  font: z.enum(TWEET_FONT_IDS as [TweetFontId, ...TweetFontId[]]).optional(),
 });
 
 export const tweetSlideSchema = z.object({
