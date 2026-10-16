@@ -2,6 +2,7 @@
 // O mesmo HTML é usado no preview do editor e na imagem final (PNG).
 
 import { CANVAS_SIZES, type TweetCanvasSizeId } from "../formats";
+import { TWEET_FONTS, type TweetFontId } from "./fonts";
 import { escapeHtml, formatRichText, htmlDocument, initials, safeImageSrc } from "./utils";
 
 export type TweetTheme = "light" | "dark";
@@ -23,6 +24,8 @@ export interface TweetSlide {
 export interface TweetStyle {
   theme: TweetTheme;
   size: TweetCanvasSizeId;
+  /** Fonte do card; rascunhos antigos sem esse campo usam Inter. */
+  font?: TweetFontId;
 }
 
 const THEMES: Record<TweetTheme, { bg: string; text: string; muted: string; border: string }> = {
@@ -58,14 +61,15 @@ export function renderTweetSlide(params: {
   const avatarSrc = safeImageSrc(profile.avatar);
   const imageSrc = safeImageSrc(slide.image);
   const handle = profile.handle.trim().replace(/^@+/, "");
-  const fontSize = tweetFontSize(slide.text, Boolean(imageSrc));
+  const font = TWEET_FONTS[style.font ?? "inter"] ?? TWEET_FONTS.inter;
+  const fontSize = Math.round(tweetFontSize(slide.text, Boolean(imageSrc)) * font.scale);
 
   const avatar = avatarSrc
     ? `<img class="avatar" src="${avatarSrc}" alt=""/>`
     : `<div class="avatar initials">${escapeHtml(initials(profile.name))}</div>`;
 
   const css = `
-body{background:${colors.bg};font-family:"Inter",Arial,sans-serif;color:${colors.text}}
+body{background:${colors.bg};font-family:${font.stack};color:${colors.text}}
 .card{width:${width}px;height:${height}px;padding:80px 76px;display:flex;flex-direction:column;justify-content:center}
 .header{display:flex;align-items:center;gap:24px}
 .avatar{width:128px;height:128px;border-radius:50%;object-fit:cover;flex-shrink:0}

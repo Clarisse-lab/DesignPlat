@@ -10,10 +10,11 @@ const TOOLS = [
     ready: true,
   },
   {
+    href: "/feed",
     title: "Post de Feed",
-    description: "Imagens para o feed do Instagram a partir do texto do conteúdo.",
+    description: "Posts e carrosséis para o Instagram com a identidade da sua marca, a partir do texto do conteúdo.",
     icon: Square,
-    ready: false,
+    ready: true,
   },
   {
     title: "Story",
