@@ -1,7 +1,7 @@
 import "server-only";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { CANVAS_SIZES, type FeedCanvasSizeId } from "../formats";
+import { CANVAS_SIZES, type PostCanvasSizeId } from "../formats";
 import { FEED_DECORS, type CustomLayout, type FeedPalette, type FeedStyle } from "../templates/feed";
 import { TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "../templates/fonts";
 import { ICON_IDS } from "../templates/icons";
@@ -67,7 +67,7 @@ Regras:
 export async function styleFromReference(input: {
   imageBase64: string;
   mediaType: "image/jpeg" | "image/png" | "image/webp";
-  size: FeedCanvasSizeId;
+  size: PostCanvasSizeId;
 }): Promise<ReferenceStyleResult> {
   const { width, height } = CANVAS_SIZES[input.size];
 

@@ -6,7 +6,7 @@ Plataforma para transformar texto em peças visuais prontas para publicar.
 |---|---|
 | **Carrossel Tweet**: slides no estilo post do X/Twitter, escritos com IA e exportados em PNG | ✅ Pronto |
 | **Post de Feed**: posts e carrosséis de Instagram com a identidade da marca: 8 layouts, ícones, decorações, 5 fontes de título, fotos do Pixabay e imagem de referência (cores e posição sem IA, ou estilo completo com IA) | ✅ Pronto |
-| Story (Instagram) | Planejado |
+| **Story**: sequências 9:16 com o mesmo motor do Post de Feed, faixas de segurança do Instagram marcadas no preview, layouts de Enquete/Pergunta (espaço livre para o sticker) e Chamada (link), e importação dos slides do Post de Feed | ✅ Pronto |
 | Apresentação (PPTX/PDF) | Planejado |
 
 ## Stack
@@ -38,6 +38,7 @@ src/
 │   ├── page.tsx                    # tela inicial com as ferramentas
 │   ├── tweet/page.tsx              # editor do Carrossel Tweet
 │   ├── feed/page.tsx               # editor do Post de Feed
+│   ├── story/page.tsx              # editor do Story (mesmo editor, modo "story")
 │   └── api/
 │       ├── tweet/generate/route.ts # POST: gera slides + legenda com Claude
 │       ├── tweet/render/route.ts   # POST: devolve PNG (?index=N) ou .zip com todos
@@ -48,7 +49,7 @@ src/
 │   ├── SlideFrame.tsx              # preview fiel de qualquer template HTML
 │   ├── editor/                     # peças compartilhadas pelos editores (painéis, faixa de slides, preview…)
 │   ├── tweet/                      # editor do Carrossel Tweet e rascunho salvo no navegador
-│   └── feed/                       # editor do Post de Feed e rascunho salvo no navegador
+│   └── feed/                       # editor do Post de Feed e do Story (modes.ts), guias do Story e rascunho salvo no navegador
 └── lib/
     ├── formats.ts                  # tamanhos de canvas (3:4, 4:5, 1:1, 9:16, 16:9)
     ├── templates/                  # templates HTML (tweet.ts, feed.ts), fontes, ícones, sanitização
@@ -94,7 +95,7 @@ O projeto precisa de um servidor Node com Chromium; plataformas serverless puras
 
 ## Como adicionar as próximas ferramentas
 
-**Story:** siga o caminho do Post de Feed: um template em `src/lib/templates/story.ts` usando `htmlDocument()` e o tamanho `story-9x16`, um schema, uma rota `api/story/render` (que só monta o HTML e chama `respondWithImages`) e um editor montado com as peças de `components/editor/`.
+**Story (já feito):** reaproveita o template `feed.ts` e a rota `api/feed/render` com o tamanho `story-9x16`. Quando o canvas é vertical, o template aplica as faixas de segurança (`STORY_SAFE_ZONES`). Os layouts exclusivos do Story ficam em `STORY_ONLY_LAYOUTS`, e o editor muda de modo pela configuração em `components/feed/modes.ts`.
 
 **Apresentação:** os slides também serão templates HTML em 16:9 (`slide-16x9`), com preview pelo mesmo `SlideFrame`. Para exportar:
 - **PDF**: `page.pdf()` do Puppeteer sobre o mesmo HTML;

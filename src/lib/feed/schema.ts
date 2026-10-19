@@ -1,7 +1,7 @@
 // Contratos das rotas do Post de Feed (validados no servidor).
 
 import { z } from "zod";
-import { FEED_CANVAS_SIZES } from "../formats";
+import { POST_CANVAS_SIZES } from "../formats";
 import { FEED_DECORS, FEED_LAYOUTS } from "../templates/feed";
 import { TITLE_FONT_IDS, type TitleFontId } from "../templates/fonts";
 
@@ -26,7 +26,7 @@ export const feedRenderRequestSchema = z.object({
     logo: imageDataUrl,
   }),
   style: z.object({
-    size: z.enum(FEED_CANVAS_SIZES),
+    size: z.enum(POST_CANVAS_SIZES),
     palette: feedPaletteSchema,
     titleFont: titleFontSchema,
     showPageNumber: z.boolean(),

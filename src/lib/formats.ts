@@ -16,3 +16,8 @@ export type TweetCanvasSizeId = (typeof TWEET_CANVAS_SIZES)[number];
 
 export const FEED_CANVAS_SIZES = ["portrait-4x5", "square-1x1", "portrait-3x4"] as const satisfies readonly CanvasSizeId[];
 export type FeedCanvasSizeId = (typeof FEED_CANVAS_SIZES)[number];
+
+/** Tamanhos aceitos pelo template de post (Feed + Story). */
+export const POST_CANVAS_SIZES = [...FEED_CANVAS_SIZES, "story-9x16"] as const satisfies readonly CanvasSizeId[];
+export type PostCanvasSizeId = (typeof POST_CANVAS_SIZES)[number];
+export const STORY_CANVAS_SIZES = ["story-9x16"] as const satisfies readonly PostCanvasSizeId[];

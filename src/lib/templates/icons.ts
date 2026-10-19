@@ -1,6 +1,7 @@
 // Ícones disponíveis nos templates (Lucide, licença ISC), em SVG puro.
 
 import {
+  ArrowUpRight,
   Award,
   BookOpen,
   Brain,
@@ -76,7 +77,7 @@ export type IconId = keyof typeof ICONS;
 export const ICON_IDS = Object.keys(ICONS) as IconId[];
 
 // Ícones de apoio usados pelos próprios layouts (não aparecem na lista de escolha).
-export const MARK_ICONS = { yes: Check, no: X } as const;
+export const MARK_ICONS = { yes: Check, no: X, link: ArrowUpRight } as const;
 
 function withClass(svg: string, className: string): string {
   return svg.replace(/class="[^"]*"/, `class="${className}"`).replace(/\s+/g, " ").trim();

@@ -110,3 +110,34 @@ describe("novos layouts", () => {
     expect(old.titleScale).toBe(1.4);
   });
 });
+
+describe("Story 9:16", () => {
+  const story: FeedStyle = { ...DEFAULT_FEED_STYLE, size: "story-9x16" };
+  const base = { brand, style: story, index: 0, total: 1, fontCss: "" };
+
+  it("usa 1080×1920 e afasta o conteúdo das faixas cobertas pelo Instagram", () => {
+    const html = renderFeedSlide({ ...base, slide: { layout: "texto", title: "Oi", body: "" } });
+    expect(html).toContain("width:1080px;height:1920px");
+    // 13% de 1920 no topo e 17% na base
+    expect(html).toContain("padding:250px");
+    expect(html).toContain("326px");
+  });
+
+  it("deixa o espaço do sticker vazio no layout de enquete", () => {
+    const html = renderFeedSlide({ ...base, slide: { layout: "sticker", title: "Qual tema?", body: "" } });
+    expect(html).toContain('class="sticker-slot"');
+    expect(html).toContain("Qual tema?");
+  });
+
+  it("mostra o botão de link com texto padrão quando o corpo está vazio", () => {
+    expect(renderFeedSlide({ ...base, slide: { layout: "cta", title: "Blog", body: "" } })).toContain("Toque no link");
+    const html = renderFeedSlide({ ...base, slide: { layout: "cta", title: "Blog", body: "Leia agora" } });
+    expect(html).toContain('class="cta-btn"');
+    expect(html).toContain("Leia agora");
+  });
+
+  it("mantém o padding normal no feed", () => {
+    const html = renderFeedSlide({ ...base, style: DEFAULT_FEED_STYLE, slide: { layout: "texto", title: "Oi", body: "" } });
+    expect(html).not.toContain("padding:250px");
+  });
+});

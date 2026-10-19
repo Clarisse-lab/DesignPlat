@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Search, Trash2 } from "lucide-react";
 import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
-import { FEED_LAYOUT_LABELS, FEED_LAYOUTS, type FeedLayout } from "@/lib/templates/feed";
+import { FEED_LAYOUT_LABELS, type FeedLayout } from "@/lib/templates/feed";
 import { ICON_IDS, ICONS } from "@/lib/templates/icons";
 import type { FeedEditorSlide } from "./useFeedDraft";
 
@@ -31,6 +31,13 @@ const FIELDS: Record<FeedLayout, LayoutFields> = {
   },
   foto: { title: "Título", body: "Texto (opcional)", image: "Foto" },
   celular: { title: "Título", body: "Texto (opcional)", image: "Imagem na tela do celular", icon: true, hint: "Ótimo para mostrar um app, site ou print." },
+  sticker: {
+    title: "Pergunta ou chamada",
+    body: "Texto de apoio (opcional)",
+    icon: true,
+    hint: "A parte de baixo fica livre para você colar a enquete, a caixinha de perguntas ou o link no próprio Instagram (a área aparece tracejada no preview).",
+  },
+  cta: { title: "Chamada", body: "Texto do botão", icon: true, hint: "Se deixar o texto do botão vazio, aparece \"Toque no link\"." },
   referencia: { title: "Título", body: "Texto (opcional)", image: "Imagem (opcional)", icon: true },
 };
 
@@ -38,6 +45,7 @@ export function SlideFields({
   slide,
   index,
   total,
+  availableLayouts,
   hasCustomLayout,
   onChange,
   onMove,
@@ -48,6 +56,7 @@ export function SlideFields({
   slide: FeedEditorSlide;
   index: number;
   total: number;
+  availableLayouts: readonly FeedLayout[];
   hasCustomLayout: boolean;
   onChange: (patch: Partial<FeedEditorSlide>) => void;
   onMove: (delta: -1 | 1) => void;
@@ -58,7 +67,7 @@ export function SlideFields({
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
   const fields = FIELDS[slide.layout];
-  const layouts = FEED_LAYOUTS.filter((layout) => layout !== "referencia" || hasCustomLayout || slide.layout === "referencia");
+  const layouts = availableLayouts.filter((layout) => layout !== "referencia" || hasCustomLayout || slide.layout === "referencia");
 
   return (
     <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">

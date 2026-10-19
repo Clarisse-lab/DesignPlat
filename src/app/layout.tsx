@@ -24,6 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/feed" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
                 Post de Feed
               </Link>
+              <Link href="/story" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
+                Story
+              </Link>
             </nav>
           </div>
         </header>

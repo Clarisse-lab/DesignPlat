@@ -1,7 +1,7 @@
 // Template do "Post de Feed": posts e carrosséis de Instagram com identidade da marca.
 // Cada slide escolhe um layout; cores, fonte, alinhamento e decoração valem para todos.
 
-import { CANVAS_SIZES, type FeedCanvasSizeId } from "../formats";
+import { CANVAS_SIZES, type PostCanvasSizeId } from "../formats";
 import { TITLE_FONTS, type TitleFontId } from "./fonts";
 import { iconSvg, markSvg } from "./icons";
 import { sanitizeLayoutCss, sanitizeLayoutHtml } from "./sanitize";
@@ -16,6 +16,8 @@ export const FEED_LAYOUTS = [
   "comparacao",
   "foto",
   "celular",
+  "sticker",
+  "cta",
   "referencia",
 ] as const;
 export type FeedLayout = (typeof FEED_LAYOUTS)[number];
@@ -29,8 +31,22 @@ export const FEED_LAYOUT_LABELS: Record<FeedLayout, string> = {
   comparacao: "Antes × Depois",
   foto: "Foto",
   celular: "Celular",
+  sticker: "Enquete / Pergunta",
+  cta: "Chamada (link)",
   referencia: "Da referência",
 };
+
+/** Layouts pensados para Story (aparecem só no editor de Story). */
+export const STORY_ONLY_LAYOUTS: readonly FeedLayout[] = ["sticker", "cta"];
+
+/**
+ * Áreas do Story cobertas pela interface do Instagram, em % da altura:
+ * no topo a barra de progresso e o perfil, na base o campo de resposta.
+ */
+export const STORY_SAFE_ZONES = { topPercent: 13, bottomPercent: 17 } as const;
+
+/** Espaço deixado livre no layout Enquete / Pergunta para colar o sticker no Instagram, em % da altura. */
+export const STICKER_SLOT = { topPercent: 52, heightPercent: 23 } as const;
 
 export const FEED_DECORS = ["nenhum", "formas", "pontos", "degrade", "moldura"] as const;
 export type FeedDecor = (typeof FEED_DECORS)[number];
@@ -76,7 +92,7 @@ export interface CustomLayout {
 }
 
 export interface FeedStyle {
-  size: FeedCanvasSizeId;
+  size: PostCanvasSizeId;
   palette: FeedPalette;
   titleFont: TitleFontId;
   showPageNumber: boolean;
@@ -177,6 +193,10 @@ export function renderFeedSlide(params: {
   const { slide, brand, index, total, fontCss } = params;
   const style = resolveFeedStyle(params.style);
   const { width, height } = CANVAS_SIZES[style.size];
+  // No Story o Instagram cobre o topo (perfil) e a base (resposta): o conteúdo fica fora dessas faixas.
+  const isStory = height / width > 1.6;
+  const padTop = isStory ? Math.round((height * STORY_SAFE_ZONES.topPercent) / 100) : 88;
+  const padBottom = isStory ? Math.round((height * STORY_SAFE_ZONES.bottomPercent) / 100) : 72;
 
   const bg = safeColor(style.palette.background, "#FFFFFF");
   const text = safeColor(style.palette.text, "#16161A");
@@ -288,7 +308,7 @@ export function renderFeedSlide(params: {
       content = `
         <div class="main">
           ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:44px">${title}</h2>` : ""}
-          <div class="compare${right ? "" : " single"}">${column(left, right ? "before" : "after")}${column(right, "after")}</div>
+          <div class="compare${right && !isStory ? "" : " single"}">${column(left, right ? "before" : "after")}${column(right, "after")}</div>
         </div>`;
       break;
     }
@@ -307,18 +327,42 @@ export function renderFeedSlide(params: {
     case "celular": {
       const titleSize = ts(sizeByLength(slide.title, [[30, 64], [70, 54]], 44));
       const bodySize = sizeByLength(slide.body, [[100, 34], [200, 30]], 26);
-      const phoneHeight = Math.min(820, height - 270);
+      const phoneHeight = isStory ? Math.min(980, height - padTop - padBottom - 420) : Math.min(820, height - 270);
       const phoneWidth = Math.round(phoneHeight * 0.48);
       const screen = imageSrc
         ? `<img src="${imageSrc}" alt=""/>`
         : `<div class="screen-empty">${iconSvg(slide.icon, "icon") || escapeHtml(initials(brand.name))}</div>`;
       content = `
-        <div class="main main-phone">
+        <div class="main main-phone${isStory ? " stacked" : ""}">
           <div class="phone-text">
             ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:28px">${title}</h2>` : ""}
             ${hasBody ? `<p class="body" style="font-size:${bodySize}px">${body}</p>` : ""}
           </div>
           <div class="phone" style="width:${phoneWidth}px;height:${phoneHeight}px"><div class="notch"></div><div class="screen">${screen}</div></div>
+        </div>`;
+      break;
+    }
+    case "sticker": {
+      // Deixa um espaço livre onde a pessoa cola a enquete, a caixinha de perguntas ou o link no Instagram.
+      const titleSize = ts(sizeByLength(slide.title, [[30, 92], [60, 78], [110, 64]], 54));
+      const bodySize = sizeByLength(slide.body, [[80, 38], [160, 34]], 30);
+      const slotTop = Math.round((height * STICKER_SLOT.topPercent) / 100);
+      content = `
+        <div class="main main-sticker" style="max-height:${slotTop - padTop - 40}px">
+          ${slide.icon ? `<div class="badge">${iconSvg(slide.icon, "icon")}</div>` : ""}
+          ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:28px">${title}</h2>` : ""}
+          ${hasBody ? `<p class="body" style="font-size:${bodySize}px">${body}</p>` : ""}
+        </div>
+        <div class="sticker-slot" style="top:${slotTop}px;height:${Math.round((height * STICKER_SLOT.heightPercent) / 100)}px"></div>`;
+      break;
+    }
+    case "cta": {
+      const titleSize = ts(sizeByLength(slide.title, [[30, 100], [60, 84], [110, 68]], 56));
+      content = `
+        <div class="main main-cta">
+          ${iconSvg(slide.icon, `icon icon-plain icon-accent`)}
+          ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px">${title}</h2>` : ""}
+          <div class="cta-btn">${markSvg("link", "cta-icon")}<span>${hasBody ? body : "Toque no link"}</span></div>
         </div>`;
       break;
     }
@@ -328,7 +372,7 @@ export function renderFeedSlide(params: {
   const css = `
 body{background:${pageBg};color:${pageColor};font-family:"Inter",Arial,sans-serif}
 ${style.decor === "degrade" && decorAllowed ? `body{background:linear-gradient(160deg,${pageBg} 0%,color-mix(in srgb,${decorColor} 22%,${pageBg}) 100%)}` : ""}
-.page-wrap{position:relative;width:${width}px;height:${height}px;padding:88px 92px 72px;display:flex;flex-direction:column;overflow:hidden}
+.page-wrap{position:relative;width:${width}px;height:${height}px;padding:${padTop}px 92px ${padBottom}px;display:flex;flex-direction:column;overflow:hidden}
 .page-wrap>*{position:relative;z-index:1}
 .main{flex:1;display:flex;flex-direction:column;justify-content:${JUSTIFY[style.verticalAlign]};align-items:${align === "center" ? "center" : "flex-start"};text-align:${align};min-height:0}
 .title{font-family:${font.stack};font-weight:${font.weight};line-height:${font.uppercase ? 1 : 1.08};letter-spacing:${font.tracking};${font.uppercase ? "text-transform:uppercase;" : ""}overflow-wrap:break-word;max-width:100%}
@@ -362,10 +406,19 @@ blockquote.title{margin-top:24px}
 .col ul{list-style:none;display:flex;flex-direction:column;gap:18px}
 .col li{padding-left:28px;position:relative}
 .col li:before{content:"";position:absolute;left:0;top:.55em;width:10px;height:10px;border-radius:50%;background:currentColor;opacity:.5}
-.photo{margin:-88px -92px 56px;height:${Math.round(height * 0.56)}px;background:${accent};flex-shrink:0}
+.photo{margin:-${padTop}px -92px 56px;height:${Math.round(height * (isStory ? 0.5 : 0.56))}px;background:${accent};flex-shrink:0}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
 .main-photo{justify-content:flex-start}
 .main-phone{flex-direction:row;align-items:center;justify-content:space-between;gap:56px;text-align:left}
+.main-phone.stacked{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:56px}
+.main-phone.stacked .phone{align-self:center}
+.main-phone.stacked .phone-text{flex:none}
+.main-sticker{flex:none;justify-content:flex-start;overflow:hidden}
+.main-sticker~.footer{margin-top:auto}
+.sticker-slot{position:absolute!important;left:92px;right:92px}
+.main-cta{justify-content:center;align-items:center;text-align:center}
+.cta-btn{margin-top:64px;display:inline-flex;align-items:center;gap:20px;padding:32px 60px;border-radius:999px;background:${accent};color:${onAccent};font-size:42px;font-weight:700;box-shadow:0 24px 48px rgba(0,0,0,.18)}
+.cta-icon{width:48px;height:48px;stroke-width:2.5;flex-shrink:0}
 .phone-text{flex:1;min-width:0}
 .phone{flex-shrink:0;border-radius:64px;background:#0B0B0C;padding:16px;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.25)}
 .notch{position:absolute;top:30px;left:50%;transform:translateX(-50%);width:34%;height:28px;border-radius:14px;background:#0B0B0C;z-index:2}
