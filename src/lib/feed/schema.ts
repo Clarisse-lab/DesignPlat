@@ -45,6 +45,7 @@ export const feedRenderRequestSchema = z.object({
         body: z.string().max(1500),
         image: imageDataUrl,
         icon: z.string().max(40).nullish(),
+        notes: z.string().max(3000).nullish(),
       }),
     )
     .min(1)

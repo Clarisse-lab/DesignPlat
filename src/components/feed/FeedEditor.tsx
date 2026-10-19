@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Copy, Download, Import, Wand2 } from "lucide-react";
+import { Copy, Download, FileText, Import, Presentation, Wand2 } from "lucide-react";
 import {
   Field,
   ImagePicker,
@@ -15,10 +15,17 @@ import {
   ToolbarButton,
   type NoticeMessage,
 } from "@/components/editor/ui";
-import { downloadRender } from "@/lib/client/api";
+import { downloadFile, downloadRender } from "@/lib/client/api";
 import { MAX_FEED_SLIDES } from "@/lib/feed/schema";
 import { CANVAS_SIZES } from "@/lib/formats";
-import { FEED_LAYOUT_LABELS, renderFeedSlide, splitContentIntoSlides, type FeedBrand, type FeedStyle } from "@/lib/templates/feed";
+import {
+  FEED_LAYOUT_LABELS,
+  renderFeedSlide,
+  sectionNumberAt,
+  splitContentIntoSlides,
+  type FeedBrand,
+  type FeedStyle,
+} from "@/lib/templates/feed";
 import { browserFontCss } from "@/lib/templates/fonts";
 import { ReferencePanel, type AiReferenceResult } from "./ReferencePanel";
 import { SlideFields } from "./SlideFields";
@@ -30,17 +37,20 @@ import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from ".
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
 const VERTICAL_LABELS = { top: "no topo", center: "no meio", bottom: "na base" } as const;
 
-/** Editor de posts com a identidade da marca: Post de Feed ou Story (mesmo template, tamanhos e layouts diferentes). */
+type DownloadTarget = "one" | "all" | "pdf" | "pptx";
+
+/** Editor com a identidade da marca: Post de Feed, Story ou Apresentação (mesmo template, tamanhos e layouts diferentes). */
 export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const config = POST_MODES[mode];
   const isStory = mode === "story";
+  const isPresentation = mode === "apresentacao";
   const { draft, setDraft, reset } = useFeedDraft(config.storageKey, config.initialDraft);
   const { brand, style, slides } = draft;
   const [showGuides, setShowGuides] = useState(true);
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [content, setContent] = useState("");
-  const [downloading, setDownloading] = useState<"one" | "all" | null>(null);
+  const [downloading, setDownloading] = useState<DownloadTarget | null>(null);
   const [message, setMessage] = useState<NoticeMessage | null>(null);
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
@@ -48,8 +58,17 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const { width, height } = CANVAS_SIZES[style.size];
 
   const previewHtml = useMemo(
-    () => renderFeedSlide({ slide: active, brand, style, index: safeIndex, total: slides.length, fontCss: browserFontCss }),
-    [active, brand, style, safeIndex, slides.length],
+    () =>
+      renderFeedSlide({
+        slide: active,
+        brand,
+        style,
+        index: safeIndex,
+        total: slides.length,
+        fontCss: browserFontCss,
+        sectionNumber: sectionNumberAt(slides, safeIndex),
+      }),
+    [active, brand, style, safeIndex, slides],
   );
 
   const showError = (text: string) => setMessage({ kind: "error", text });
@@ -87,15 +106,20 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     showInfo(`${created.length} slide(s) criados. Ajuste o layout de cada um se quiser.`);
   };
 
-  const handleDownload = async (target: "one" | "all") => {
+  const handleDownload = async (target: DownloadTarget) => {
     setDownloading(target);
     setMessage(null);
+    const payload = {
+      brand,
+      style,
+      slides: slides.map(({ layout, title, body, image, icon, notes }) => ({ layout, title, body, image, icon, notes: notes || null })),
+    };
     try {
-      await downloadRender(
-        "/api/feed/render",
-        { brand, style, slides: slides.map(({ layout, title, body, image, icon }) => ({ layout, title, body, image, icon })) },
-        { index: target === "one" ? safeIndex : undefined, zipName: config.zipName },
-      );
+      if (target === "pdf" || target === "pptx") {
+        await downloadFile(`/api/presentation/export?format=${target}`, payload, `apresentacao.${target}`);
+      } else {
+        await downloadRender("/api/feed/render", payload, { index: target === "one" ? safeIndex : undefined, zipName: config.zipName });
+      }
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erro ao exportar.");
     } finally {
@@ -156,6 +180,27 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     showInfo(`Layout "${result.name}" criado e aplicado no slide atual. Ele fica disponível como "Da referência" para os outros slides.`);
   };
 
+  const preview = (
+    <PreviewPane
+      html={previewHtml}
+      width={width}
+      height={height}
+      index={safeIndex}
+      total={slides.length}
+      onNavigate={setActiveIndex}
+      maxWidth={isStory ? 340 : isPresentation ? 760 : 400}
+      overlay={isStory && showGuides ? <StoryGuides showStickerSlot={active.layout === "sticker"} /> : undefined}
+      controls={
+        isStory ? (
+          <label className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-ink-soft">
+            <input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} className="h-4 w-4 accent-accent" />
+            Mostrar áreas cobertas pelo Instagram
+          </label>
+        ) : undefined
+      }
+    />
+  );
+
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -175,15 +220,37 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           <ToolbarButton icon={Download} busy={downloading === "one"} disabled={downloading !== null} onClick={() => handleDownload("one")}>
             Baixar slide
           </ToolbarButton>
-          <ToolbarButton icon={Download} primary busy={downloading === "all"} disabled={downloading !== null} onClick={() => handleDownload("all")}>
-            Baixar todos (.zip)
+          <ToolbarButton
+            icon={Download}
+            primary={!isPresentation}
+            busy={downloading === "all"}
+            disabled={downloading !== null}
+            onClick={() => handleDownload("all")}
+          >
+            {isPresentation ? "Imagens (.zip)" : "Baixar todos (.zip)"}
           </ToolbarButton>
+          {isPresentation && (
+            <>
+              <ToolbarButton icon={FileText} busy={downloading === "pdf"} disabled={downloading !== null} onClick={() => handleDownload("pdf")}>
+                PDF
+              </ToolbarButton>
+              <ToolbarButton
+                icon={Presentation}
+                primary
+                busy={downloading === "pptx"}
+                disabled={downloading !== null}
+                onClick={() => handleDownload("pptx")}
+              >
+                PowerPoint (.pptx)
+              </ToolbarButton>
+            </>
+          )}
         </div>
       </div>
 
       <Notice message={message} onClose={() => setMessage(null)} />
 
-      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_400px]">
+      <div className={`grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] ${isPresentation ? "" : "xl:grid-cols-[300px_minmax(0,1fr)_400px]"}`}>
         {/* Configurações */}
         <aside className="space-y-4">
           <Panel title="Criar a partir do texto">
@@ -232,7 +299,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
               <Field label="Nome">
                 <input value={brand.name} onChange={(e) => updateBrand({ name: e.target.value })} className={inputClass} maxLength={80} />
               </Field>
-              <Field label="Usuário">
+              <Field label={isPresentation ? "Usuário (opcional; sem ele, o rodapé mostra o nome)" : "Usuário"}>
                 <input
                   value={brand.handle}
                   onChange={(e) => updateBrand({ handle: e.target.value.replace(/\s+/g, "") })}
@@ -259,6 +326,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
 
         {/* Slides + editor */}
         <section className="min-w-0 space-y-4">
+          {isPresentation && <div className="rounded-2xl border border-line bg-surface p-4">{preview}</div>}
           <SlideStrip
             items={slides.map((s) => ({ id: s.id, label: FEED_LAYOUT_LABELS[s.layout], preview: s.title }))}
             activeIndex={safeIndex}
@@ -272,6 +340,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             total={slides.length}
             availableLayouts={config.layouts}
             hasCustomLayout={Boolean(style.customLayout)}
+            showNotes={isPresentation}
             onChange={updateActive}
             onMove={moveSlide}
             onRemove={removeSlide}
@@ -280,27 +349,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           />
         </section>
 
-        {/* Preview */}
-        <section className="lg:col-span-2 xl:col-span-1">
-          <PreviewPane
-            html={previewHtml}
-            width={width}
-            height={height}
-            index={safeIndex}
-            total={slides.length}
-            onNavigate={setActiveIndex}
-            maxWidth={isStory ? 340 : 400}
-            overlay={isStory && showGuides ? <StoryGuides showStickerSlot={active.layout === "sticker"} /> : undefined}
-            controls={
-              isStory ? (
-                <label className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-ink-soft">
-                  <input type="checkbox" checked={showGuides} onChange={(e) => setShowGuides(e.target.checked)} className="h-4 w-4 accent-accent" />
-                  Mostrar áreas cobertas pelo Instagram
-                </label>
-              ) : undefined
-            }
-          />
-        </section>
+        {/* Preview (na Apresentação ele fica largo, acima do editor do slide) */}
+        {!isPresentation && <section className="lg:col-span-2 xl:col-span-1">{preview}</section>}
       </div>
     </div>
   );

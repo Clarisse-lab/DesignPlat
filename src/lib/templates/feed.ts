@@ -1,4 +1,5 @@
 // Template do "Post de Feed": posts e carrosséis de Instagram com identidade da marca.
+// O mesmo template serve ao Story (9:16) e à Apresentação (16:9).
 // Cada slide escolhe um layout; cores, fonte, alinhamento e decoração valem para todos.
 
 import { CANVAS_SIZES, type PostCanvasSizeId } from "../formats";
@@ -18,6 +19,8 @@ export const FEED_LAYOUTS = [
   "celular",
   "sticker",
   "cta",
+  "secao",
+  "colunas",
   "referencia",
 ] as const;
 export type FeedLayout = (typeof FEED_LAYOUTS)[number];
@@ -33,11 +36,33 @@ export const FEED_LAYOUT_LABELS: Record<FeedLayout, string> = {
   celular: "Celular",
   sticker: "Enquete / Pergunta",
   cta: "Chamada (link)",
+  secao: "Seção",
+  colunas: "Colunas",
   referencia: "Da referência",
 };
 
 /** Layouts pensados para Story (aparecem só no editor de Story). */
 export const STORY_ONLY_LAYOUTS: readonly FeedLayout[] = ["sticker", "cta"];
+
+/** Layouts pensados para Apresentação (aparecem só no editor de Apresentação). */
+export const PRESENTATION_ONLY_LAYOUTS: readonly FeedLayout[] = ["secao", "colunas"];
+
+/** Número da seção de um slide "Seção": quantos slides desse layout existem até ele (inclusive). */
+export function sectionNumberAt(slides: readonly Pick<FeedSlide, "layout">[], index: number): number {
+  return slides.slice(0, index + 1).filter((slide) => slide.layout === "secao").length;
+}
+
+/** Blocos separados por linha em branco; a primeira linha de cada bloco é o rótulo. */
+export function columnBlocks(body: string): { label: string; text: string }[] {
+  return body
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const [label, ...rest] = block.split("\n");
+      return { label: label.trim(), text: rest.join("\n").trim() };
+    });
+}
 
 /**
  * Áreas do Story cobertas pela interface do Instagram, em % da altura:
@@ -69,6 +94,8 @@ export interface FeedSlide {
   image?: string | null;
   /** Ícone opcional (ver icons.ts). */
   icon?: string | null;
+  /** Notas do apresentador (só Apresentação; não aparecem na imagem, vão para o PPTX). */
+  notes?: string | null;
 }
 
 export interface FeedBrand {
@@ -189,6 +216,8 @@ export function renderFeedSlide(params: {
   index: number;
   total: number;
   fontCss: string;
+  /** Número exibido no layout Seção (ver sectionNumberAt). */
+  sectionNumber?: number;
 }): string {
   const { slide, brand, index, total, fontCss } = params;
   const style = resolveFeedStyle(params.style);
@@ -197,6 +226,12 @@ export function renderFeedSlide(params: {
   const isStory = height / width > 1.6;
   const padTop = isStory ? Math.round((height * STORY_SAFE_ZONES.topPercent) / 100) : 88;
   const padBottom = isStory ? Math.round((height * STORY_SAFE_ZONES.bottomPercent) / 100) : 72;
+  // Na Apresentação (16:9) o texto ganha margens laterais maiores e linhas mais curtas.
+  const isLandscape = width > height;
+  const padX = isLandscape ? 140 : 92;
+  const sidePhotoWidth = Math.round(width * 0.46);
+  let padLeft = padX;
+  const shapeBase = Math.min(width, height);
 
   const bg = safeColor(style.palette.background, "#FFFFFF");
   const text = safeColor(style.palette.text, "#16161A");
@@ -205,7 +240,8 @@ export function renderFeedSlide(params: {
   const font = TITLE_FONTS[style.titleFont];
   const imageSrc = safeImageSrc(slide.image);
   const pageLabel = style.showPageNumber && total > 1 ? `${index + 1}/${total}` : null;
-  const ts = (size: number) => Math.round(size * style.titleScale * font.scale);
+  // No 16:9 sobra espaço na largura: os títulos crescem um pouco.
+  const ts = (size: number) => Math.round(size * style.titleScale * font.scale * (isLandscape ? 1.12 : 1));
 
   const title = formatRichText(slide.title);
   const body = formatRichText(slide.body);
@@ -260,12 +296,14 @@ export function renderFeedSlide(params: {
     case "lista": {
       const items = listItems(slide.body);
       const titleSize = ts(sizeByLength(slide.title, [[40, 66], [80, 56]], 46));
-      const itemSize = items.length <= 3 ? 46 : items.length <= 5 ? 40 : items.length <= 7 ? 34 : 28;
+      const twoColumns = isLandscape && items.length > 4;
+      const rows = twoColumns ? Math.ceil(items.length / 2) : items.length;
+      const itemSize = rows <= 3 ? 46 : rows <= 5 ? 40 : rows <= 7 ? 34 : 28;
       content = `
         <div class="main">
           ${slide.icon ? `<div class="badge">${iconSvg(slide.icon, "icon")}</div>` : ""}
           ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:44px">${title}</h2>` : ""}
-          <ol class="list" style="font-size:${itemSize}px">
+          <ol class="list${twoColumns ? " two" : ""}" style="font-size:${itemSize}px">
             ${items.map((item, i) => `<li><span class="num">${String(i + 1).padStart(2, "0")}</span><span>${formatRichText(item)}</span></li>`).join("")}
           </ol>
         </div>`;
@@ -316,8 +354,9 @@ export function renderFeedSlide(params: {
       const titleSize = ts(sizeByLength(slide.title, [[40, 60], [90, 52]], 44));
       const bodySize = sizeByLength(slide.body, [[140, 34], [260, 30]], 27);
       decorAllowed = false;
+      if (isLandscape) padLeft = sidePhotoWidth + 110;
       content = `
-        <div class="photo">${imageSrc ? `<img src="${imageSrc}" alt=""/>` : ""}</div>
+        <div class="photo${isLandscape ? " side" : ""}">${imageSrc ? `<img src="${imageSrc}" alt=""/>` : ""}</div>
         <div class="main main-photo">
           ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:24px">${title}</h2>` : ""}
           ${hasBody ? `<p class="body" style="font-size:${bodySize}px">${body}</p>` : ""}
@@ -366,19 +405,58 @@ export function renderFeedSlide(params: {
         </div>`;
       break;
     }
+    case "secao": {
+      // Divisória entre partes da apresentação: número grande, título e subtítulo.
+      const size = ts(sizeByLength(slide.title, [[30, 120], [60, 100], [110, 80]], 64));
+      if (style.coverBackground === "accent") {
+        pageBg = accent;
+        pageColor = onAccent;
+        decorColor = onAccent;
+      }
+      const number = String(params.sectionNumber ?? 1).padStart(2, "0");
+      content = `
+        <div class="main main-section">
+          <div class="section-number">${number}</div>
+          ${iconSvg(slide.icon, `icon icon-plain${pageBg === bg ? " icon-accent" : ""}`)}
+          ${hasTitle ? `<h1 class="title" style="font-size:${size}px">${title}</h1>` : ""}
+          ${hasBody ? `<p class="lead">${body}</p>` : ""}
+        </div>`;
+      break;
+    }
+    case "colunas": {
+      const blocks = columnBlocks(slide.body).slice(0, 4);
+      const titleSize = ts(sizeByLength(slide.title, [[40, 64], [80, 54]], 46));
+      const textSize = blocks.length <= 2 ? 36 : blocks.length === 3 ? 32 : 28;
+      const cards = blocks
+        .map(
+          (block, i) => `<div class="card">
+            <span class="card-num">${String(i + 1).padStart(2, "0")}</span>
+            <h3 class="card-title">${formatRichText(block.label)}</h3>
+            ${block.text ? `<p class="card-text" style="font-size:${textSize}px">${formatRichText(block.text)}</p>` : ""}
+          </div>`,
+        )
+        .join("");
+      content = `
+        <div class="main">
+          ${slide.icon ? `<div class="badge">${iconSvg(slide.icon, "icon")}</div>` : ""}
+          ${hasTitle ? `<h2 class="title" style="font-size:${titleSize}px;margin-bottom:56px">${title}</h2>` : ""}
+          <div class="cards" style="grid-template-columns:repeat(${isLandscape ? Math.max(1, blocks.length) : 1},1fr)">${cards}</div>
+        </div>`;
+      break;
+    }
   }
 
   const align = style.align;
   const css = `
 body{background:${pageBg};color:${pageColor};font-family:"Inter",Arial,sans-serif}
 ${style.decor === "degrade" && decorAllowed ? `body{background:linear-gradient(160deg,${pageBg} 0%,color-mix(in srgb,${decorColor} 22%,${pageBg}) 100%)}` : ""}
-.page-wrap{position:relative;width:${width}px;height:${height}px;padding:${padTop}px 92px ${padBottom}px;display:flex;flex-direction:column;overflow:hidden}
+.page-wrap{position:relative;width:${width}px;height:${height}px;padding:${padTop}px ${padX}px ${padBottom}px ${padLeft}px;display:flex;flex-direction:column;overflow:hidden}
 .page-wrap>*{position:relative;z-index:1}
 .main{flex:1;display:flex;flex-direction:column;justify-content:${JUSTIFY[style.verticalAlign]};align-items:${align === "center" ? "center" : "flex-start"};text-align:${align};min-height:0}
 .title{font-family:${font.stack};font-weight:${font.weight};line-height:${font.uppercase ? 1 : 1.08};letter-spacing:${font.tracking};${font.uppercase ? "text-transform:uppercase;" : ""}overflow-wrap:break-word;max-width:100%}
 strong{font-weight:700}
-.lead{margin-top:40px;font-size:38px;line-height:1.4;opacity:.88;max-width:860px}
-.body{line-height:1.45;overflow-wrap:break-word;max-width:100%}
+.lead{margin-top:40px;font-size:38px;line-height:1.4;opacity:.88;max-width:${isLandscape ? 1200 : 860}px}
+.body{line-height:1.45;overflow-wrap:break-word;max-width:${isLandscape ? "1400px" : "100%"}}
 .body strong,.list strong,.compare strong{color:${accent}}
 .icon{width:72px;height:72px;stroke-width:1.75}
 .icon-plain{width:120px;height:120px;margin-bottom:40px}
@@ -389,6 +467,7 @@ strong{font-weight:700}
 .cover-shade{position:absolute!important;inset:0;z-index:0!important;background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.9) 100%)}
 .list{list-style:none;display:flex;flex-direction:column;gap:.75em;text-align:left;line-height:1.3}
 .list li{display:flex;align-items:flex-start;gap:28px}
+.list.two{display:grid;grid-template-columns:1fr 1fr;column-gap:96px;row-gap:.75em;width:100%}
 .num{flex-shrink:0;min-width:1.9em;height:1.9em;border-radius:50%;background:${accent};color:${onAccent};font-weight:700;font-size:.8em;display:flex;align-items:center;justify-content:center;margin-top:-.15em}
 .big-number{color:${accent};line-height:.95}
 .rule{width:120px;height:10px;border-radius:5px;background:${accent};margin:40px 0 36px;opacity:.35}
@@ -406,8 +485,10 @@ blockquote.title{margin-top:24px}
 .col ul{list-style:none;display:flex;flex-direction:column;gap:18px}
 .col li{padding-left:28px;position:relative}
 .col li:before{content:"";position:absolute;left:0;top:.55em;width:10px;height:10px;border-radius:50%;background:currentColor;opacity:.5}
-.photo{margin:-${padTop}px -92px 56px;height:${Math.round(height * (isStory ? 0.5 : 0.56))}px;background:${accent};flex-shrink:0}
+.photo{margin:-${padTop}px -${padX}px 56px;height:${Math.round(height * (isStory ? 0.5 : 0.56))}px;background:${accent};flex-shrink:0}
 .photo img{width:100%;height:100%;object-fit:cover;display:block}
+.photo.side{position:absolute!important;left:0;top:0;bottom:0;width:${sidePhotoWidth}px;height:auto;margin:0}
+.photo.side~.main-photo{justify-content:${JUSTIFY[style.verticalAlign]}}
 .main-photo{justify-content:flex-start}
 .main-phone{flex-direction:row;align-items:center;justify-content:space-between;gap:56px;text-align:left}
 .main-phone.stacked{flex-direction:column;align-items:stretch;justify-content:flex-start;gap:56px}
@@ -419,6 +500,14 @@ blockquote.title{margin-top:24px}
 .main-cta{justify-content:center;align-items:center;text-align:center}
 .cta-btn{margin-top:64px;display:inline-flex;align-items:center;gap:20px;padding:32px 60px;border-radius:999px;background:${accent};color:${onAccent};font-size:42px;font-weight:700;box-shadow:0 24px 48px rgba(0,0,0,.18)}
 .cta-icon{width:48px;height:48px;stroke-width:2.5;flex-shrink:0}
+.section-number{font-family:${font.stack};font-weight:800;font-size:220px;line-height:.9;opacity:.22;margin-bottom:24px}
+.main-section .icon-plain{margin-bottom:32px}
+.cards{display:grid;gap:32px;width:100%;text-align:left}
+.card{border-radius:32px;padding:52px 48px;background:color-mix(in srgb,${accent} 9%,transparent);border-top:8px solid ${accent}}
+.card-num{display:block;font-weight:800;font-size:30px;color:${accent};margin-bottom:22px}
+.card-title{font-family:${font.stack};font-weight:${font.weight};${font.uppercase ? "text-transform:uppercase;" : ""}font-size:44px;line-height:1.15;margin-bottom:20px}
+.card-text{line-height:1.45;opacity:.85}
+.card-text strong{color:${accent}}
 .phone-text{flex:1;min-width:0}
 .phone{flex-shrink:0;border-radius:64px;background:#0B0B0C;padding:16px;position:relative;box-shadow:0 40px 80px rgba(0,0,0,.25)}
 .notch{position:absolute;top:30px;left:50%;transform:translateX(-50%);width:34%;height:28px;border-radius:14px;background:#0B0B0C;z-index:2}
@@ -433,8 +522,8 @@ blockquote.title{margin-top:24px}
 .page{opacity:.6;font-weight:400}
 .decor{position:absolute!important;inset:0;z-index:0!important;pointer-events:none}
 .shape{position:absolute;border-radius:50%;background:${decorColor}}
-.s1{width:${Math.round(width * 0.7)}px;height:${Math.round(width * 0.7)}px;right:-${Math.round(width * 0.25)}px;top:-${Math.round(width * 0.3)}px;opacity:.10}
-.s2{width:${Math.round(width * 0.32)}px;height:${Math.round(width * 0.32)}px;left:-${Math.round(width * 0.1)}px;bottom:-${Math.round(width * 0.08)}px;opacity:.14}
+.s1{width:${Math.round(shapeBase * 0.7)}px;height:${Math.round(shapeBase * 0.7)}px;right:-${Math.round(shapeBase * 0.25)}px;top:-${Math.round(shapeBase * 0.3)}px;opacity:.10}
+.s2{width:${Math.round(shapeBase * 0.32)}px;height:${Math.round(shapeBase * 0.32)}px;left:-${Math.round(shapeBase * 0.1)}px;bottom:-${Math.round(shapeBase * 0.08)}px;opacity:.14}
 .dots{position:absolute;width:340px;height:340px;background-image:radial-gradient(${decorColor} 4px,transparent 4.5px);background-size:38px 38px;opacity:.35}
 .d1{right:48px;top:48px}
 .d2{left:40px;bottom:150px;width:220px;height:220px;opacity:.22}

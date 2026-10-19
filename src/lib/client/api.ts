@@ -33,8 +33,22 @@ export async function downloadRender(
   });
   if (!response.ok) throw new Error(await errorMessage(response, "Erro ao gerar as imagens."));
 
-  const blob = await response.blob();
   const filename = index === undefined ? zipName : `slide-${String(index + 1).padStart(2, "0")}.png`;
+  saveBlob(await response.blob(), filename);
+}
+
+/** Gera um arquivo no servidor (ex.: PDF ou PPTX) e dispara o download. */
+export async function downloadFile(endpoint: string, input: unknown, filename: string): Promise<void> {
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await errorMessage(response, "Erro ao gerar o arquivo."));
+  saveBlob(await response.blob(), filename);
+}
+
+function saveBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

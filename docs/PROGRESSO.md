@@ -2,7 +2,7 @@
 
 > A plataforma se chama **Design Mantora** (antes "DesignPlat"; o repositório continua `Clarisse-lab/DesignPlat`).
 
-Anotações para retomar o trabalho em qualquer conversa. Última atualização: 16/10/2026.
+Anotações para retomar o trabalho em qualquer conversa. Última atualização: 19/10/2026.
 
 ## Origem
 
@@ -32,6 +32,11 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Layouts exclusivos: "Enquete / Pergunta" (deixa um espaço vazio, marcado no preview, para colar o sticker no Instagram) e "Chamada (link)" (botão "Toque no link").
   - Celular e Antes × Depois ficam empilhados no formato vertical.
   - Botão "Importar do Post de Feed" traz os slides do rascunho do Feed.
+- **Apresentação** (`/apresentacao`), 19/10/2026:
+  - Mesmo editor e template do Post de Feed, em 1920×1080. Rascunho separado (`designplat:presentation-draft:v1`).
+  - Layouts exclusivos: "Seção" (divisória com número automático 01, 02…) e "Colunas" (até 4 cards). No 16:9 a foto fica ao lado do texto e listas com mais de 4 itens viram duas colunas.
+  - Notas do apresentador em cada slide (não aparecem no slide; vão para as anotações do PPTX).
+  - Download em PDF (texto selecionável), PowerPoint (PPTX, slides como imagem) ou imagens (.zip).
 
 ## Decisões tomadas
 
@@ -43,6 +48,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **Ilustrações e fotos geradas por IA ficaram de fora por enquanto:** a Clarisse preferiu explorar ao máximo o HTML (layouts, ícones, decorações) e fotos reais de banco gratuito (Pixabay).
 - **OCR servido pela própria plataforma** (sem CDN), para funcionar mesmo se um CDN estiver bloqueado.
 - **Rascunho salvo só no navegador** (`localStorage`). Nada fica salvo no servidor e as imagens só existem se forem baixadas.
+- **PPTX com slides em imagem:** fica idêntico ao preview e pronto para apresentar, mas o texto não é editável no PowerPoint. Um PPTX editável exigiria recriar cada layout com formas nativas; fica como melhoria futura, se for preciso.
 - Bugs da Central Mantora corrigidos aqui: o formato `carrossel-tweet` não ativava o prompt de tweet, e o preview era diferente da imagem final.
 
 ## Próximos passos
@@ -50,8 +56,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic. (A Clarisse decidiu adiar enquanto a IA não for ligada.)
 2. **Configurar `ANTHROPIC_API_KEY`** no Railway (serviço `web` → Variables) e testar o "Gerar slides" com a chave real.
 3. **Histórico de carrosséis salvos** com Supabase (opcional, se for útil).
-4. **Próxima ferramenta:** Apresentação (PPTX/PDF). O README explica como encaixar.
-5. **IA no Post de Feed e no Story:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
+4. **PPTX editável** (opcional): recriar os layouts com formas nativas do PowerPoint.
+5. **IA no Post de Feed, no Story e na Apresentação:** gerar os slides a partir de um tema, como no Carrossel Tweet (quando a IA for ligada).
 
 ## Pendências de teste
 

@@ -12,12 +12,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <body className="min-h-screen font-sans antialiased">
         <header className="border-b border-line bg-surface">
-          <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between px-4 sm:px-6">
-            <Link href="/" className="flex items-center gap-2 text-[15px] font-bold tracking-tight">
+          <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6">
+            <Link href="/" className="flex shrink-0 items-center gap-2 text-[15px] font-bold tracking-tight">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-[11px] tracking-tight text-white">DM</span>
               Design Mantora
             </Link>
-            <nav className="flex items-center gap-1 text-[13px] font-medium text-ink-soft">
+            <nav className="-mr-2 flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[13px] font-medium text-ink-soft">
               <Link href="/tweet" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
                 Carrossel Tweet
               </Link>
@@ -26,6 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
               <Link href="/story" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
                 Story
+              </Link>
+              <Link href="/apresentacao" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
+                Apresentação
               </Link>
             </nav>
           </div>
