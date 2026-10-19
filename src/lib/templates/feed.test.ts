@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_FEED_STYLE, listItems, renderFeedSlide, resolveFeedStyle, splitContentIntoSlides, type FeedStyle } from "./feed";
+import {
+  columnBlocks,
+  DEFAULT_FEED_STYLE,
+  listItems,
+  renderFeedSlide,
+  resolveFeedStyle,
+  sectionNumberAt,
+  splitContentIntoSlides,
+  type FeedStyle,
+} from "./feed";
 import { contrastText, safeColor } from "./utils";
 
 const brand = { name: "Mantora Lab", handle: "@mantoralab", logo: null };
@@ -139,5 +148,42 @@ describe("Story 9:16", () => {
   it("mantém o padding normal no feed", () => {
     const html = renderFeedSlide({ ...base, style: DEFAULT_FEED_STYLE, slide: { layout: "texto", title: "Oi", body: "" } });
     expect(html).not.toContain("padding:250px");
+  });
+});
+
+describe("Apresentação 16:9", () => {
+  const deck: FeedStyle = { ...DEFAULT_FEED_STYLE, size: "slide-16x9" };
+  const base = { brand, style: deck, index: 0, total: 1, fontCss: "" };
+
+  it("usa 1920×1080 com margens laterais maiores", () => {
+    const html = renderFeedSlide({ ...base, slide: { layout: "texto", title: "Oi", body: "" } });
+    expect(html).toContain("width:1920px;height:1080px");
+    expect(html).toContain("padding:88px 140px 72px 140px");
+  });
+
+  it("coloca a foto ao lado do texto no layout Foto", () => {
+    const html = renderFeedSlide({ ...base, slide: { layout: "foto", title: "Oi", body: "" } });
+    expect(html).toContain('class="photo side"');
+    expect(html).toContain("padding:88px 140px 72px 993px");
+  });
+
+  it("divide listas longas em duas colunas", () => {
+    const html = renderFeedSlide({ ...base, slide: { layout: "lista", title: "x", body: "a\nb\nc\nd\ne\nf" } });
+    expect(html).toContain('class="list two"');
+  });
+
+  it("numera as seções e monta as colunas", () => {
+    const slides = [{ layout: "secao" as const }, { layout: "texto" as const }, { layout: "secao" as const }];
+    expect(sectionNumberAt(slides, 2)).toBe(2);
+    expect(renderFeedSlide({ ...base, sectionNumber: 2, slide: { layout: "secao", title: "Parte", body: "" } })).toContain(">02<");
+
+    expect(columnBlocks("Educar\nEnsina algo\n\nVender\n\nInspirar\nHistórias")).toEqual([
+      { label: "Educar", text: "Ensina algo" },
+      { label: "Vender", text: "" },
+      { label: "Inspirar", text: "Histórias" },
+    ]);
+    const html = renderFeedSlide({ ...base, slide: { layout: "colunas", title: "Pilares", body: "A\nx\n\nB\ny" } });
+    expect(html).toContain("grid-template-columns:repeat(2,1fr)");
+    expect(html.match(/class="card"/g)).toHaveLength(2);
   });
 });

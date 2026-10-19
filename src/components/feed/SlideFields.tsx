@@ -38,6 +38,14 @@ const FIELDS: Record<FeedLayout, LayoutFields> = {
     hint: "A parte de baixo fica livre para você colar a enquete, a caixinha de perguntas ou o link no próprio Instagram (a área aparece tracejada no preview).",
   },
   cta: { title: "Chamada", body: "Texto do botão", icon: true, hint: "Se deixar o texto do botão vazio, aparece \"Toque no link\"." },
+  secao: { title: "Nome da seção", body: "Subtítulo (opcional)", icon: true, hint: "O número da seção (01, 02…) é contado automaticamente." },
+  colunas: {
+    title: "Título (opcional)",
+    body: "Colunas",
+    bodyRows: 9,
+    icon: true,
+    hint: "Até 4 colunas, separadas por uma linha em branco. A primeira linha de cada coluna é o título dela e as seguintes, o texto.",
+  },
   referencia: { title: "Título", body: "Texto (opcional)", image: "Imagem (opcional)", icon: true },
 };
 
@@ -47,6 +55,7 @@ export function SlideFields({
   total,
   availableLayouts,
   hasCustomLayout,
+  showNotes = false,
   onChange,
   onMove,
   onRemove,
@@ -58,6 +67,8 @@ export function SlideFields({
   total: number;
   availableLayouts: readonly FeedLayout[];
   hasCustomLayout: boolean;
+  /** Mostra o campo de notas do apresentador (Apresentação). */
+  showNotes?: boolean;
   onChange: (patch: Partial<FeedEditorSlide>) => void;
   onMove: (delta: -1 | 1) => void;
   onRemove: () => void;
@@ -177,6 +188,19 @@ export function SlideFields({
             </div>
           )}
         </div>
+      )}
+
+      {showNotes && (
+        <Field label="Notas do apresentador (opcional)">
+          <textarea
+            value={slide.notes ?? ""}
+            onChange={(e) => onChange({ notes: e.target.value })}
+            rows={3}
+            maxLength={3000}
+            placeholder="O que falar neste slide. Não aparece no slide; vai para as anotações do PowerPoint."
+            className={`${inputClass} resize-y`}
+          />
+        </Field>
       )}
 
       <p className="text-[12px] text-ink-faint">Dica: **palavra** fica em negrito, na cor de destaque.</p>

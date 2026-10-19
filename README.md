@@ -7,7 +7,7 @@ Plataforma para transformar texto em peças visuais prontas para publicar.
 | **Carrossel Tweet**: slides no estilo post do X/Twitter, escritos com IA e exportados em PNG | ✅ Pronto |
 | **Post de Feed**: posts e carrosséis de Instagram com a identidade da marca: 8 layouts, ícones, decorações, 5 fontes de título, fotos do Pixabay e imagem de referência (cores e posição sem IA, ou estilo completo com IA) | ✅ Pronto |
 | **Story**: sequências 9:16 com o mesmo motor do Post de Feed, faixas de segurança do Instagram marcadas no preview, layouts de Enquete/Pergunta (espaço livre para o sticker) e Chamada (link), e importação dos slides do Post de Feed | ✅ Pronto |
-| Apresentação (PPTX/PDF) | Planejado |
+| **Apresentação**: slides 16:9 com o mesmo motor do Post de Feed, layouts de Seção e Colunas, notas do apresentador e download em PDF (texto selecionável), PowerPoint (PPTX) ou imagens | ✅ Pronto |
 
 ## Stack
 
@@ -39,11 +39,13 @@ src/
 │   ├── tweet/page.tsx              # editor do Carrossel Tweet
 │   ├── feed/page.tsx               # editor do Post de Feed
 │   ├── story/page.tsx              # editor do Story (mesmo editor, modo "story")
+│   ├── apresentacao/page.tsx       # editor da Apresentação (mesmo editor, modo "apresentacao")
 │   └── api/
 │       ├── tweet/generate/route.ts # POST: gera slides + legenda com Claude
 │       ├── tweet/render/route.ts   # POST: devolve PNG (?index=N) ou .zip com todos
 │       ├── feed/render/route.ts    # idem, para o Post de Feed
 │       ├── feed/reference-style/   # POST: referência → estilo + layout com IA
+│       ├── presentation/export/    # POST: apresentação em PDF (?format=pdf) ou PowerPoint (?format=pptx)
 │       └── photos/                 # busca no Pixabay e download seguro da foto escolhida
 ├── components/
 │   ├── SlideFrame.tsx              # preview fiel de qualquer template HTML
@@ -97,8 +99,8 @@ O projeto precisa de um servidor Node com Chromium; plataformas serverless puras
 
 **Story (já feito):** reaproveita o template `feed.ts` e a rota `api/feed/render` com o tamanho `story-9x16`. Quando o canvas é vertical, o template aplica as faixas de segurança (`STORY_SAFE_ZONES`). Os layouts exclusivos do Story ficam em `STORY_ONLY_LAYOUTS`, e o editor muda de modo pela configuração em `components/feed/modes.ts`.
 
-**Apresentação:** os slides também serão templates HTML em 16:9 (`slide-16x9`), com preview pelo mesmo `SlideFrame`. Para exportar:
-- **PDF**: `page.pdf()` do Puppeteer sobre o mesmo HTML;
-- **PPTX**: [`pptxgenjs`](https://gitbrent.github.io/PptxGenJS/), montando o arquivo a partir da mesma estrutura de dados do slide. Assim o texto continua editável no PowerPoint ou no Google Slides, em vez de virar imagem.
+**Apresentação (já feita):** também reaproveita `feed.ts`, agora no tamanho `slide-16x9` (margens maiores, foto ao lado do texto, listas longas em duas colunas). Os layouts exclusivos ficam em `PRESENTATION_ONLY_LAYOUTS`. A rota `api/presentation/export` gera:
+- **PDF**: `page.pdf()` do Puppeteer sobre o mesmo HTML de cada slide, juntando as páginas com `pdf-lib`. Texto e formas continuam vetoriais (texto selecionável, fontes embutidas).
+- **PPTX**: [`pptxgenjs`](https://gitbrent.github.io/PptxGenJS/) com cada slide como imagem de tela cheia (fiel ao preview) e as notas do apresentador nas anotações. O texto não fica editável no PowerPoint; para isso seria preciso recriar cada layout com as formas nativas do pptxgenjs.
 
 **Persistência:** hoje o rascunho fica no navegador (`localStorage`). Quando precisar de histórico, vários usuários ou biblioteca de marcas, o caminho natural é Supabase (banco + storage para os PNGs).

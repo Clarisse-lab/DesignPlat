@@ -24,10 +24,11 @@ const TOOLS = [
     ready: true,
   },
   {
+    href: "/apresentacao",
     title: "Apresentação",
-    description: "Decks de slides exportáveis em PPTX e PDF.",
+    description: "Slides 16:9 com a identidade da marca, para baixar em PDF, PowerPoint (PPTX) ou imagens.",
     icon: Presentation,
-    ready: false,
+    ready: true,
   },
 ];
 
