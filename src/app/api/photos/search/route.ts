@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server";
 import { PhotosUnavailableError, searchPixabay } from "@/lib/photos/pixabay";
+import { isResponse, requireMember } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
 /** GET /api/photos/search?q=café&page=1 — busca fotos gratuitas no Pixabay. */
 export async function GET(request: Request) {
+  const member = await requireMember(request);
+  if (isResponse(member)) return member;
+
   const params = new URL(request.url).searchParams;
   const query = (params.get("q") ?? "").trim().slice(0, 100);
   const page = Math.min(50, Math.max(1, Number(params.get("page")) || 1));

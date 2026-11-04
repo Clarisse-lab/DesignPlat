@@ -6,6 +6,8 @@ import { resolveFeedStyle, type FeedBrand, type FeedLayout, type FeedSlide, type
 export type FeedEditorSlide = FeedSlide & { id: string };
 
 export interface FeedDraft {
+  /** Cliente da Mantora escolhido no painel Cliente (kit de marca, fotos e custo da IA). */
+  cliente?: { slug: string; nome: string } | null;
   brand: FeedBrand;
   style: FeedStyle;
   slides: FeedEditorSlide[];

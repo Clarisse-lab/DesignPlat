@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPixabayImageUrl } from "@/lib/photos/pixabay";
+import { isResponse, requireMember } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 
@@ -10,6 +11,9 @@ const MAX_BYTES = 15_000_000;
  * pelo servidor, para o navegador poder redimensioná-la e embuti-la no slide.
  */
 export async function GET(request: Request) {
+  const member = await requireMember(request);
+  if (isResponse(member)) return member;
+
   const url = new URL(request.url).searchParams.get("url") ?? "";
   if (!isPixabayImageUrl(url)) return NextResponse.json({ error: "Imagem não permitida." }, { status: 400 });
 

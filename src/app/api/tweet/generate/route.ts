@@ -3,11 +3,15 @@ import { NextResponse } from "next/server";
 import { GenerationError } from "@/lib/ai/claude";
 import { generateTweetCarousel } from "@/lib/ai/tweet-carousel";
 import { generateRequestSchema } from "@/lib/tweet/schema";
+import { isResponse, requireMember } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function POST(request: Request) {
+  const member = await requireMember(request, { strict: true });
+  if (isResponse(member)) return member;
+
   const parsed = generateRequestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Dados inválidos para gerar o carrossel." }, { status: 400 });

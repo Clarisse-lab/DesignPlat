@@ -4,6 +4,7 @@ import { z } from "zod";
 import { styleFromReference } from "@/lib/ai/reference-style";
 import { GenerationError } from "@/lib/ai/claude";
 import { POST_CANVAS_SIZES } from "@/lib/formats";
+import { isResponse, requireMember } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -18,6 +19,9 @@ const requestSchema = z.object({
 
 /** POST: recebe uma imagem de referência e devolve estilo + layout personalizado criados pela IA. */
 export async function POST(request: Request) {
+  const member = await requireMember(request, { strict: true });
+  if (isResponse(member)) return member;
+
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Envie uma imagem PNG, JPG ou WEBP." }, { status: 400 });
