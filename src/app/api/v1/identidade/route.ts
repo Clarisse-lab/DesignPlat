@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error(`[v1/identidade] ref=${ref ?? "-"} falha:`, error);
-    return NextResponse.json({ error: "Falha ao ler a identidade." }, { status: 500 });
+    // A rota é autenticada (só sistemas da Mantora): o detalhe ajuda a diagnosticar sem abrir os logs.
+    return NextResponse.json({ error: `Falha ao ler a identidade: ${String(error).slice(0, 300)}` }, { status: 500 });
   }
 }
