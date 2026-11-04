@@ -32,6 +32,28 @@ O Chromium roda **sem JavaScript e sem acesso à rede**: só carrega o que está
 - **Inspirar (grátis, sem IA):** roda no navegador. Extrai a paleta dos pixels (`lib/reference/palette.ts`) e lê os textos com OCR (tesseract.js) para deduzir layout, alinhamento, posição e tamanho do título (`lib/reference/layout.ts`). O motor de OCR e o idioma português são servidos pela própria plataforma: `scripts/copy-ocr-assets.mjs` copia os arquivos para `public/ocr` antes de `dev` e `build`.
 - **Copiar estilo com IA:** a rota `/api/feed/reference-style` envia a imagem ao Claude, que devolve paleta, fonte e um layout em HTML/CSS com placeholders (`{{title}}`, `{{body}}`, `{{image}}`…). O HTML e o CSS passam por `lib/templates/sanitize.ts` e são renderizados como o layout "Da referência".
 
+### API de integração (Escritório virtual)
+
+Outros sistemas da Mantora geram peças sem abrir o editor, pela rota `/api/v1/pecas`:
+
+- **Chave:** toda chamada envia `Authorization: Bearer <DESIGN_API_KEY>`. A chave fica só nas variáveis do Railway e do Escritório (Easypanel). Sem a variável, a API responde 503 (desligada).
+- **`GET /api/v1/pecas`:** lista o que a API aceita: layouts, formatos, fontes, decorações e o estilo padrão.
+- **`POST /api/v1/pecas`:** recebe a peça no mesmo formato do editor do Post de Feed (`brand`, `style`, `slides`), com o estilo parcial (o que faltar usa o padrão) e um `ref` opcional (ex.: id da pauta) para os logs. Devolve `{ slides: [{ index, arquivo, largura, altura, png }] }`, com o PNG em base64.
+
+```json
+{
+  "ref": "pauta-123",
+  "brand": { "name": "Sabrina Nascimento", "handle": "@sabrina" },
+  "style": { "size": "portrait-4x5", "titleFont": "serif", "palette": { "background": "#F4EDE4", "text": "#2B2118", "accent": "#C2410C" } },
+  "slides": [
+    { "layout": "destaque", "title": "3 sinais de que sua **marca** precisa de consistência", "body": "" },
+    { "layout": "lista", "title": "Os sinais", "body": "Cada post parece de uma empresa diferente\nAs cores mudam toda semana" }
+  ]
+}
+```
+
+As rotas do editor (`/api/feed/render` etc.) continuam abertas, como antes: a chave protege só a integração.
+
 ```
 src/
 ├── app/

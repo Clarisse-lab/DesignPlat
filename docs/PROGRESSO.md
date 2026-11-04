@@ -2,7 +2,7 @@
 
 > A plataforma se chama **Design Mantora** (antes "DesignPlat"; o repositório continua `Clarisse-lab/DesignPlat`).
 
-Anotações para retomar o trabalho em qualquer conversa. Última atualização: 19/10/2026.
+Anotações para retomar o trabalho em qualquer conversa. Última atualização: 04/11/2026.
 
 ## Origem
 
@@ -38,6 +38,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Notas do apresentador em cada slide (não aparecem no slide; vão para as anotações do PPTX).
   - Download em PDF (texto selecionável), PowerPoint (PPTX, slides como imagem) ou imagens (.zip).
 
+- **API de integração** (`/api/v1/pecas`), 04/11/2026: o Escritório virtual (`equipemantoralab-cell/escritoriomantora`) envia a peça em JSON e recebe os PNGs. Protegida pela chave `DESIGN_API_KEY` (Bearer). Primeira etapa da integração com o Motor de Conteúdo: a peça gerada vai direto para aprovação no Escritório.
+
 ## Decisões tomadas
 
 - **Stack:** Next.js + TypeScript + Tailwind. Interface e API no mesmo projeto.
@@ -50,6 +52,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **Rascunho salvo só no navegador** (`localStorage`). Nada fica salvo no servidor e as imagens só existem se forem baixadas.
 - **PPTX com slides em imagem:** fica idêntico ao preview e pronto para apresentar, mas o texto não é editável no PowerPoint. Um PPTX editável exigiria recriar cada layout com formas nativas; fica como melhoria futura, se for preciso.
 - Bugs da Central Mantora corrigidos aqui: o formato `carrossel-tweet` não ativava o prompt de tweet, e o preview era diferente da imagem final.
+
+- **Integração com o Escritório (04/11/2026):** o Design Mantora continua no Railway e o Escritório chama a API. Imagem gerada por IA fica de fora (custo); as peças saem dos templates HTML. A peça vai direto para aprovação no Escritório; ajuste no editor fica para depois.
 
 ## Próximos passos
 
