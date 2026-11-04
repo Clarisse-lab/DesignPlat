@@ -4,10 +4,13 @@
 
 import type { TextLine } from "./layout";
 
-export async function readTextLines(
-  image: HTMLCanvasElement,
-  onProgress?: (status: string, progress: number) => void,
-): Promise<TextLine[]> {
+export interface OcrReader {
+  read: (image: HTMLCanvasElement) => Promise<TextLine[]>;
+  close: () => Promise<void>;
+}
+
+/** Abre um leitor de OCR que pode ler várias imagens seguidas (o motor só carrega uma vez). */
+export async function createOcrReader(onProgress?: (status: string, progress: number) => void): Promise<OcrReader> {
   const { createWorker } = await import("tesseract.js");
   const base = `${window.location.origin}/ocr`;
   const worker = await createWorker("por", 1, {
@@ -16,14 +19,29 @@ export async function readTextLines(
     langPath: base,
     logger: (message) => onProgress?.(message.status, message.progress),
   });
+  return {
+    async read(image) {
+      const { data } = await worker.recognize(image, {}, { blocks: true });
+      return (data.blocks ?? []).flatMap((block) =>
+        block.paragraphs.flatMap((paragraph) =>
+          paragraph.lines.map((line) => ({ text: line.text, confidence: line.confidence, ...line.bbox })),
+        ),
+      );
+    },
+    async close() {
+      await worker.terminate();
+    },
+  };
+}
+
+export async function readTextLines(
+  image: HTMLCanvasElement,
+  onProgress?: (status: string, progress: number) => void,
+): Promise<TextLine[]> {
+  const reader = await createOcrReader(onProgress);
   try {
-    const { data } = await worker.recognize(image, {}, { blocks: true });
-    return (data.blocks ?? []).flatMap((block) =>
-      block.paragraphs.flatMap((paragraph) =>
-        paragraph.lines.map((line) => ({ text: line.text, confidence: line.confidence, ...line.bbox })),
-      ),
-    );
+    return await reader.read(image);
   } finally {
-    await worker.terminate();
+    await reader.close();
   }
 }
