@@ -53,3 +53,16 @@ export const feedRenderRequestSchema = z.object({
 });
 
 export type FeedRenderRequest = z.infer<typeof feedRenderRequestSchema>;
+
+/**
+ * Contrato da API de integração (/api/v1/pecas): o mesmo do editor, mas com o estilo parcial
+ * (o que faltar usa o padrão). Assim o Escritório envia só o que o kit
+ * de marca do cliente define.
+ */
+export const pecaRequestSchema = feedRenderRequestSchema.extend({
+  /** Identificador de quem pediu (ex.: id da pauta no Escritório), só para os logs. */
+  ref: z.string().max(100).optional(),
+  style: feedRenderRequestSchema.shape.style.partial(),
+});
+
+export type PecaRequest = z.infer<typeof pecaRequestSchema>;
