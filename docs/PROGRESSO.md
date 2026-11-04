@@ -39,6 +39,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Download em PDF (texto selecionável), PowerPoint (PPTX, slides como imagem) ou imagens (.zip).
 
 - **API de integração** (`/api/v1/pecas`), 04/11/2026: o Escritório virtual (`equipemantoralab-cell/escritoriomantora`) envia a peça em JSON e recebe os PNGs. Protegida pela chave `DESIGN_API_KEY` (Bearer). Primeira etapa da integração com o Motor de Conteúdo: a peça gerada vai direto para aprovação no Escritório.
+- **Leitor de identidade** (`/api/v1/identidade`), 04/11/2026: recebe as imagens dos posts de melhor desempenho do cliente (o Escritório busca pela função `instagram-midias` do Supabase, com o token da Meta) e sugere o kit de marca com o mesmo código do "Inspirar", rodando no Chromium do servidor. Sem IA e sem custo.
 
 ## Decisões tomadas
 

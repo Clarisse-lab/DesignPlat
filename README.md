@@ -40,6 +40,8 @@ Outros sistemas da Mantora geram peças sem abrir o editor, pela rota `/api/v1/p
 - **`GET /api/v1/pecas`:** lista o que a API aceita: layouts, formatos, fontes, decorações e o estilo padrão.
 - **`POST /api/v1/pecas`:** recebe a peça no mesmo formato do editor do Post de Feed (`brand`, `style`, `slides`), com o estilo parcial (o que faltar usa o padrão) e um `ref` opcional (ex.: id da pauta) para os logs. Devolve `{ slides: [{ index, arquivo, largura, altura, png }] }`, com o PNG em base64.
 
+- **`POST /api/v1/identidade`:** lê a identidade visual de um cliente a partir dos posts do Instagram. Recebe `{ imagens: [{ url, peso, tela }], logo }`, com as URLs atuais das imagens (só domínios da Meta) e o peso de cada post (a nota de desempenho). Baixa as imagens, roda no Chromium do servidor o mesmo código do "Inspirar" (paleta + OCR, sem IA, na página interna `/interno/analise`) e junta tudo por votação ponderada (`lib/reference/aggregate.ts`). Devolve o `kit` sugerido (paleta, alternativas, alinhamento, posição, tamanho do título, fundo da capa, layouts mais usados e a `confianca`), o `logo` em data URL e a leitura de cada imagem. A fonte não é detectada: quem confirma o kit escolhe.
+
 ```json
 {
   "ref": "pauta-123",
