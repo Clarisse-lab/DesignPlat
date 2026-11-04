@@ -5,6 +5,7 @@ import { buildPptx, mergePdfPages } from "@/lib/presentation/export";
 import { inlineFontCss } from "@/lib/render/fonts";
 import { renderPagesToPdf, renderPagesToPng } from "@/lib/render/html-to-image";
 import { renderFeedSlide, sectionNumberAt } from "@/lib/templates/feed";
+import { isResponse, requireMember } from "@/lib/server/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -16,6 +17,9 @@ const FORMATS = {
 
 /** Exporta a apresentação inteira: ?format=pdf (texto selecionável) ou ?format=pptx (slides como imagem + notas). */
 export async function POST(request: Request) {
+  const member = await requireMember(request);
+  if (isResponse(member)) return member;
+
   const format = new URL(request.url).searchParams.get("format");
   if (format !== "pdf" && format !== "pptx") {
     return NextResponse.json({ error: "Formato inválido." }, { status: 400 });

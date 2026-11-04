@@ -41,6 +41,16 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **API de integração** (`/api/v1/pecas`), 04/11/2026: o Escritório virtual (`equipemantoralab-cell/escritoriomantora`) envia a peça em JSON e recebe os PNGs. Protegida pela chave `DESIGN_API_KEY` (Bearer). Primeira etapa da integração com o Motor de Conteúdo: a peça gerada vai direto para aprovação no Escritório.
 - **Leitor de identidade** (`/api/v1/identidade`), 04/11/2026: recebe as imagens dos posts de melhor desempenho do cliente (o Escritório busca pela função `instagram-midias` do Supabase, com o token da Meta) e sugere o kit de marca com o mesmo código do "Inspirar", rodando no Chromium do servidor. Sem IA e sem custo.
 
+- **Estúdio, etapa 1** (04/11/2026): login Google da equipe (mesma lista `equipe` do Escritório, pelo Supabase), painel **Cliente** que aplica o kit de marca confirmado no Escritório, **Fotos do cliente** (posts do Instagram dele) e **Gerar com IA** (Gemini) com o rosto do cliente, custo registrado em `uso_ia` e limite mensal (`LIMITE_MENSAL_IMAGENS_USD`).
+
+## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
+1. Base: login, cliente e kit, Gemini (feito).
+2. Salvar peças e templates no Supabase (hoje o rascunho fica só no navegador).
+3. Editor por elementos: cada slide com fundo, sombra e elementos posicionáveis (texto, foto, etiqueta, cartão, ícone, perfil), arrastar e soltar, tamanhos em px, marca-texto, rodapé e barras de progresso. Os layouts atuais viram pontos de partida.
+4. Imagens: tiras e grade na capa, carrossel infinito (panorama) e edição de imagem com IA.
+5. Assistente "gerar com IA" ligado ao Motor de Conteúdo (pauta → copy → brief → peça), "gerar este slide" e legenda.
+- Decisões: o estúdio fica no Design Mantora (Railway); o rosto do próprio cliente pode ser usado em todos os clientes (previsto em contrato); Gemini na mesma conta do Prisma, com limite de gasto; nunca gerar outras pessoas reais identificáveis.
+
 ## Decisões tomadas
 
 - **Stack:** Next.js + TypeScript + Tailwind. Interface e API no mesmo projeto.
@@ -48,7 +58,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - **Railway em vez de Netlify:** o Netlify tem limite de 60 s por requisição e 6 MB por payload, e não vem com Chromium. O Railway roda o `Dockerfile` sem limite de tempo.
 - **IA:** Claude Opus 5.5 por padrão (pode trocar com `CLAUDE_MODEL`), com fallback automático em caso de recusa.
 - **Fonte Inter** guardada no projeto, no lugar da Chirp (que vinha do site do X).
-- **Ilustrações e fotos geradas por IA ficaram de fora por enquanto:** a Clarisse preferiu explorar ao máximo o HTML (layouts, ícones, decorações) e fotos reais de banco gratuito (Pixabay).
+- **Imagens geradas por IA:** liberadas em 04/11/2026 com o Gemini (antes ficaram de fora para explorar o HTML e o Pixabay).
 - **OCR servido pela própria plataforma** (sem CDN), para funcionar mesmo se um CDN estiver bloqueado.
 - **Rascunho salvo só no navegador** (`localStorage`). Nada fica salvo no servidor e as imagens só existem se forem baixadas.
 - **PPTX com slides em imagem:** fica idêntico ao preview e pronto para apresentar, mas o texto não é editável no PowerPoint. Um PPTX editável exigiria recriar cada layout com formas nativas; fica como melhoria futura, se for preciso.

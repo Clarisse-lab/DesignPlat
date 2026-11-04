@@ -9,6 +9,12 @@ Plataforma para transformar texto em peças visuais prontas para publicar.
 | **Story**: sequências 9:16 com o mesmo motor do Post de Feed, faixas de segurança do Instagram marcadas no preview, layouts de Enquete/Pergunta (espaço livre para o sticker) e Chamada (link), e importação dos slides do Post de Feed | ✅ Pronto |
 | **Apresentação**: slides 16:9 com o mesmo motor do Post de Feed, layouts de Seção e Colunas, notas do apresentador e download em PDF (texto selecionável), PowerPoint (PPTX) ou imagens | ✅ Pronto |
 
+## Login, clientes e IA de imagem
+
+- **Login:** com `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` no Railway, o site exige login com o Google da agência (mesma lista `equipe` do Escritório). O endereço do site precisa estar nas Redirect URLs do Supabase Auth. Sem essas variáveis, o site fica aberto como antes e a IA fica desligada.
+- **Cliente:** o painel Cliente aplica o kit de marca confirmado no Escritório (tabela `kits_marca`) e libera as fotos do Instagram do cliente (função `instagram-midias` do Supabase).
+- **Gerar com IA:** `POST /api/estudio/imagem` gera a imagem do slide com o Gemini (`GEMINI_API_KEY`, modelo em `GEMINI_IMAGE_MODEL`), com até 3 fotos de rosto do cliente como referência. Cada imagem registra o custo em `uso_ia` (tipo `imagem`) e a rota recusa quando o mês passa de `LIMITE_MENSAL_IMAGENS_USD` (padrão US$ 20).
+
 ## Stack
 
 - **Next.js 16 (App Router) + TypeScript + Tailwind CSS 4**: interface e API no mesmo projeto.

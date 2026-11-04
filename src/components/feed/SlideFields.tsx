@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Images, Search, Sparkles, Trash2 } from "lucide-react";
+import { ClientPhotosDialog } from "@/components/editor/ClientPhotos";
+import { ImageAiDialog, type ImageAiContext } from "@/components/editor/ImageAiDialog";
+import { imageFileToDataUrl } from "@/lib/client/image";
 import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
 import { FEED_LAYOUT_LABELS, type FeedLayout } from "@/lib/templates/feed";
@@ -61,6 +64,7 @@ export function SlideFields({
   onRemove,
   onError,
   onInfo,
+  imageAi = null,
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -74,9 +78,13 @@ export function SlideFields({
   onRemove: () => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  /** Contexto para gerar imagem com IA e usar fotos do cliente (null: login desligado). */
+  imageAi?: Omit<ImageAiContext, "currentImage"> | null;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [clientPhotos, setClientPhotos] = useState(false);
   const fields = FIELDS[slide.layout];
   const layouts = availableLayouts.filter((layout) => layout !== "referencia" || hasCustomLayout || slide.layout === "referencia");
 
@@ -142,6 +150,24 @@ export function SlideFields({
               <Search className="h-4 w-4" /> Buscar fotos grátis
             </button>
           )}
+          {imageAi && (
+            <button
+              type="button"
+              onClick={() => setGenerating(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent-soft px-3 py-2 text-[12.5px] font-medium text-accent hover:border-accent"
+            >
+              <Sparkles className="h-4 w-4" /> {slide.image ? "Gerar outra com IA" : "Gerar com IA"}
+            </button>
+          )}
+          {imageAi?.clienteSlug && (
+            <button
+              type="button"
+              onClick={() => setClientPhotos(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12.5px] text-ink-soft hover:text-ink"
+            >
+              <Images className="h-4 w-4" /> Fotos do cliente
+            </button>
+          )}
         </div>
       )}
 
@@ -205,6 +231,33 @@ export function SlideFields({
 
       <p className="text-[12px] text-ink-faint">Dica: **palavra** fica em negrito, na cor de destaque.</p>
 
+      {generating && imageAi && (
+        <ImageAiDialog
+          context={{ ...imageAi, currentImage: slide.image ?? null }}
+          onClose={() => setGenerating(false)}
+          onUse={(image, info) => {
+            onChange({ image });
+            setGenerating(false);
+            onInfo(info);
+          }}
+        />
+      )}
+      {clientPhotos && imageAi?.clienteSlug && (
+        <ClientPhotosDialog
+          slug={imageAi.clienteSlug}
+          onClose={() => setClientPhotos(false)}
+          onPick={async (blob) => {
+            try {
+              const image = await imageFileToDataUrl(new File([blob], "foto", { type: blob.type || "image/jpeg" }), { maxSide: 1600 });
+              onChange({ image });
+              setClientPhotos(false);
+              onInfo("Foto do cliente aplicada.");
+            } catch {
+              onError("Não foi possível usar essa foto.");
+            }
+          }}
+        />
+      )}
       {searching && (
         <PhotoSearch
           onClose={() => setSearching(false)}

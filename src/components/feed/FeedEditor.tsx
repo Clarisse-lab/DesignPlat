@@ -15,6 +15,7 @@ import {
   ToolbarButton,
   type NoticeMessage,
 } from "@/components/editor/ui";
+import { ClientPanel, useStudioClients, type StudioClient } from "@/components/editor/ClientPanel";
 import { downloadFile, downloadRender } from "@/lib/client/api";
 import { MAX_FEED_SLIDES } from "@/lib/feed/schema";
 import { CANVAS_SIZES } from "@/lib/formats";
@@ -52,6 +53,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [content, setContent] = useState("");
   const [downloading, setDownloading] = useState<DownloadTarget | null>(null);
   const [message, setMessage] = useState<NoticeMessage | null>(null);
+  const { clients, enabled: studioEnabled } = useStudioClients();
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
   const active = slides[safeIndex];
@@ -77,6 +79,28 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const updateStyle = (patch: Partial<FeedStyle>) => setDraft((d) => ({ ...d, style: { ...d.style, ...patch } }));
   const updateActive = (patch: Partial<FeedEditorSlide>) =>
     setDraft((d) => ({ ...d, slides: d.slides.map((s, i) => (i === safeIndex ? { ...s, ...patch } : s)) }));
+
+  /** Aplica o kit de marca do cliente: marca inteira e estilo (mantendo o formato desta ferramenta). */
+  const selectClient = (client: StudioClient | null) => {
+    if (!client) {
+      setDraft((d) => ({ ...d, cliente: null }));
+      return;
+    }
+    const kit = client.kit;
+    setDraft((d) => {
+      if (!kit) return { ...d, cliente: { slug: client.slug, nome: client.nome } };
+      const { size: kitSize, customLayout: _ignored, ...kitStyle } = kit.estilo;
+      void _ignored;
+      const size = kitSize && config.sizes.includes(kitSize) ? kitSize : d.style.size;
+      return {
+        ...d,
+        cliente: { slug: client.slug, nome: client.nome },
+        brand: { name: kit.marca.name, handle: kit.marca.handle, logo: kit.marca.logo ?? null },
+        style: { ...d.style, ...kitStyle, size, customLayout: null },
+      };
+    });
+    showInfo(kit ? `Kit de marca de ${client.nome} aplicado.` : `${client.nome} ainda não tem kit de marca: só as fotos e a IA usam o cliente.`);
+  };
 
   const addSlide = () => {
     if (slides.length >= MAX_FEED_SLIDES) return;
@@ -277,6 +301,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             </div>
           </Panel>
 
+          {studioEnabled && <ClientPanel clients={clients} value={draft.cliente?.slug ?? null} onSelect={selectClient} />}
+
           <ReferencePanel
             size={style.size}
             customLayout={style.customLayout}
@@ -346,6 +372,16 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             onRemove={removeSlide}
             onError={showError}
             onInfo={showInfo}
+            imageAi={
+              studioEnabled
+                ? {
+                    size: style.size,
+                    clienteSlug: draft.cliente?.slug ?? null,
+                    clienteNome: draft.cliente?.nome ?? null,
+                    palette: [style.palette.background, style.palette.text, style.palette.accent],
+                  }
+                : null
+            }
           />
         </section>
 
