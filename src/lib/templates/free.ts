@@ -66,7 +66,7 @@ export interface FreeElement {
   image?: string | null;
   /** Tiras / grade: arranjo, fotos de cada espaço e espaço entre elas (px). */
   grid?: FreeGrid;
-  images?: (string | null)[];
+  images?: (string | null | undefined)[];
   gap?: number;
   /** Fundo da etiqueta ou do cartão. */
   fill?: FreeColor | "vidro";
