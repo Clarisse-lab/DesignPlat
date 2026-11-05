@@ -3,14 +3,19 @@
 // Editor do layout Livre: fundo e sombra, modelos prontos, lista de elementos e as propriedades
 // do elemento selecionado. Os elementos também podem ser arrastados na prévia (FreeHandles).
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
-import { Field, ImagePicker, inputClass, Segmented } from "@/components/editor/ui";
+import { ImageAiDialog } from "@/components/editor/ImageAiDialog";
+import { ImageSourceButtons, type ImageAiBase } from "@/components/editor/ImageSourceButtons";
+import { Field, inputClass, Segmented } from "@/components/editor/ui";
 import {
   FREE_COLOR_LABELS,
   FREE_COLORS,
   FREE_ELEMENT_KINDS,
   FREE_ELEMENT_LABELS,
+  FREE_GRID_LABELS,
+  FREE_GRIDS,
+  gridSlots,
   FREE_HIGHLIGHT_LABELS,
   FREE_HIGHLIGHTS,
   FREE_OVERLAY_LABELS,
@@ -23,7 +28,8 @@ import {
 } from "@/lib/templates/free";
 
 const TEXT_KINDS = new Set(["titulo", "texto", "etiqueta", "arraste"]);
-const SIZED_KINDS = new Set(["imagem", "cartao"]);
+const SIZED_KINDS = new Set(["imagem", "cartao", "grade"]);
+const NO_TEXT_KINDS = new Set(["imagem", "cartao", "grade"]);
 
 export const EMPTY_FREE: FreeSlide = { bg: "fundo", overlay: "nenhuma", elements: [] };
 
@@ -60,6 +66,10 @@ export function FreeEditor({
   onChange,
   onError,
   imageControls,
+  imageAi,
+  image,
+  onImage,
+  onSpread,
 }: {
   free: FreeSlide;
   /** Título e texto do slide, usados ao aplicar um modelo. */
@@ -72,7 +82,16 @@ export function FreeEditor({
   onError: (message: string) => void;
   /** Botões de foto de fundo (upload, banco, IA, fotos do cliente), vindos do SlideFields. */
   imageControls: React.ReactNode;
+  /** Contexto da IA de imagem (null: login desligado). */
+  imageAi: ImageAiBase | null;
+  /** Foto de fundo do slide e como trocá-la (panorama gerado com IA). */
+  image: string | null;
+  onImage: (image: string) => void;
+  /** Carrossel infinito: espalha a foto de fundo por `total` slides a partir deste. */
+  onSpread: (total: number) => void;
 }) {
+  const [spreadTotal, setSpreadTotal] = useState(3);
+  const [widePanorama, setWidePanorama] = useState(false);
   const selected = free.elements.find((el) => el.id === selectedId) ?? null;
   const textRef = useRef<HTMLTextAreaElement>(null);
 
@@ -139,6 +158,45 @@ export function FreeEditor({
               </select>
             </Field>
           </>
+        )}
+        {free.bg === "foto" && (
+          <div className="space-y-2 rounded-lg bg-canvas p-2.5">
+            <span className="block text-[12.5px] font-medium text-ink-soft">Carrossel infinito</span>
+            {free.pan ? (
+              <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-soft">
+                Pedaço {free.pan.part + 1} de {free.pan.total} da foto contínua.
+                <button type="button" onClick={() => onChange({ ...free, pan: null })} className="rounded-md border border-line px-2 py-1 hover:text-ink">
+                  Mostrar a foto inteira neste slide
+                </button>
+              </div>
+            ) : (
+              <>
+                <p className="text-[11.5px] text-ink-faint">Uma foto larga que continua de um slide para o outro. Use uma foto panorâmica ou gere uma.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select value={spreadTotal} onChange={(e) => setSpreadTotal(Number(e.target.value))} className={`${inputClass} w-auto`}>
+                    {[2, 3, 4, 5].map((n) => (
+                      <option key={n} value={n}>
+                        {n} slides
+                      </option>
+                    ))}
+                  </select>
+                  {imageAi && (
+                    <button type="button" onClick={() => setWidePanorama(true)} className="rounded-lg border border-accent/40 bg-accent-soft px-2.5 py-1.5 text-[12px] font-medium text-accent">
+                      Gerar foto larga com IA
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    disabled={!image}
+                    onClick={() => onSpread(spreadTotal)}
+                    className="rounded-lg bg-ink px-2.5 py-1.5 text-[12px] font-medium text-white disabled:opacity-40"
+                  >
+                    Espalhar a foto por {spreadTotal} slides
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
           <input type="checkbox" checked={Boolean(free.progress)} onChange={(e) => onChange({ ...free, progress: e.target.checked })} className="h-4 w-4 accent-accent" />
@@ -229,14 +287,44 @@ export function FreeEditor({
           )}
 
           {selected.kind === "imagem" && (
-            <ImagePicker value={selected.image} onChange={(image) => update(selected.id, { image })} onError={onError} label="Imagem do elemento" maxSide={1600} />
+            <ImageSourceButtons value={selected.image} onChange={(img) => update(selected.id, { image: img })} onError={onError} imageAi={imageAi} label="Imagem" />
           )}
 
-          {selected.kind !== "imagem" && selected.kind !== "cartao" && (
+          {selected.kind === "grade" && (
+            <div className="space-y-2">
+              <Field label="Arranjo">
+                <select value={selected.grid ?? "2v"} onChange={(e) => update(selected.id, { grid: e.target.value as FreeElement["grid"] })} className={inputClass}>
+                  {FREE_GRIDS.map((g) => (
+                    <option key={g} value={g}>
+                      {FREE_GRID_LABELS[g]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              {Array.from({ length: gridSlots(selected.grid) }, (_, i) => (
+                <ImageSourceButtons
+                  key={i}
+                  label={`Foto ${i + 1}`}
+                  value={selected.images?.[i] ?? null}
+                  onChange={(img) => {
+                    const images = [...(selected.images ?? [])];
+                    while (images.length <= i) images.push(null);
+                    images[i] = img;
+                    update(selected.id, { images });
+                  }}
+                  onError={onError}
+                  imageAi={imageAi}
+                />
+              ))}
+              <Slider label="Espaço entre as fotos" value={selected.gap ?? 12} min={0} max={60} suffix="px" onChange={(gap) => update(selected.id, { gap })} />
+            </div>
+          )}
+
+          {!NO_TEXT_KINDS.has(selected.kind) && (
             <Slider label="Tamanho da fonte" value={selected.size ?? 40} min={12} max={240} suffix="px" onChange={(size) => update(selected.id, { size })} />
           )}
 
-          {selected.kind !== "imagem" && selected.kind !== "cartao" && (
+          {!NO_TEXT_KINDS.has(selected.kind) && (
             <Segmented
               value={selected.align ?? "left"}
               options={[
@@ -249,7 +337,7 @@ export function FreeEditor({
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            {selected.kind !== "imagem" && selected.kind !== "cartao" && (
+            {!NO_TEXT_KINDS.has(selected.kind) && (
               <Field label="Cor do texto">
                 <select value={selected.color ?? "texto"} onChange={(e) => update(selected.id, { color: e.target.value as FreeElement["color"] })} className={inputClass}>
                   {FREE_COLORS.map((c) => (
@@ -317,6 +405,19 @@ export function FreeEditor({
           </div>
           <p className="text-[11.5px] text-ink-faint">Dica: arraste o elemento direto na prévia; a alça da direita muda a largura.</p>
         </div>
+      )}
+
+      {widePanorama && imageAi && (
+        <ImageAiDialog
+          context={{ ...imageAi, currentImage: null }}
+          aspect={spreadTotal === 2 ? "16:9" : "21:9"}
+          title={`Gerar foto larga para ${spreadTotal} slides`}
+          onClose={() => setWidePanorama(false)}
+          onUse={(img) => {
+            onImage(img);
+            setWidePanorama(false);
+          }}
+        />
       )}
     </div>
   );

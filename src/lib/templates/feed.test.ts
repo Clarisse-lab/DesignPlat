@@ -224,3 +224,23 @@ describe("layout Livre", () => {
     expect(html).not.toContain("<script>x");
   });
 });
+
+describe("layout Livre: tiras e carrossel infinito", () => {
+  const img = "data:image/jpeg;base64,AAAA";
+  it("monta a grade com um espaço por foto", () => {
+    const html = renderFeedSlide({
+      slide: { layout: "livre", title: "", body: "", free: { bg: "fundo", overlay: "nenhuma", elements: [{ id: "g", kind: "grade", x: 0, y: 0, w: 100, h: 60, grid: "3v", images: [img] }] } },
+      brand, style, index: 0, total: 1, fontCss: "",
+    });
+    expect(html).toContain("grid-template-columns:repeat(3,1fr)");
+    expect(html).toContain("Foto 3");
+  });
+
+  it("desloca a foto pelo pedaço do panorama", () => {
+    const html = renderFeedSlide({
+      slide: { layout: "livre", title: "", body: "", image: img, free: { bg: "foto", overlay: "nenhuma", pan: { total: 3, part: 2 }, elements: [] } },
+      brand, style, index: 2, total: 3, fontCss: "",
+    });
+    expect(html).toContain('style="width:300%;left:-200%"');
+  });
+});

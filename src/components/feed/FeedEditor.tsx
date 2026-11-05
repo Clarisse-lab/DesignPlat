@@ -125,6 +125,33 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     showInfo(piece.template ? "Template aberto como peça nova: troque os textos e salve com outro nome." : `Peça "${piece.titulo}" aberta.`);
   };
 
+  /** Carrossel infinito: este slide vira o pedaço 1 e entram novos slides Livre com os pedaços seguintes. */
+  const spreadPhoto = (total: number) => {
+    const base = slides[safeIndex];
+    if (!base.image || !base.free) return;
+    const extra = total - 1;
+    if (slides.length + extra > MAX_FEED_SLIDES) {
+      showError(`Não cabe: o limite é de ${MAX_FEED_SLIDES} slides.`);
+      return;
+    }
+    const pieces = Array.from({ length: extra }, (_, k) =>
+      newFeedSlide({
+        layout: "livre",
+        title: "",
+        body: "",
+        image: base.image,
+        free: { bg: "foto", overlay: base.free!.overlay, progress: base.free!.progress, pan: { total, part: k + 1 }, elements: [] },
+      }),
+    );
+    setDraft((d) => {
+      const first = { ...d.slides[safeIndex], free: { ...d.slides[safeIndex].free!, pan: { total, part: 0 } } };
+      const next = [...d.slides];
+      next.splice(safeIndex, 1, first, ...pieces);
+      return { ...d, slides: next };
+    });
+    showInfo(`Foto espalhada por ${total} slides. Os novos slides começam sem texto: adicione o que quiser em cada um.`);
+  };
+
   const addSlide = () => {
     if (slides.length >= MAX_FEED_SLIDES) return;
     setDraft((d) => ({ ...d, slides: insertAt(d.slides, safeIndex + 1, newFeedSlide({ layout: "texto" })) }));
@@ -432,6 +459,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             onInfo={showInfo}
             selectedElement={selectedElement}
             onSelectElement={setSelectedElement}
+            onSpread={spreadPhoto}
             imageAi={
               studioEnabled
                 ? {
