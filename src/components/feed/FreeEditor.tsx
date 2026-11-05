@@ -3,11 +3,11 @@
 // Editor do layout Livre: fundo e sombra, modelos prontos, lista de elementos e as propriedades
 // do elemento selecionado. Os elementos também podem ser arrastados na prévia (FreeHandles).
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
 import { ImageAiDialog } from "@/components/editor/ImageAiDialog";
 import { ImageSourceButtons, type ImageAiBase } from "@/components/editor/ImageSourceButtons";
-import { Field, inputClass, Segmented } from "@/components/editor/ui";
+import { Field, inputClass, MenuButton, Segmented } from "@/components/editor/ui";
 import {
   FREE_COLOR_LABELS,
   FREE_COLORS,
@@ -90,6 +90,12 @@ export function FreeEditor({
   /** Carrossel infinito: espalha a foto de fundo por `total` slides a partir deste. */
   onSpread: (total: number) => void;
 }) {
+  const [tab, setTab] = useState<"elementos" | "fundo" | "modelos">(free.elements.length ? "elementos" : "modelos");
+  // Clicar num elemento na prévia traz para a aba Elementos.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (selectedId) setTab("elementos");
+  }, [selectedId]);
   const [spreadTotal, setSpreadTotal] = useState(3);
   const [widePanorama, setWidePanorama] = useState(false);
   const selected = free.elements.find((el) => el.id === selectedId) ?? null;
@@ -113,7 +119,28 @@ export function FreeEditor({
 
   return (
     <div className="space-y-4">
-      <Field label="Modelo pronto (ponto de partida)">
+      <div className="flex gap-1 rounded-lg bg-canvas p-1">
+        {(
+          [
+            ["elementos", `Elementos · ${free.elements.length}`],
+            ["fundo", "Fundo"],
+            ["modelos", "Modelos"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-medium ${tab === id ? "bg-surface text-ink shadow-sm" : "text-ink-soft hover:text-ink"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "modelos" && (
+        <>
+      <Field label="Comece por um modelo (troca os elementos deste slide)">
         <div className="flex flex-wrap gap-1.5">
           {FREE_PRESETS.map((preset) => (
             <button
@@ -124,6 +151,7 @@ export function FreeEditor({
                 const next = preset.build({ title, body, hasImage });
                 onChange(next);
                 onSelect(next.elements.find((el) => el.kind === "titulo")?.id ?? null);
+                setTab("elementos");
               }}
               className="rounded-full border border-line px-3 py-1.5 text-[12.5px] text-ink-soft hover:border-accent hover:text-accent"
             >
@@ -133,6 +161,11 @@ export function FreeEditor({
         </div>
       </Field>
 
+        </>
+      )}
+
+      {tab === "fundo" && (
+        <>
       <div className="space-y-3 rounded-xl border border-line p-3">
         <Field label="Fundo">
           <Segmented
@@ -204,10 +237,13 @@ export function FreeEditor({
         </label>
       </div>
 
+        </>
+      )}
+
+      {tab === "elementos" && (
+        <>
       <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[12.5px] font-medium text-ink-soft">Elementos (de trás para a frente)</span>
-        </div>
+        {free.elements.length === 0 && <p className="text-[12.5px] text-ink-faint">Nenhum elemento. Comece por um modelo ou adicione abaixo.</p>}
         <ul className="space-y-1">
           {free.elements.map((el, i) => (
             <li key={el.id}>
@@ -253,18 +289,12 @@ export function FreeEditor({
             </li>
           ))}
         </ul>
-        <div className="flex flex-wrap gap-1.5">
-          {FREE_ELEMENT_KINDS.map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              onClick={() => add(kind)}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-line-strong px-2.5 py-1 text-[12px] text-ink-soft hover:border-accent hover:text-accent"
-            >
-              <Plus className="h-3 w-3" /> {FREE_ELEMENT_LABELS[kind]}
-            </button>
-          ))}
-        </div>
+        <MenuButton
+          icon={Plus}
+          label="Adicionar elemento"
+          align="left"
+          items={FREE_ELEMENT_KINDS.map((kind) => ({ label: FREE_ELEMENT_LABELS[kind], onClick: () => add(kind) }))}
+        />
       </div>
 
       {selected && (
@@ -405,6 +435,9 @@ export function FreeEditor({
           </div>
           <p className="text-[11.5px] text-ink-faint">Dica: arraste o elemento direto na prévia; a alça da direita muda a largura.</p>
         </div>
+      )}
+
+        </>
       )}
 
       {widePanorama && imageAi && (

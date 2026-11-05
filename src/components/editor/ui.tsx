@@ -2,8 +2,8 @@
 
 // Peças de interface compartilhadas pelos editores (Carrossel Tweet, Post de Feed…).
 
-import { ChevronLeft, ChevronRight, ImagePlus, Loader2, Plus, X } from "lucide-react";
-import { useRef } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, ImagePlus, Loader2, Plus, X } from "lucide-react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { SlideFrame } from "@/components/SlideFrame";
 import { imageFileToDataUrl } from "@/lib/client/image";
 
@@ -12,12 +12,124 @@ type Icon = React.ComponentType<{ className?: string }>;
 export const inputClass =
   "w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] outline-none transition-colors placeholder:text-ink-faint focus:border-accent";
 
+/** Dentro de uma Section, os painéis perdem a caixa e viram só um bloco com subtítulo. */
+const BarePanels = createContext(false);
+
 export function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  const bare = useContext(BarePanels);
+  if (bare) {
+    return (
+      <div className="space-y-2.5 border-t border-line pt-4 first:border-t-0 first:pt-0">
+        <h3 className="text-[12.5px] font-semibold text-ink">{title}</h3>
+        {children}
+      </div>
+    );
+  }
   return (
     <section className="rounded-2xl border border-line bg-surface p-4">
       <h2 className="mb-3 text-[12px] font-bold uppercase tracking-wider text-ink-faint">{title}</h2>
       {children}
     </section>
+  );
+}
+
+/** Bloco da barra lateral que abre e fecha (só um aberto por vez, controlado por quem usa). */
+export function Section({
+  title,
+  summary,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  summary?: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-line bg-surface">
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className="shrink-0 text-[13.5px] font-semibold">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-right text-[12px] text-ink-faint">{!open && summary}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-faint transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="space-y-4 border-t border-line p-4">
+          <BarePanels.Provider value>{children}</BarePanels.Provider>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export interface MenuItem {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  hint?: string;
+}
+
+/** Botão com menu suspenso, para juntar ações parecidas num lugar só. */
+export function MenuButton({
+  icon: IconComponent,
+  label,
+  items,
+  primary,
+  busy,
+  align = "right",
+}: {
+  icon: Icon;
+  label: string;
+  items: MenuItem[];
+  primary?: boolean;
+  busy?: boolean;
+  align?: "left" | "right";
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={busy}
+        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors disabled:opacity-50 ${
+          primary ? "bg-ink text-white hover:bg-ink/90" : "border border-line bg-surface text-ink-soft hover:border-line-strong hover:text-ink"
+        }`}
+      >
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <IconComponent className="h-4 w-4" />}
+        {label}
+        <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+      </button>
+      {open && (
+        <div className={`absolute top-full z-40 mt-1 min-w-[220px] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}>
+          {items.map((item) => (
+            <button
+              key={item.label}
+              type="button"
+              disabled={item.disabled}
+              onClick={() => {
+                setOpen(false);
+                item.onClick();
+              }}
+              className="block w-full px-3 py-2 text-left text-[13px] text-ink hover:bg-canvas disabled:opacity-40"
+            >
+              {item.label}
+              {item.hint && <span className="block text-[11.5px] text-ink-faint">{item.hint}</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

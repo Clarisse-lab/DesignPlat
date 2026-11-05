@@ -120,6 +120,7 @@ export function renderFreeSlide(params: {
   const colorOf = (c: FreeColor | undefined, fallback: string) =>
     c === "fundo" ? bg : c === "destaque" ? accent : c === "branco" ? "#FFFFFF" : c === "preto" ? "#0B0B0C" : c === "texto" ? autoText : fallback;
 
+  const glass = photo ? "rgba(255,255,255,.16)" : `color-mix(in srgb,${autoText} 12%,transparent)`;
   const logoSrc = safeImageSrc(brand.logo);
   const handle = brand.handle.trim().replace(/^@+/, "");
 
@@ -146,8 +147,9 @@ export function renderFreeSlide(params: {
       case "texto":
         return `<div class="el${highlight}" style="${box}font-size:${size}px;color:${color};${fontStyle}${upper}">${content}</div>`;
       case "etiqueta": {
-        const fill = el.fill === "vidro" ? "rgba(255,255,255,.16)" : colorOf(el.fill as FreeColor | undefined, accent);
-        const ink = el.color ? color : el.fill === "vidro" ? "#FFFFFF" : contrastText(fill.startsWith("#") ? fill : accent);
+        // "Vidro" sobre foto é branco translúcido; sobre fundo liso vira um tom do texto, para não sumir.
+        const fill = el.fill === "vidro" ? glass : colorOf(el.fill as FreeColor | undefined, accent);
+        const ink = el.color ? color : el.fill === "vidro" ? autoText : contrastText(fill.startsWith("#") ? fill : accent);
         return `<div class="el" style="${box}"><span class="tag" style="font-size:${size}px;background:${fill};color:${ink};${upper}">${content}</span></div>`;
       }
       case "perfil": {
@@ -182,7 +184,7 @@ export function renderFreeSlide(params: {
         return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
       }
       case "cartao": {
-        const fill = el.fill === "vidro" ? "rgba(255,255,255,.14)" : colorOf(el.fill as FreeColor | undefined, "#FFFFFF");
+        const fill = el.fill === "vidro" ? glass : colorOf(el.fill as FreeColor | undefined, "#FFFFFF");
         const radius = clamp(el.radius, 0, 200, 36);
         return `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;background:${fill};box-shadow:0 30px 60px rgba(0,0,0,.18)"></div>`;
       }

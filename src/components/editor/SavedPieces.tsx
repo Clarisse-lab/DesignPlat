@@ -4,8 +4,7 @@
 // existindo como rede de segurança; "Salvar" é o que deixa a peça disponível para os outros.
 
 import { useEffect, useRef, useState } from "react";
-import { FileStack, FolderOpen, Loader2, Save, Trash2, X } from "lucide-react";
-import { ToolbarButton } from "./ui";
+import { Loader2, Trash2, X } from "lucide-react";
 
 export type Ferramenta = "feed" | "story" | "apresentacao" | "tweet";
 
@@ -48,7 +47,11 @@ async function savePiece(body: {
   return data;
 }
 
-export function SavedPiecesToolbar({
+/**
+ * Salvar e abrir peças: devolve as ações para o editor colocar onde quiser (botão Salvar e menu)
+ * e a janela de abrir, que o editor renderiza.
+ */
+export function useSavedPieces({
   ferramenta,
   pecaId,
   titulo,
@@ -103,31 +106,20 @@ export function SavedPiecesToolbar({
     }
   };
 
-  return (
-    <>
-      <ToolbarButton icon={FolderOpen} onClick={() => setBrowsing(true)}>
-        Abrir
-      </ToolbarButton>
-      <ToolbarButton icon={FileStack} busy={busy === "template"} disabled={busy !== null} onClick={() => save(true)}>
-        Salvar como template
-      </ToolbarButton>
-      <ToolbarButton icon={Save} busy={busy === "save"} disabled={busy !== null} onClick={() => save(false)}>
-        {pecaId ? "Salvar" : "Salvar peça"}
-      </ToolbarButton>
-      {browsing && (
-        <PiecesDialog
-          ferramenta={ferramenta}
-          clienteSlug={clienteSlug}
-          onClose={() => setBrowsing(false)}
-          onOpen={(piece) => {
-            setBrowsing(false);
-            onOpen(piece);
-          }}
-          onError={onError}
-        />
-      )}
-    </>
-  );
+  const dialog = browsing ? (
+    <PiecesDialog
+      ferramenta={ferramenta}
+      clienteSlug={clienteSlug}
+      onClose={() => setBrowsing(false)}
+      onOpen={(piece) => {
+        setBrowsing(false);
+        onOpen(piece);
+      }}
+      onError={onError}
+    />
+  ) : null;
+
+  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId) };
 }
 
 function PiecesDialog({

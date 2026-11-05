@@ -22,11 +22,14 @@ export function StylePanel({
   sizes,
   onChange,
   onReset,
+  hideReset = false,
 }: {
   style: FeedStyle;
   sizes: readonly PostCanvasSizeId[];
   onChange: (patch: Partial<FeedStyle>) => void;
   onReset: () => void;
+  /** O editor pode levar o "Recomeçar do zero" para outro menu. */
+  hideReset?: boolean;
 }) {
   return (
     <Panel title="Estilo">
@@ -154,9 +157,11 @@ export function StylePanel({
           />
           Mostrar numeração (1/5)
         </label>
-        <button type="button" onClick={onReset} className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-faint hover:text-danger">
-          <RotateCcw className="h-3.5 w-3.5" /> Recomeçar do zero
-        </button>
+        {!hideReset && (
+          <button type="button" onClick={onReset} className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-faint hover:text-danger">
+            <RotateCcw className="h-3.5 w-3.5" /> Recomeçar do zero
+          </button>
+        )}
       </div>
     </Panel>
   );

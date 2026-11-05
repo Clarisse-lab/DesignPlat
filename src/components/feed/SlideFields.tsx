@@ -134,34 +134,37 @@ export function SlideFields({
 
   return (
     <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-ink text-[12px] font-bold text-white">{index + 1}</span>
-        <span className="flex-1 text-[13px] font-semibold">Layout do slide</span>
-        <IconButton label="Mover para a esquerda" onClick={() => onMove(-1)} disabled={index === 0} icon={ArrowLeft} />
-        <IconButton label="Mover para a direita" onClick={() => onMove(1)} disabled={index === total - 1} icon={ArrowRight} />
-        <IconButton label="Excluir slide" onClick={onRemove} disabled={total === 1} icon={Trash2} danger />
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {layouts.map((layout) => (
-          <button
-            key={layout}
-            type="button"
-            onClick={() => {
+        <label className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="shrink-0 text-[13px] font-semibold">Layout</span>
+          <select
+            value={slide.layout}
+            onChange={(e) => {
+              const layout = e.target.value as FeedLayout;
               if (layout === "livre" && !slide.free) {
                 // Primeira vez no Livre: começa por um modelo com o texto e a foto que o slide já tem.
                 const preset = FREE_PRESETS.find((p) => p.id === (index === 0 ? "capa-revista" : "interno-texto")) ?? FREE_PRESETS[0];
                 onChange({ layout, free: preset.build({ title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }) });
               } else onChange({ layout });
             }}
-            className={`rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
-              slide.layout === layout ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-soft hover:border-line-strong hover:text-ink"
-            }`}
+            className={`${inputClass} min-w-0 flex-1`}
           >
-            {FEED_LAYOUT_LABELS[layout]}
-          </button>
-        ))}
+            {layouts.includes("livre") && <option value="livre">{FEED_LAYOUT_LABELS.livre} · elementos livres</option>}
+            {layouts
+              .filter((layout) => layout !== "livre")
+              .map((layout) => (
+                <option key={layout} value={layout}>
+                  {FEED_LAYOUT_LABELS[layout]}
+                </option>
+              ))}
+          </select>
+        </label>
+        <IconButton label="Mover para a esquerda" onClick={() => onMove(-1)} disabled={index === 0} icon={ArrowLeft} />
+        <IconButton label="Mover para a direita" onClick={() => onMove(1)} disabled={index === total - 1} icon={ArrowRight} />
+        <IconButton label="Excluir slide" onClick={onRemove} disabled={total === 1} icon={Trash2} danger />
       </div>
+
       {slide.layout === "referencia" && !hasCustomLayout && (
         <p className="rounded-lg bg-orange-50 px-3 py-2 text-[12.5px] text-danger">
           Nenhum layout de referência criado ainda; este slide está usando o layout Texto.
