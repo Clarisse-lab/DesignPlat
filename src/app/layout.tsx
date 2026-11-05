@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AppHeader } from "@/components/appearance/AppHeader";
+import { themeInitializer } from "@/components/appearance/initialize";
 import { AuthGate } from "@/components/auth/AuthGate";
 import "./globals.css";
 
@@ -10,31 +11,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: themeInitializer }} /></head>
       <body className="min-h-screen font-sans antialiased">
-        <header className="border-b border-line bg-surface">
-          <div className="mx-auto flex h-14 max-w-[1440px] items-center justify-between gap-3 px-4 sm:px-6">
-            <Link href="/" className="flex shrink-0 items-center gap-2 text-[15px] font-bold tracking-tight">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-ink text-[11px] tracking-tight text-white">DM</span>
-              Design Mantora
-            </Link>
-            <nav className="-mr-2 flex min-w-0 items-center gap-1 overflow-x-auto whitespace-nowrap text-[13px] font-medium text-ink-soft">
-              <Link href="/tweet" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
-                Carrossel Tweet
-              </Link>
-              <Link href="/feed" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
-                Post de Feed
-              </Link>
-              <Link href="/story" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
-                Story
-              </Link>
-              <Link href="/apresentacao" className="rounded-md px-3 py-1.5 hover:bg-canvas hover:text-ink">
-                Apresentação
-              </Link>
-            </nav>
-          </div>
-        </header>
-        <main>
+        <AppHeader />
+        <main className="mantora-workspace">
           <AuthGate>{children}</AuthGate>
         </main>
       </body>
