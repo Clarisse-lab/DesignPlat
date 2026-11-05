@@ -45,7 +45,7 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
-2. Salvar peças e templates no Supabase (hoje o rascunho fica só no navegador).
+2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).
 3. Editor por elementos: cada slide com fundo, sombra e elementos posicionáveis (texto, foto, etiqueta, cartão, ícone, perfil), arrastar e soltar, tamanhos em px, marca-texto, rodapé e barras de progresso. Os layouts atuais viram pontos de partida.
 4. Imagens: tiras e grade na capa, carrossel infinito (panorama) e edição de imagem com IA.
 5. Assistente "gerar com IA" ligado ao Motor de Conteúdo (pauta → copy → brief → peça), "gerar este slide" e legenda.

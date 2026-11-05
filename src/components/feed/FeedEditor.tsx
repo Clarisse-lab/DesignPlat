@@ -16,6 +16,7 @@ import {
   type NoticeMessage,
 } from "@/components/editor/ui";
 import { ClientPanel, useStudioClients, type StudioClient } from "@/components/editor/ClientPanel";
+import { SavedPiecesToolbar, type OpenedPiece } from "@/components/editor/SavedPieces";
 import { downloadFile, downloadRender } from "@/lib/client/api";
 import { MAX_FEED_SLIDES } from "@/lib/feed/schema";
 import { CANVAS_SIZES } from "@/lib/formats";
@@ -100,6 +101,26 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       };
     });
     showInfo(kit ? `Kit de marca de ${client.nome} aplicado.` : `${client.nome} ainda não tem kit de marca: só as fotos e a IA usam o cliente.`);
+  };
+
+  /** Abre uma peça ou template salvo no lugar do rascunho atual. */
+  const openPiece = (piece: OpenedPiece) => {
+    if (!isFeedDraft(piece.dados)) {
+      showError("Essa peça não é deste editor ou está incompleta.");
+      return;
+    }
+    if (!window.confirm("Abrir no lugar do rascunho atual? O que não foi salvo se perde.")) return;
+    const dados = piece.dados;
+    const cliente = piece.cliente_slug ? (clients?.find((c) => c.slug === piece.cliente_slug) ?? { slug: piece.cliente_slug, nome: piece.cliente_slug }) : null;
+    setDraft({
+      ...dados,
+      style: { ...dados.style, size: config.sizes.includes(dados.style.size) ? dados.style.size : config.sizes[0] },
+      cliente: cliente ? { slug: cliente.slug, nome: cliente.nome } : null,
+      pecaId: piece.id,
+      titulo: piece.titulo || null,
+    });
+    setActiveIndex(0);
+    showInfo(piece.template ? "Template aberto como peça nova: troque os textos e salve com outro nome." : `Peça "${piece.titulo}" aberta.`);
   };
 
   const addSlide = () => {
@@ -233,6 +254,26 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           <p className="max-w-2xl text-[13px] text-ink-soft">{config.subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {studioEnabled && (
+            <SavedPiecesToolbar
+              ferramenta={mode}
+              pecaId={draft.pecaId ?? null}
+              titulo={draft.titulo ?? null}
+              clienteSlug={draft.cliente?.slug ?? null}
+              clienteNome={draft.cliente?.nome ?? null}
+              suggestedTitle={(slides[0]?.title || config.title).replace(/\*\*/g, "").slice(0, 80)}
+              getDados={() => {
+                const { pecaId: _id, titulo: _titulo, ...rest } = draft;
+                void _id;
+                void _titulo;
+                return rest as unknown as Record<string, unknown>;
+              }}
+              onSaved={(id, titulo) => setDraft((d) => ({ ...d, pecaId: id, titulo }))}
+              onOpen={openPiece}
+              onError={showError}
+              onInfo={showInfo}
+            />
+          )}
           {isStory && (
             <ToolbarButton icon={Import} onClick={importFromFeed}>
               Importar do Post de Feed

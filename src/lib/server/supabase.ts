@@ -70,3 +70,24 @@ export async function memberFromToken(token: string): Promise<TeamMember | "inva
   if (!member?.ativo) return "forbidden";
   return { email: member.email, nome: member.nome, admin: member.admin };
 }
+
+// ---------- Storage (bucket privado "design") ----------
+export const DESIGN_BUCKET = "design";
+
+export async function uploadObject(path: string, bytes: Buffer, contentType: string): Promise<void> {
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${DESIGN_BUCKET}/${path}`, {
+    method: "POST",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": contentType, "x-upsert": "true" },
+    body: new Uint8Array(bytes),
+  });
+  if (!response.ok) throw new Error(`Storage ${response.status}: ${(await response.text()).slice(0, 200)}`);
+}
+
+export async function downloadObject(path: string): Promise<{ bytes: Buffer; contentType: string }> {
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/${DESIGN_BUCKET}/${path}`, {
+    cache: "no-store",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+  });
+  if (!response.ok) throw new Error(`Storage ${response.status} em ${path}`);
+  return { bytes: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get("content-type") ?? "image/jpeg" };
+}
