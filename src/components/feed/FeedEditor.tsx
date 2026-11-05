@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, Download, FileText, Import, Presentation, Wand2 } from "lucide-react";
 import {
   Field,
@@ -35,6 +35,8 @@ import { StylePanel } from "./StylePanel";
 import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
 import { StoryGuides } from "./StoryGuides";
 import { EMPTY_FREE, FreeHandles } from "./FreeEditor";
+import { GeneratorPanel, type GeneratedSlide, type GeneratorStyle } from "./GeneratorPanel";
+import { FREE_PRESETS, type FreeSlide } from "@/lib/templates/free";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
@@ -57,6 +59,15 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [message, setMessage] = useState<NoticeMessage | null>(null);
   const { clients, enabled: studioEnabled } = useStudioClients();
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  // Link do Escritório: /feed?cliente=<slug>&pauta=<id> já escolhe o cliente e a pauta.
+  const [linkParams, setLinkParams] = useState<{ cliente: string | null; pauta: number | null } | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pauta = Number(params.get("pauta"));
+    // Os parâmetros da URL só existem no navegador: leitura única ao montar.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLinkParams({ cliente: params.get("cliente"), pauta: Number.isInteger(pauta) && pauta > 0 ? pauta : null });
+  }, []);
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
   const active = slides[safeIndex];
@@ -103,6 +114,41 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       };
     });
     showInfo(kit ? `Kit de marca de ${client.nome} aplicado.` : `${client.nome} ainda não tem kit de marca: só as fotos e a IA usam o cliente.`);
+  };
+
+  // Aplica o cliente do link do Escritório assim que a lista de clientes chega.
+  useEffect(() => {
+    if (!linkParams?.cliente || !clients) return;
+    const client = clients.find((c) => c.slug === linkParams.cliente);
+    if (client && draft.cliente?.slug !== client.slug) selectClient(client);
+    setLinkParams((p) => (p ? { ...p, cliente: null } : p));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients, linkParams?.cliente]);
+
+  /** Monta os slides a partir das telas geradas, usando os modelos do Livre (revista) ou os layouts clássicos. */
+  const applyGenerated = (items: GeneratedSlide[], legenda: string, genStyle: GeneratorStyle) => {
+    if (slides.some((s) => s.title.trim()) && !window.confirm(`Substituir os ${slides.length} slide(s) atuais pelas ${items.length} telas geradas?`)) return;
+    const preset = (id: string) => FREE_PRESETS.find((p) => p.id === id) ?? FREE_PRESETS[0];
+    const withTag = (free: FreeSlide, etiqueta: string): FreeSlide => ({
+      ...free,
+      elements: etiqueta.trim()
+        ? free.elements.map((el) => (el.kind === "etiqueta" ? { ...el, text: etiqueta.trim().toUpperCase() } : el))
+        : free.elements.filter((el) => el.kind !== "etiqueta"),
+    });
+    let interno = 0;
+    const built = items.slice(0, MAX_FEED_SLIDES).map((it) => {
+      const base = { title: it.titulo, body: it.texto };
+      if (genStyle === "revista" && (it.tipo === "capa" || it.tipo === "texto" || it.tipo === "cta")) {
+        const id = it.tipo === "capa" ? "capa-revista" : interno++ % 2 === 0 ? "interno-texto" : "interno-cartao";
+        const free = withTag(preset(id).build({ title: it.titulo, body: it.tipo === "capa" ? it.etiqueta : it.texto, hasImage: false }), it.etiqueta);
+        return newFeedSlide({ layout: "livre", ...base, free });
+      }
+      const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
+      return newFeedSlide({ layout, ...base });
+    });
+    setDraft((d) => ({ ...d, slides: built, legenda }));
+    setActiveIndex(0);
+    setSelectedElement(null);
   };
 
   /** Abre uma peça ou template salvo no lugar do rascunho atual. */
@@ -383,6 +429,19 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           </Panel>
 
           {studioEnabled && <ClientPanel clients={clients} value={draft.cliente?.slug ?? null} onSelect={selectClient} />}
+
+          {studioEnabled && mode === "feed" && (
+            <GeneratorPanel
+              clienteSlug={draft.cliente?.slug ?? null}
+              nome={brand.name}
+              handle={brand.handle}
+              initialPautaId={linkParams?.pauta ?? null}
+              legenda={draft.legenda ?? null}
+              onGenerated={applyGenerated}
+              onError={showError}
+              onInfo={showInfo}
+            />
+          )}
 
           <ReferencePanel
             size={style.size}
