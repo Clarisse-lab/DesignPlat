@@ -233,7 +233,7 @@ export function FreeEditor({
         )}
         <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
           <input type="checkbox" checked={Boolean(free.progress)} onChange={(e) => onChange({ ...free, progress: e.target.checked })} className="h-4 w-4 accent-accent" />
-          Barrinhas de progresso no topo
+          Barrinhas de progresso no topo (estilo story, saem na imagem)
         </label>
       </div>
 
@@ -243,9 +243,13 @@ export function FreeEditor({
       {tab === "elementos" && (
         <>
       <div className="space-y-2">
-        {free.elements.length === 0 && <p className="text-[12.5px] text-ink-faint">Nenhum elemento. Comece por um modelo ou adicione abaixo.</p>}
+        {free.elements.length === 0 ? (
+          <p className="text-[12.5px] text-ink-faint">Nenhum elemento. Comece por um modelo ou adicione abaixo.</p>
+        ) : (
+          <p className="text-[11.5px] text-ink-faint">Camadas: o elemento de cima da lista fica na frente dos outros. As setas mudam essa ordem.</p>
+        )}
         <ul className="space-y-1">
-          {free.elements.map((el, i) => (
+          {free.elements.map((el, i) => ({ el, i })).reverse().map(({ el, i }) => (
             <li key={el.id}>
               <div
                 className={`flex items-center gap-1 rounded-lg border px-2 py-1.5 ${el.id === selectedId ? "border-accent bg-accent-soft" : "border-line"}`}
@@ -254,10 +258,10 @@ export function FreeEditor({
                   <b className="font-semibold">{FREE_ELEMENT_LABELS[el.kind]}</b>
                   {el.text ? <span className="text-ink-faint"> · {el.text.replace(/\*\*/g, "")}</span> : null}
                 </button>
-                <button type="button" title="Para trás" aria-label="Para trás" onClick={() => move(el.id, -1)} disabled={i === 0} className="rounded p-1 text-ink-faint hover:text-ink disabled:opacity-30">
+                <button type="button" title="Trazer para a frente" aria-label="Trazer para a frente" onClick={() => move(el.id, 1)} disabled={i === free.elements.length - 1} className="rounded p-1 text-ink-faint hover:text-ink disabled:opacity-30">
                   <ArrowUp className="h-3.5 w-3.5" />
                 </button>
-                <button type="button" title="Para a frente" aria-label="Para a frente" onClick={() => move(el.id, 1)} disabled={i === free.elements.length - 1} className="rounded p-1 text-ink-faint hover:text-ink disabled:opacity-30">
+                <button type="button" title="Enviar para trás" aria-label="Enviar para trás" onClick={() => move(el.id, -1)} disabled={i === 0} className="rounded p-1 text-ink-faint hover:text-ink disabled:opacity-30">
                   <ArrowDown className="h-3.5 w-3.5" />
                 </button>
                 <button

@@ -214,8 +214,8 @@ strong{font-weight:700}
 .who small{font-size:.8em;opacity:.75}
 .img-empty{display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,${autoText} 10%,transparent);border:3px dashed color-mix(in srgb,${autoText} 35%,transparent);color:color-mix(in srgb,${autoText} 55%,transparent);font-size:32px}
 .progress{position:absolute;left:4%;right:4%;top:2.4%;display:flex;gap:10px}
-.progress span{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.35)}
-.progress span.on{background:rgba(255,255,255,.95)}
+.progress span{flex:1;height:6px;border-radius:3px;background:${photo ? "rgba(255,255,255,.35)" : `color-mix(in srgb,${autoText} 18%,transparent)`}}
+.progress span.on{background:${photo ? "rgba(255,255,255,.95)" : autoText}}
 `;
   const pan = free.pan && free.pan.total > 1 ? { total: Math.min(10, Math.round(free.pan.total)), part: Math.round(free.pan.part) } : null;
   const photoStyle = pan ? ` style="width:${pan.total * 100}%;left:${-Math.min(pan.total - 1, Math.max(0, pan.part)) * 100}%"` : "";
@@ -256,7 +256,6 @@ export const FREE_PRESETS: { id: string; label: string; build: (input: FreePrese
     build: ({ title, body, hasImage }) => ({
       bg: hasImage ? "foto" : "fundo",
       overlay: "base",
-      progress: true,
       elements: [
         newFreeElement("etiqueta", { x: 8, y: 52, w: 84, text: body ? body.split("\n")[0].slice(0, 40) : "TEMA DO POST", fill: "vidro" }),
         newFreeElement("titulo", { x: 8, y: 58, w: 84, size: 104, text: title || "Título **forte** para a capa", upper: true, highlight: "cor" }),
@@ -284,7 +283,6 @@ export const FREE_PRESETS: { id: string; label: string; build: (input: FreePrese
     build: ({ title }) => ({
       bg: "fundo",
       overlay: "nenhuma",
-      progress: true,
       elements: [
         newFreeElement("grade", { x: 0, y: 0, w: 100, h: 60, grid: "2v", gap: 8, radius: 0 }),
         newFreeElement("titulo", { x: 8, y: 64, w: 84, size: 92, text: title || "Antes e **depois** em 30 dias", upper: true }),
