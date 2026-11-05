@@ -18,7 +18,7 @@ export const geminiConfigured = () => Boolean(API_KEY);
 
 /** Proporções aceitas pelo Gemini, a partir do tamanho do slide. */
 export function aspectFor(width: number, height: number): string {
-  const options: [string, number][] = [["1:1", 1], ["4:5", 0.8], ["3:4", 0.75], ["9:16", 0.5625], ["16:9", 16 / 9], ["2:3", 2 / 3], ["3:2", 1.5]];
+  const options: [string, number][] = [["1:1", 1], ["4:5", 0.8], ["3:4", 0.75], ["9:16", 0.5625], ["16:9", 16 / 9], ["21:9", 21 / 9], ["2:3", 2 / 3], ["3:2", 1.5]];
   const ratio = width / height;
   return options.reduce((best, option) => (Math.abs(option[1] - ratio) < Math.abs(best[1] - ratio) ? option : best))[0];
 }
@@ -52,19 +52,31 @@ export async function generateImage(input: {
   faces: string[];
   references: string[];
   paletteHint?: string;
+  /** Editar esta imagem em vez de criar uma nova (vai como a primeira imagem do pedido). */
+  base?: string | null;
 }): Promise<GeneratedImage> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY não configurada no Railway.");
   const instructions = [
-    RULES,
+    input.base
+      ? "Edit the FIRST image provided. Apply only the change requested below and keep everything else (people, composition, framing) as it is. No text, letters, logos or watermarks."
+      : RULES,
     input.faces.length ? FACE_RULE : "",
     input.references.length ? "Use the other reference image(s) only as visual style/composition inspiration." : "",
-    input.paletteHint ? `Brand colors to echo subtly: ${input.paletteHint}.` : "",
-    `Scene requested by the user (Portuguese): ${input.prompt}`,
+    input.paletteHint && !input.base ? `Brand colors to echo subtly: ${input.paletteHint}.` : "",
+    input.aspectRatio === "21:9" || input.aspectRatio === "16:9"
+      ? "This is a wide panorama that will be split into side-by-side Instagram carousel slides: spread the scene continuously across the whole width."
+      : "",
+    `${input.base ? "Change requested" : "Scene requested"} by the user (Portuguese): ${input.prompt}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const parts = [{ text: instructions }, ...input.faces.map(dataUrlPart), ...input.references.map(dataUrlPart)];
+  const parts = [
+    { text: instructions },
+    ...(input.base ? [dataUrlPart(input.base)] : []),
+    ...input.faces.map(dataUrlPart),
+    ...input.references.map(dataUrlPart),
+  ];
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": API_KEY },

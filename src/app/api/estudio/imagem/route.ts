@@ -21,6 +21,10 @@ const schema = z.object({
   rostos: z.array(dataUrl).max(3).default([]),
   referencias: z.array(dataUrl).max(2).default([]),
   paleta: z.array(z.string().regex(/^#[0-9a-fA-F]{6}$/)).max(3).optional(),
+  /** Editar esta imagem (modo "Editar a imagem atual"). */
+  base: dataUrl.nullish(),
+  /** Proporção fixa (ex.: panorama do carrossel infinito); sem ela, segue o tamanho do slide. */
+  proporcao: z.enum(["1:1", "4:5", "3:4", "9:16", "16:9", "21:9", "2:3", "3:2"]).optional(),
 });
 
 async function spentThisMonth(): Promise<number> {
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.path.join(".") === "prompt" ? "Descreva a imagem com pelo menos 5 letras." : "Pedido inválido." }, { status: 400 });
   }
-  const { prompt, size, clienteSlug, rostos, referencias, paleta } = parsed.data;
+  const { prompt, size, clienteSlug, rostos, referencias, paleta, base, proporcao } = parsed.data;
 
   const limit = LIMIT_USD();
   const price = pricePerImage();
@@ -59,7 +63,7 @@ export async function POST(request: Request) {
 
   const { width, height } = CANVAS_SIZES[size];
   try {
-    const image = await generateImage({ prompt, aspectRatio: aspectFor(width, height), faces: rostos, references: referencias, paletteHint: paleta?.join(", ") });
+    const image = await generateImage({ prompt, aspectRatio: proporcao ?? aspectFor(width, height), faces: rostos, references: referencias, paletteHint: paleta?.join(", "), base });
     await rest("uso_ia", {
       method: "POST",
       headers: { Prefer: "return=minimal" },

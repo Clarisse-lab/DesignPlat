@@ -26,18 +26,25 @@ async function toDataUrl(blob: Blob, maxSide: number) {
 
 export function ImageAiDialog({
   context,
+  aspect,
+  title = "Gerar imagem com IA",
   onUse,
   onClose,
 }: {
   context: ImageAiContext;
+  /** Proporção fixa (ex.: "21:9" para o panorama do carrossel infinito). */
+  aspect?: string;
+  title?: string;
   onUse: (dataUrl: string, info: string) => void;
   onClose: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
-  const [useFace, setUseFace] = useState(Boolean(context.clienteSlug));
+  const [useFace, setUseFace] = useState(Boolean(context.clienteSlug) && !aspect);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [uploads, setUploads] = useState<string[]>([]);
   const [useCurrent, setUseCurrent] = useState(false);
+  const [mode, setMode] = useState<"criar" | "editar">("criar");
+  const editing = mode === "editar" && Boolean(context.currentImage);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ image: string; info: string } | null>(null);
@@ -68,15 +75,18 @@ export function ImageAiDialog({
           size: context.size,
           clienteSlug: context.clienteSlug,
           rostos: faces,
-          referencias: useCurrent && context.currentImage ? [context.currentImage] : [],
+          referencias: !editing && useCurrent && context.currentImage ? [context.currentImage] : [],
           paleta: context.palette,
+          base: editing ? context.currentImage : null,
+          proporcao: aspect,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar a imagem.");
       // A resposta vem em PNG grande: reduz para JPEG no tamanho do slide antes de usar.
       const blob = await (await fetch(data.imagem)).blob();
-      const image = await toDataUrl(blob, 1600);
+      // Panorama do carrossel infinito vira vários slides: guarda maior para não perder nitidez.
+      const image = await toDataUrl(blob, aspect ? 3200 : 1600);
       const cost = `US$ ${Number(data.custo_usd).toFixed(3).replace(".", ",")}`;
       setResult({ image, info: `Imagem gerada (${cost}; no mês: US$ ${String(data.gasto_mes_usd).replace(".", ",")} de ${data.limite_usd}).` });
     } catch (e) {
@@ -92,7 +102,7 @@ export function ImageAiDialog({
       <div className="relative flex max-h-[90vh] w-full max-w-3xl flex-col gap-4 overflow-y-auto rounded-2xl bg-surface p-5 shadow-2xl">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-[16px] font-bold">
-            <Sparkles className="h-5 w-5 text-accent" /> Gerar imagem com IA
+            <Sparkles className="h-5 w-5 text-accent" /> {title}
           </h2>
           <button type="button" onClick={onClose} disabled={busy} aria-label="Fechar" className="rounded-md p-1 text-ink-soft hover:text-ink">
             <X className="h-5 w-5" />
@@ -123,15 +133,40 @@ export function ImageAiDialog({
           </div>
         ) : (
           <>
+            {context.currentImage && (
+              <div className="flex gap-1 rounded-lg bg-canvas p-1">
+                {(["criar", "editar"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-medium ${mode === m ? "bg-surface text-ink shadow-sm" : "text-ink-soft"}`}
+                  >
+                    {m === "criar" ? "Criar imagem nova" : "Editar a imagem atual"}
+                  </button>
+                ))}
+              </div>
+            )}
+            {editing && (
+              <div className="flex items-center gap-3 rounded-xl border border-line p-2">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={context.currentImage!} alt="Imagem atual" className="h-20 w-16 rounded-md object-cover" />
+                <p className="text-[12.5px] text-ink-soft">A IA muda só o que você pedir e mantém o resto da imagem.</p>
+              </div>
+            )}
             <label className="block">
-              <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">O que aparece na imagem</span>
+              <span className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">{editing ? "O que mudar" : "O que aparece na imagem"}</span>
               <textarea
                 autoFocus
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={4}
                 maxLength={2000}
-                placeholder="Ex.: a cliente sorrindo, trabalhando num notebook numa mesa de madeira, luz natural de janela, tons quentes, clima de escritório aconchegante."
+                placeholder={
+                  editing
+                    ? "Ex.: troque o fundo por um escritório claro com plantas; deixe a luz mais quente; tire o copo da mesa."
+                    : "Ex.: a cliente sorrindo, trabalhando num notebook numa mesa de madeira, luz natural de janela, tons quentes, clima de escritório aconchegante."
+                }
                 className={`${inputClass} resize-y`}
               />
             </label>
@@ -197,7 +232,7 @@ export function ImageAiDialog({
               )}
             </div>
 
-            {context.currentImage && (
+            {context.currentImage && !editing && (
               <label className="flex items-center gap-2 text-[13px]">
                 <input type="checkbox" checked={useCurrent} onChange={(e) => setUseCurrent(e.target.checked)} className="h-4 w-4 accent-accent" />
                 Usar a imagem atual do slide como referência de estilo
@@ -215,7 +250,7 @@ export function ImageAiDialog({
                 className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-[13.5px] font-semibold text-white hover:bg-accent/90 disabled:opacity-50"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                {busy ? "Gerando… (até 1 minuto)" : "Gerar imagem"}
+                {busy ? "Gerando… (até 1 minuto)" : editing ? "Editar imagem" : "Gerar imagem"}
               </button>
             </div>
           </>

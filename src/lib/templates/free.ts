@@ -6,7 +6,7 @@ import type { FeedBrand, FeedPalette } from "./feed";
 import { TITLE_FONTS, type TitleFontId } from "./fonts";
 import { contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc } from "./utils";
 
-export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "cartao"] as const;
+export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao"] as const;
 export type FreeElementKind = (typeof FREE_ELEMENT_KINDS)[number];
 
 export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
@@ -17,8 +17,15 @@ export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
   arraste: "Arraste →",
   numeracao: "Numeração",
   imagem: "Imagem",
+  grade: "Tiras / grade de fotos",
   cartao: "Cartão",
 };
+
+/** Arranjos do elemento Tiras / grade. */
+export const FREE_GRIDS = ["2v", "3v", "2h", "2x2"] as const;
+export type FreeGrid = (typeof FREE_GRIDS)[number];
+export const FREE_GRID_LABELS: Record<FreeGrid, string> = { "2v": "2 tiras lado a lado", "3v": "3 tiras lado a lado", "2h": "2 faixas empilhadas", "2x2": "Grade 2 × 2" };
+export const gridSlots = (grid: FreeGrid | undefined) => (grid === "3v" ? 3 : grid === "2x2" ? 4 : 2);
 
 export const FREE_COLORS = ["texto", "fundo", "destaque", "branco", "preto"] as const;
 export type FreeColor = (typeof FREE_COLORS)[number];
@@ -57,6 +64,10 @@ export interface FreeElement {
   upper?: boolean;
   font?: "titulo" | "corpo";
   image?: string | null;
+  /** Tiras / grade: arranjo, fotos de cada espaço e espaço entre elas (px). */
+  grid?: FreeGrid;
+  images?: (string | null)[];
+  gap?: number;
   /** Fundo da etiqueta ou do cartão. */
   fill?: FreeColor | "vidro";
   radius?: number;
@@ -67,6 +78,8 @@ export interface FreeSlide {
   overlay: (typeof FREE_OVERLAYS)[number];
   /** Barrinhas de progresso no topo (estilo story). */
   progress?: boolean;
+  /** Carrossel infinito: a foto de fundo ocupa `total` slides lado a lado e este mostra o pedaço `part`. */
+  pan?: { total: number; part: number } | null;
   elements: FreeElement[];
 }
 
@@ -154,6 +167,20 @@ export function renderFreeSlide(params: {
           ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
           : `<div class="el img-empty" style="${box}height:${h}%;border-radius:${radius}px">Imagem</div>`;
       }
+      case "grade": {
+        const grid = (FREE_GRIDS as readonly string[]).includes(el.grid ?? "") ? (el.grid as FreeGrid) : "2v";
+        const slots = gridSlots(grid);
+        const gap = clamp(el.gap, 0, 80, 12);
+        const radius = clamp(el.radius, 0, 200, 20);
+        const template = grid === "2h" ? "grid-template-rows:1fr 1fr" : grid === "2x2" ? "grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr" : `grid-template-columns:repeat(${slots},1fr)`;
+        const cells = Array.from({ length: slots }, (_, i) => {
+          const src = safeImageSrc(el.images?.[i]);
+          return src
+            ? `<div style="border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+            : `<div class="img-empty" style="border-radius:${radius}px;position:static">Foto ${i + 1}</div>`;
+        }).join("");
+        return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
+      }
       case "cartao": {
         const fill = el.fill === "vidro" ? "rgba(255,255,255,.14)" : colorOf(el.fill as FreeColor | undefined, "#FFFFFF");
         const radius = clamp(el.radius, 0, 200, 36);
@@ -169,7 +196,7 @@ export function renderFreeSlide(params: {
   const css = `
 body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif}
 .root{position:relative;width:${width}px;height:${height}px;overflow:hidden}
-.photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.photo{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;max-width:none}
 .shade{position:absolute;inset:0;background:${photo ? OVERLAY_CSS[free.overlay] ?? "transparent" : "transparent"}}
 .el{position:absolute;overflow-wrap:break-word}
 .t-body{font-family:"Inter",Arial,sans-serif;line-height:1.4}
@@ -188,7 +215,9 @@ strong{font-weight:700}
 .progress span{flex:1;height:6px;border-radius:3px;background:rgba(255,255,255,.35)}
 .progress span.on{background:rgba(255,255,255,.95)}
 `;
-  const body = `<div class="root">${photo ? `<img class="photo" src="${photo}" alt=""/><div class="shade"></div>` : ""}${progress}${elements.join("")}</div>`;
+  const pan = free.pan && free.pan.total > 1 ? { total: Math.min(10, Math.round(free.pan.total)), part: Math.round(free.pan.part) } : null;
+  const photoStyle = pan ? ` style="width:${pan.total * 100}%;left:${-Math.min(pan.total - 1, Math.max(0, pan.part)) * 100}%"` : "";
+  const body = `<div class="root">${photo ? `<img class="photo" src="${photo}" alt=""${photoStyle}/><div class="shade"></div>` : ""}${progress}${elements.join("")}</div>`;
   return htmlDocument({ width, height, fontCss, css, body });
 }
 
@@ -206,6 +235,7 @@ export function newFreeElement(kind: FreeElementKind, over: Partial<FreeElement>
     arraste: { x: 62, y: 90, w: 30, size: 24, align: "right", text: "Arraste →" },
     numeracao: { x: 80, y: 4, w: 12, size: 24, align: "right" },
     imagem: { x: 8, y: 20, w: 84, h: 40, radius: 28 },
+    grade: { x: 0, y: 0, w: 100, h: 62, grid: "2v", images: [], gap: 10, radius: 0 },
     cartao: { x: 6, y: 10, w: 88, h: 74, fill: "branco", radius: 40 },
   };
   return { id: newElementId(), kind, ...base[kind], ...over } as FreeElement;
@@ -241,6 +271,35 @@ export const FREE_PRESETS: { id: string; label: string; build: (input: FreePrese
       overlay: "forte",
       elements: [
         newFreeElement("titulo", { x: 8, y: 56, w: 84, size: 100, text: title || "O **futuro** do seu **negócio** começa aqui", upper: true, highlight: "marca" }),
+        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
+        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+      ],
+    }),
+  },
+  {
+    id: "capa-tiras",
+    label: "Capa com 2 tiras",
+    build: ({ title }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      progress: true,
+      elements: [
+        newFreeElement("grade", { x: 0, y: 0, w: 100, h: 60, grid: "2v", gap: 8, radius: 0 }),
+        newFreeElement("titulo", { x: 8, y: 64, w: 84, size: 92, text: title || "Antes e **depois** em 30 dias", upper: true }),
+        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
+        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+      ],
+    }),
+  },
+  {
+    id: "capa-3-tiras",
+    label: "Capa com 3 tiras",
+    build: ({ title }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        newFreeElement("grade", { x: 4, y: 4, w: 92, h: 56, grid: "3v", gap: 12, radius: 24 }),
+        newFreeElement("titulo", { x: 8, y: 64, w: 84, size: 88, text: title || "3 **formas** de começar hoje", upper: true }),
         newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
         newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
       ],

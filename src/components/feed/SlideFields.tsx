@@ -70,6 +70,7 @@ export function SlideFields({
   imageAi = null,
   selectedElement = null,
   onSelectElement = () => {},
+  onSpread = () => {},
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -88,6 +89,8 @@ export function SlideFields({
   /** Elemento selecionado no layout Livre (compartilhado com as alças da prévia). */
   selectedElement?: string | null;
   onSelectElement?: (id: string | null) => void;
+  /** Carrossel infinito (layout Livre): espalha a foto de fundo por N slides a partir deste. */
+  onSpread?: (total: number) => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
@@ -98,7 +101,7 @@ export function SlideFields({
 
   const imageBlock = (
     <div className="flex flex-wrap items-center gap-2">
-          <ImagePicker value={slide.image} onChange={(image) => onChange({ image })} onError={onError} label={fields.image ?? "Imagem"} maxSide={1600} />
+          <ImagePicker value={slide.image} onChange={(image) => onChange({ image })} onError={onError} label={fields.image ?? "Imagem"} maxSide={slide.layout === "livre" ? 3200 : 1600} />
           {!slide.image && (
             <button
               type="button"
@@ -147,7 +150,7 @@ export function SlideFields({
             onClick={() => {
               if (layout === "livre" && !slide.free) {
                 // Primeira vez no Livre: começa por um modelo com o texto e a foto que o slide já tem.
-                const preset = FREE_PRESETS[index === 0 ? 0 : 3];
+                const preset = FREE_PRESETS.find((p) => p.id === (index === 0 ? "capa-revista" : "interno-texto")) ?? FREE_PRESETS[0];
                 onChange({ layout, free: preset.build({ title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }) });
               } else onChange({ layout });
             }}
@@ -176,6 +179,10 @@ export function SlideFields({
           onChange={(free) => onChange({ free })}
           onError={onError}
           imageControls={imageBlock}
+          imageAi={imageAi}
+          image={slide.image ?? null}
+          onImage={(image) => onChange({ image })}
+          onSpread={onSpread}
         />
       ) : (
         <>

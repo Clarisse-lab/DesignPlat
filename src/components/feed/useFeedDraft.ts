@@ -11,6 +11,8 @@ export interface FeedDraft {
   /** Peça salva no Supabase que este rascunho está editando (null: ainda não salva). */
   pecaId?: string | null;
   titulo?: string | null;
+  /** Legenda do post (gerada junto com o carrossel). */
+  legenda?: string | null;
   brand: FeedBrand;
   style: FeedStyle;
   slides: FeedEditorSlide[];
