@@ -1,79 +1,39 @@
 import Link from "next/link";
-import { ArrowRight, GalleryHorizontal, Presentation, RectangleVertical, Square } from "lucide-react";
+import { ArrowUpRight, GalleryHorizontal, Presentation, RectangleVertical, Square } from "lucide-react";
 
 const TOOLS = [
-  {
-    href: "/tweet",
-    title: "Carrossel Tweet",
-    description: "Slides no estilo post do X/Twitter, escritos com IA e exportados em PNG.",
-    icon: GalleryHorizontal,
-    ready: true,
-  },
-  {
-    href: "/feed",
-    title: "Post de Feed",
-    description: "Posts e carrosséis para o Instagram com a identidade da sua marca, a partir do texto do conteúdo.",
-    icon: Square,
-    ready: true,
-  },
-  {
-    href: "/story",
-    title: "Story",
-    description: "Sequências de stories 9:16 com a mesma identidade do feed, com espaço para enquete, perguntas e link.",
-    icon: RectangleVertical,
-    ready: true,
-  },
-  {
-    href: "/apresentacao",
-    title: "Apresentação",
-    description: "Slides 16:9 com a identidade da marca, para baixar em PDF, PowerPoint (PPTX) ou imagens.",
-    icon: Presentation,
-    ready: true,
-  },
+  { href: "/tweet", title: "Carrossel Tweet", description: "Slides no estilo post do X/Twitter, escritos com IA e exportados em PNG.", icon: GalleryHorizontal, art: "tweet", line: <>Texto que<br />vira conversa.</> },
+  { href: "/feed", title: "Post de Feed", description: "Posts e carrosséis para o Instagram com a identidade da sua marca, a partir do texto do conteúdo.", icon: Square, art: "feed", line: <>M<em>ideias<br />em ação.</em></> },
+  { href: "/story", title: "Story", description: "Sequências de stories 9:16 com a mesma identidade do feed, com espaço para enquete, perguntas e link.", icon: RectangleVertical, art: "story", line: <>seu<br />próximo<br />sinal.</> },
+  { href: "/apresentacao", title: "Apresentação", description: "Slides 16:9 com a identidade da marca, para baixar em PDF, PowerPoint (PPTX) ou imagens.", icon: Presentation, art: "presentation", line: <>01<small>Uma ideia<br />bem apresentada.</small></> },
 ];
 
 export default function Home() {
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 sm:py-16">
-      <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">O que vamos criar hoje?</h1>
-      <p className="mt-3 max-w-xl text-[15px] text-ink-soft">
-        Escreva ou gere o conteúdo uma vez e transforme em peças prontas para publicar.
-      </p>
-
-      <div className="mt-10 grid gap-4 sm:grid-cols-2">
-        {TOOLS.map((tool) => {
+    <div className="mosaic-home">
+      <section className="mosaic-welcome">
+        <p className="mosaic-eyebrow">UM ESPAÇO PARA FAZER ACONTECER</p>
+        <div className="mosaic-welcome-row">
+          <h1>Vamos criar<br /><span>o próximo sinal.</span></h1>
+          <p>Ideias não precisam esperar.<br />Seu estúdio está pronto.</p>
+          <span className="mosaic-disc" aria-hidden="true">m<span>✳</span></span>
+        </div>
+      </section>
+      <section className="mosaic-tools" aria-label="Escolha uma ferramenta">
+        {TOOLS.map((tool, index) => {
           const Icon = tool.icon;
-          const content = (
-            <>
-              <div className="flex items-start justify-between">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
-                  <Icon className="h-5 w-5" strokeWidth={1.75} />
-                </span>
-                {tool.ready ? (
-                  <ArrowRight className="h-4 w-4 text-ink-faint transition-transform group-hover:translate-x-0.5 group-hover:text-ink" />
-                ) : (
-                  <span className="rounded-full bg-canvas px-2.5 py-1 text-[11px] font-medium text-ink-faint">Em breve</span>
-                )}
-              </div>
-              <h2 className="mt-5 text-[16px] font-bold">{tool.title}</h2>
-              <p className="mt-1 text-[13.5px] leading-relaxed text-ink-soft">{tool.description}</p>
-            </>
-          );
-          return tool.ready && tool.href ? (
-            <Link
-              key={tool.title}
-              href={tool.href}
-              className="group rounded-2xl border border-line bg-surface p-6 transition-colors hover:border-line-strong"
-            >
-              {content}
+          return (
+            <Link key={tool.href} href={tool.href} className={`mosaic-tool mosaic-tool-${tool.art}`}>
+              <div className="mosaic-tool-top"><span>0{index + 1} / CRIAR</span><Icon className="h-5 w-5" aria-hidden="true" /></div>
+              <div className={`mosaic-art mosaic-art-${tool.art}`} aria-hidden="true"><span>{tool.line}</span></div>
+              <h2>{tool.title}</h2>
+              <p>{tool.description}</p>
+              <span className="mosaic-tool-open">Criar agora <ArrowUpRight className="h-4 w-4" aria-hidden="true" /></span>
             </Link>
-          ) : (
-            <div key={tool.title} className="rounded-2xl border border-dashed border-line bg-surface/60 p-6 opacity-80">
-              {content}
-            </div>
           );
         })}
-      </div>
+      </section>
+      <footer className="mosaic-footer"><span>MANTORA LAB®</span><span>DA IDEIA À PUBLICAÇÃO.</span></footer>
     </div>
   );
 }

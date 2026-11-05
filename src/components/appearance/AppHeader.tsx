@@ -1,0 +1,32 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ThemeToggle } from "./ThemeToggle";
+
+const links = [
+  ["/", "Ferramentas"],
+  ["/tweet", "Carrossel Tweet"],
+  ["/feed", "Post de Feed"],
+  ["/story", "Story"],
+  ["/apresentacao", "Apresentação"],
+];
+
+export function AppHeader() {
+  const pathname = usePathname();
+  return (
+    <header className="mantora-header">
+      <Link href="/" className="mantora-brand" aria-label="Design Mantora — início">
+        <span>mantora<sup>®</sup></span><small>design</small>
+      </Link>
+      <nav className="mantora-nav" aria-label="Ferramentas de criação">
+        {links.map(([href, label]) => (
+          <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}>
+            {label}
+          </Link>
+        ))}
+      </nav>
+      <ThemeToggle />
+    </header>
+  );
+}
