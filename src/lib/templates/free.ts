@@ -122,9 +122,10 @@ export function renderFreeSlide(params: {
     const highlight = el.highlight === "marca" ? " hl-marca" : el.highlight === "negrito" ? " hl-negrito" : " hl-cor";
     const upper = el.upper ? "text-transform:uppercase;" : "";
     const useTitleFont = el.font === "titulo" || (!el.font && el.kind === "titulo");
-    const fontStyle = useTitleFont
+    const fontStyle = (useTitleFont
       ? `font-family:${font.stack};font-weight:${font.weight};line-height:${font.uppercase ? 1 : 1.06};letter-spacing:${font.tracking};${font.uppercase ? "text-transform:uppercase;" : ""}`
-      : `font-family:"Inter",Arial,sans-serif;font-weight:400;line-height:1.4;`;
+      : `font-family:"Inter",Arial,sans-serif;font-weight:400;line-height:1.4;`
+    ).replace(/"/g, "'"); // vai dentro de style="...": aspas duplas na pilha de fontes cortariam o atributo
     const content = formatRichText(el.text ?? "");
 
     switch (el.kind) {

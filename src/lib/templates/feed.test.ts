@@ -198,6 +198,20 @@ describe("layout Livre", () => {
     expect(html).toMatch(/left:8%;top:56%;width:84%/);
   });
 
+  it("aplica a fonte dos títulos e a caixa alta sem quebrar o atributo style", () => {
+    const html = renderFeedSlide({
+      slide: { layout: "livre", title: "", body: "", free: { bg: "fundo", overlay: "nenhuma", elements: [{ id: "t", kind: "titulo", x: 8, y: 50, w: 84, text: "Oi", upper: true }] } },
+      brand,
+      style,
+      index: 0,
+      total: 1,
+      fontCss: "",
+    });
+    const tag = /<div class="el[^"]*" style="([^"]*)">Oi<\/div>/.exec(html);
+    expect(tag?.[1]).toContain("text-transform:uppercase");
+    expect(tag?.[1]).toContain("font-weight:700");
+  });
+
   it("escapa o texto dos elementos", () => {
     const html = renderFeedSlide({
       slide: { layout: "livre", title: "", body: "", free: { bg: "fundo", overlay: "nenhuma", elements: [{ id: "a", kind: "texto", x: 0, y: 0, w: 50, text: "<script>x</script>" }] } },
