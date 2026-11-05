@@ -199,6 +199,7 @@ export function PreviewPane({
   overlay,
   controls,
   maxWidth = 400,
+  interactiveOverlay,
 }: {
   html: string;
   width: number;
@@ -210,6 +211,8 @@ export function PreviewPane({
   overlay?: React.ReactNode;
   /** Controles extras abaixo do preview. */
   controls?: React.ReactNode;
+  /** Camada clicável por cima do preview (ex.: alças do layout Livre). */
+  interactiveOverlay?: React.ReactNode;
   maxWidth?: number;
 }) {
   return (
@@ -224,6 +227,7 @@ export function PreviewPane({
         <div className="relative">
           <SlideFrame html={html} width={width} height={height} className="rounded-2xl border border-line shadow-sm" />
           {overlay && <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl">{overlay}</div>}
+          {interactiveOverlay && <div className="absolute inset-0 rounded-2xl">{interactiveOverlay}</div>}
         </div>
         {controls}
         <div className="mt-3 flex items-center justify-between">

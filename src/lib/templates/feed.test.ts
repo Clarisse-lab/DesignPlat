@@ -187,3 +187,26 @@ describe("Apresentação 16:9", () => {
     expect(html.match(/class="card"/g)).toHaveLength(2);
   });
 });
+
+describe("layout Livre", () => {
+  it("posiciona os elementos e aplica o marca-texto", async () => {
+    const { FREE_PRESETS } = await import("./free");
+    const free = FREE_PRESETS[1].build({ title: "O **futuro** chegou", body: "", hasImage: false });
+    const html = renderFeedSlide({ slide: { layout: "livre", title: "", body: "", free }, brand, style, index: 0, total: 3, fontCss: "" });
+    expect(html).toContain("hl-marca");
+    expect(html).toContain("<strong>futuro</strong>");
+    expect(html).toMatch(/left:8%;top:56%;width:84%/);
+  });
+
+  it("escapa o texto dos elementos", () => {
+    const html = renderFeedSlide({
+      slide: { layout: "livre", title: "", body: "", free: { bg: "fundo", overlay: "nenhuma", elements: [{ id: "a", kind: "texto", x: 0, y: 0, w: 50, text: "<script>x</script>" }] } },
+      brand,
+      style,
+      index: 0,
+      total: 1,
+      fontCss: "",
+    });
+    expect(html).not.toContain("<script>x");
+  });
+});

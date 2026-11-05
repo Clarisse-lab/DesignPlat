@@ -45,8 +45,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
-2. Salvar peças e templates no Supabase (hoje o rascunho fica só no navegador).
-3. Editor por elementos: cada slide com fundo, sombra e elementos posicionáveis (texto, foto, etiqueta, cartão, ícone, perfil), arrastar e soltar, tamanhos em px, marca-texto, rodapé e barras de progresso. Os layouts atuais viram pontos de partida.
+2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).
+3. Editor por elementos (primeira versão em 04/11/2026): layout **Livre** com fundo (cor, destaque ou foto), sombra ajustável, barras de progresso e elementos posicionados em % (título, texto, etiqueta, perfil, Arraste →, numeração, imagem, cartão), arrastar e redimensionar na prévia, tamanho em px, marca-texto, caixa alta e 5 modelos prontos (Capa revista, Capa marca-texto, Interno com cartão, Interno simples, Foto em cima). Template em `src/lib/templates/free.ts`; editor em `src/components/feed/FreeEditor.tsx`.
 4. Imagens: tiras e grade na capa, carrossel infinito (panorama) e edição de imagem com IA.
 5. Assistente "gerar com IA" ligado ao Motor de Conteúdo (pauta → copy → brief → peça), "gerar este slide" e legenda.
 - Decisões: o estúdio fica no Design Mantora (Railway); o rosto do próprio cliente pode ser usado em todos os clientes (previsto em contrato); Gemini na mesma conta do Prisma, com limite de gasto; nunca gerar outras pessoas reais identificáveis.

@@ -6,6 +6,7 @@ import { CANVAS_SIZES, type PostCanvasSizeId } from "../formats";
 import { TITLE_FONTS, type TitleFontId } from "./fonts";
 import { iconSvg, markSvg } from "./icons";
 import { sanitizeLayoutCss, sanitizeLayoutHtml } from "./sanitize";
+import { renderFreeSlide, type FreeSlide } from "./free";
 import { contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc, sizeByLength } from "./utils";
 
 export const FEED_LAYOUTS = [
@@ -22,6 +23,7 @@ export const FEED_LAYOUTS = [
   "secao",
   "colunas",
   "referencia",
+  "livre",
 ] as const;
 export type FeedLayout = (typeof FEED_LAYOUTS)[number];
 
@@ -39,6 +41,7 @@ export const FEED_LAYOUT_LABELS: Record<FeedLayout, string> = {
   secao: "Seção",
   colunas: "Colunas",
   referencia: "Da referência",
+  livre: "Livre (editor)",
 };
 
 /** Layouts pensados para Story (aparecem só no editor de Story). */
@@ -96,6 +99,8 @@ export interface FeedSlide {
   icon?: string | null;
   /** Notas do apresentador (só Apresentação; não aparecem na imagem, vão para o PPTX). */
   notes?: string | null;
+  /** Layout Livre: fundo, sombra e elementos posicionados (ver free.ts). */
+  free?: FreeSlide | null;
 }
 
 export interface FeedBrand {
@@ -256,6 +261,11 @@ export function renderFeedSlide(params: {
   let content = "";
 
   const layout: FeedLayout = slide.layout === "referencia" && !style.customLayout ? "texto" : slide.layout;
+
+  if (layout === "livre") {
+    const free: FreeSlide = slide.free ?? { bg: "fundo", overlay: "nenhuma", elements: [] };
+    return renderFreeSlide({ free, image: slide.image, brand, palette: style.palette, titleFont: style.titleFont, width, height, index, total, fontCss });
+  }
 
   if (layout === "referencia" && style.customLayout) {
     return renderCustomLayout({ slide, brand, style, width, height, fontCss, pageLabel, colors: { bg, text, accent, onAccent }, ts });

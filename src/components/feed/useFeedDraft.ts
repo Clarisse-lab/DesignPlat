@@ -8,6 +8,9 @@ export type FeedEditorSlide = FeedSlide & { id: string };
 export interface FeedDraft {
   /** Cliente da Mantora escolhido no painel Cliente (kit de marca, fotos e custo da IA). */
   cliente?: { slug: string; nome: string } | null;
+  /** Peça salva no Supabase que este rascunho está editando (null: ainda não salva). */
+  pecaId?: string | null;
+  titulo?: string | null;
   brand: FeedBrand;
   style: FeedStyle;
   slides: FeedEditorSlide[];
