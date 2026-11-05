@@ -23,6 +23,14 @@ const schema = z
   })
   .refine((v) => v.pautaId || (v.tema && v.tema.length >= 5), { message: "Escolha uma pauta ou escreva o tema." });
 
+interface PautaRow {
+  titulo: string;
+  formato: string | null;
+  angulo: string | null;
+  copy: string | null;
+  cliente_slug: string;
+}
+
 export async function POST(request: Request) {
   const member = await requireMember(request, { strict: true });
   if (isResponse(member)) return member;
@@ -32,9 +40,9 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Pedido inválido." }, { status: 400 });
   const { pautaId, tema, nome, handle, clienteSlug, slides } = parsed.data;
 
-  let pauta: { titulo: string; formato: string | null; angulo: string | null; copy: string | null; cliente_slug: string } | null = null;
+  let pauta: PautaRow | null = null;
   if (pautaId) {
-    const rows = await rest<NonNullable<typeof pauta>[]>(`pautas?id=eq.${pautaId}&select=titulo,formato,angulo,copy,cliente_slug`).catch(() => []);
+    const rows = await rest<PautaRow[]>(`pautas?id=eq.${pautaId}&select=titulo,formato,angulo,copy,cliente_slug`).catch(() => []);
     pauta = rows[0] ?? null;
     if (!pauta) return NextResponse.json({ error: "Pauta não encontrada." }, { status: 404 });
     if (!pauta.copy) return NextResponse.json({ error: "Essa pauta ainda não tem copy. Gere a copy no Motor de Conteúdo primeiro." }, { status: 400 });
