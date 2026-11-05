@@ -20,6 +20,8 @@ const schema = z
     handle: z.string().max(40),
     clienteSlug: z.string().regex(/^[a-z0-9-]{2,60}$/).nullish(),
     slides: z.number().int().min(3).max(12).nullish(),
+    capa: z.string().max(40).nullish(),
+    interno: z.string().max(40).nullish(),
   })
   .refine((v) => v.pautaId || (v.tema && v.tema.length >= 5), { message: "Escolha uma pauta ou escreva o tema." });
 
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Pedido inválido." }, { status: 400 });
-  const { pautaId, tema, nome, handle, clienteSlug, slides } = parsed.data;
+  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno } = parsed.data;
 
   let pauta: PautaRow | null = null;
   if (pautaId) {
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
       slideCount: slides ?? null,
       pauta: pauta ? { titulo: pauta.titulo, formato: pauta.formato, angulo: pauta.angulo, copy: pauta.copy! } : null,
       tema: tema ?? null,
+      prefer: [capa ? `use ${capa} na capa` : "", interno ? `use ${interno} em todas as telas internas que não forem lista, dado ou citação` : ""].filter(Boolean).join("; ") || null,
     });
     await rest("uso_ia", {
       method: "POST",
