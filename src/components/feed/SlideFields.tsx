@@ -9,7 +9,9 @@ import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
 import { FEED_LAYOUT_LABELS, type FeedLayout } from "@/lib/templates/feed";
 import { ICON_IDS, ICONS } from "@/lib/templates/icons";
+import { EMPTY_FREE, FreeEditor } from "./FreeEditor";
 import type { FeedEditorSlide } from "./useFeedDraft";
+import { FREE_PRESETS } from "@/lib/templates/free";
 
 interface LayoutFields {
   title: string;
@@ -50,6 +52,7 @@ const FIELDS: Record<FeedLayout, LayoutFields> = {
     hint: "Até 4 colunas, separadas por uma linha em branco. A primeira linha de cada coluna é o título dela e as seguintes, o texto.",
   },
   referencia: { title: "Título", body: "Texto (opcional)", image: "Imagem (opcional)", icon: true },
+  livre: { title: "", body: null, image: "Foto de fundo" },
 };
 
 export function SlideFields({
@@ -65,6 +68,8 @@ export function SlideFields({
   onError,
   onInfo,
   imageAi = null,
+  selectedElement = null,
+  onSelectElement = () => {},
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -80,6 +85,9 @@ export function SlideFields({
   onInfo: (message: string) => void;
   /** Contexto para gerar imagem com IA e usar fotos do cliente (null: login desligado). */
   imageAi?: Omit<ImageAiContext, "currentImage"> | null;
+  /** Elemento selecionado no layout Livre (compartilhado com as alças da prévia). */
+  selectedElement?: string | null;
+  onSelectElement?: (id: string | null) => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
@@ -88,59 +96,9 @@ export function SlideFields({
   const fields = FIELDS[slide.layout];
   const layouts = availableLayouts.filter((layout) => layout !== "referencia" || hasCustomLayout || slide.layout === "referencia");
 
-  return (
-    <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">
-      <div className="flex items-center gap-2">
-        <span className="grid h-7 w-7 place-items-center rounded-md bg-ink text-[12px] font-bold text-white">{index + 1}</span>
-        <span className="flex-1 text-[13px] font-semibold">Layout do slide</span>
-        <IconButton label="Mover para a esquerda" onClick={() => onMove(-1)} disabled={index === 0} icon={ArrowLeft} />
-        <IconButton label="Mover para a direita" onClick={() => onMove(1)} disabled={index === total - 1} icon={ArrowRight} />
-        <IconButton label="Excluir slide" onClick={onRemove} disabled={total === 1} icon={Trash2} danger />
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {layouts.map((layout) => (
-          <button
-            key={layout}
-            type="button"
-            onClick={() => onChange({ layout })}
-            className={`rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
-              slide.layout === layout ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-soft hover:border-line-strong hover:text-ink"
-            }`}
-          >
-            {FEED_LAYOUT_LABELS[layout]}
-          </button>
-        ))}
-      </div>
-      {slide.layout === "referencia" && !hasCustomLayout && (
-        <p className="rounded-lg bg-orange-50 px-3 py-2 text-[12.5px] text-danger">
-          Nenhum layout de referência criado ainda; este slide está usando o layout Texto.
-        </p>
-      )}
-
-      <Field label={fields.title}>
-        <textarea
-          value={slide.title}
-          onChange={(e) => onChange({ title: e.target.value })}
-          rows={slide.layout === "numero" ? 1 : 3}
-          className={`${inputClass} resize-y text-[14.5px] leading-relaxed`}
-        />
-      </Field>
-      {fields.body && (
-        <Field label={fields.body}>
-          <textarea
-            value={slide.body}
-            onChange={(e) => onChange({ body: e.target.value })}
-            rows={fields.bodyRows ?? 3}
-            className={`${inputClass} resize-y text-[14.5px] leading-relaxed`}
-          />
-        </Field>
-      )}
-      {fields.hint && <p className="-mt-2 text-[12px] text-ink-faint">{fields.hint}</p>}
-
-      {fields.image && (
-        <div className="flex flex-wrap items-center gap-2">
-          <ImagePicker value={slide.image} onChange={(image) => onChange({ image })} onError={onError} label={fields.image} maxSide={1600} />
+  const imageBlock = (
+    <div className="flex flex-wrap items-center gap-2">
+          <ImagePicker value={slide.image} onChange={(image) => onChange({ image })} onError={onError} label={fields.image ?? "Imagem"} maxSide={1600} />
           {!slide.image && (
             <button
               type="button"
@@ -169,9 +127,83 @@ export function SlideFields({
             </button>
           )}
         </div>
+  );
+
+  return (
+    <div className="space-y-4 rounded-2xl border border-line bg-surface p-4">
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 place-items-center rounded-md bg-ink text-[12px] font-bold text-white">{index + 1}</span>
+        <span className="flex-1 text-[13px] font-semibold">Layout do slide</span>
+        <IconButton label="Mover para a esquerda" onClick={() => onMove(-1)} disabled={index === 0} icon={ArrowLeft} />
+        <IconButton label="Mover para a direita" onClick={() => onMove(1)} disabled={index === total - 1} icon={ArrowRight} />
+        <IconButton label="Excluir slide" onClick={onRemove} disabled={total === 1} icon={Trash2} danger />
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {layouts.map((layout) => (
+          <button
+            key={layout}
+            type="button"
+            onClick={() => {
+              if (layout === "livre" && !slide.free) {
+                // Primeira vez no Livre: começa por um modelo com o texto e a foto que o slide já tem.
+                const preset = FREE_PRESETS[index === 0 ? 0 : 3];
+                onChange({ layout, free: preset.build({ title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }) });
+              } else onChange({ layout });
+            }}
+            className={`rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors ${
+              slide.layout === layout ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-soft hover:border-line-strong hover:text-ink"
+            }`}
+          >
+            {FEED_LAYOUT_LABELS[layout]}
+          </button>
+        ))}
+      </div>
+      {slide.layout === "referencia" && !hasCustomLayout && (
+        <p className="rounded-lg bg-orange-50 px-3 py-2 text-[12.5px] text-danger">
+          Nenhum layout de referência criado ainda; este slide está usando o layout Texto.
+        </p>
       )}
 
-      {fields.icon && (
+      {slide.layout === "livre" ? (
+        <FreeEditor
+          free={slide.free ?? EMPTY_FREE}
+          title={slide.title}
+          body={slide.body}
+          hasImage={Boolean(slide.image)}
+          selectedId={selectedElement}
+          onSelect={onSelectElement}
+          onChange={(free) => onChange({ free })}
+          onError={onError}
+          imageControls={imageBlock}
+        />
+      ) : (
+        <>
+      <Field label={fields.title}>
+        <textarea
+          value={slide.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          rows={slide.layout === "numero" ? 1 : 3}
+          className={`${inputClass} resize-y text-[14.5px] leading-relaxed`}
+        />
+      </Field>
+      {fields.body && (
+        <Field label={fields.body}>
+          <textarea
+            value={slide.body}
+            onChange={(e) => onChange({ body: e.target.value })}
+            rows={fields.bodyRows ?? 3}
+            className={`${inputClass} resize-y text-[14.5px] leading-relaxed`}
+          />
+        </Field>
+      )}
+      {fields.hint && <p className="-mt-2 text-[12px] text-ink-faint">{fields.hint}</p>}
+
+          {fields.image && imageBlock}
+        </>
+      )}
+
+      {fields.icon && slide.layout !== "livre" && (
         <div>
           <button
             type="button"
@@ -229,7 +261,7 @@ export function SlideFields({
         </Field>
       )}
 
-      <p className="text-[12px] text-ink-faint">Dica: **palavra** fica em negrito, na cor de destaque.</p>
+      {slide.layout !== "livre" && <p className="text-[12px] text-ink-faint">Dica: **palavra** fica em negrito, na cor de destaque.</p>}
 
       {generating && imageAi && (
         <ImageAiDialog

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { POST_CANVAS_SIZES } from "../formats";
 import { FEED_DECORS, FEED_LAYOUTS } from "../templates/feed";
+import { FREE_BACKGROUNDS, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_HIGHLIGHTS, FREE_OVERLAYS } from "../templates/free";
 import { TITLE_FONT_IDS, type TitleFontId } from "../templates/fonts";
 
 const imageDataUrl = z.string().max(3_000_000).nullish();
@@ -17,6 +18,37 @@ export const customLayoutSchema = z.object({
   name: z.string().max(80),
   html: z.string().max(20_000),
   css: z.string().max(20_000),
+});
+
+const pct = z.number().min(-20).max(140);
+
+/** Layout Livre: elementos posicionados em % do canvas. */
+export const freeSlideSchema = z.object({
+  bg: z.enum(FREE_BACKGROUNDS),
+  overlay: z.enum(FREE_OVERLAYS),
+  progress: z.boolean().optional(),
+  elements: z
+    .array(
+      z.object({
+        id: z.string().max(60),
+        kind: z.enum(FREE_ELEMENT_KINDS),
+        x: pct,
+        y: pct,
+        w: pct,
+        h: pct.optional(),
+        text: z.string().max(1500).optional(),
+        size: z.number().min(8).max(400).optional(),
+        align: z.enum(["left", "center", "right"]).optional(),
+        color: z.enum(FREE_COLORS).optional(),
+        highlight: z.enum(FREE_HIGHLIGHTS).optional(),
+        upper: z.boolean().optional(),
+        font: z.enum(["titulo", "corpo"]).optional(),
+        image: imageDataUrl,
+        fill: z.enum(["texto", "fundo", "destaque", "branco", "preto", "vidro"]).optional(),
+        radius: z.number().min(0).max(400).optional(),
+      }),
+    )
+    .max(40),
 });
 
 export const feedRenderRequestSchema = z.object({
@@ -46,6 +78,7 @@ export const feedRenderRequestSchema = z.object({
         image: imageDataUrl,
         icon: z.string().max(40).nullish(),
         notes: z.string().max(3000).nullish(),
+        free: freeSlideSchema.nullish(),
       }),
     )
     .min(1)

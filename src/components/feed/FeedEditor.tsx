@@ -34,6 +34,7 @@ import { SlideFields } from "./SlideFields";
 import { StylePanel } from "./StylePanel";
 import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
 import { StoryGuides } from "./StoryGuides";
+import { EMPTY_FREE, FreeHandles } from "./FreeEditor";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
@@ -55,6 +56,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [downloading, setDownloading] = useState<DownloadTarget | null>(null);
   const [message, setMessage] = useState<NoticeMessage | null>(null);
   const { clients, enabled: studioEnabled } = useStudioClients();
+  const [selectedElement, setSelectedElement] = useState<string | null>(null);
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
   const active = slides[safeIndex];
@@ -157,7 +159,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const payload = {
       brand,
       style,
-      slides: slides.map(({ layout, title, body, image, icon, notes }) => ({ layout, title, body, image, icon, notes: notes || null })),
+      slides: slides.map(({ layout, title, body, image, icon, notes, free }) => ({ layout, title, body, image, icon, notes: notes || null, free: free ?? null })),
     };
     try {
       if (target === "pdf" || target === "pptx") {
@@ -235,6 +237,17 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       onNavigate={setActiveIndex}
       maxWidth={isStory ? 340 : isPresentation ? 760 : 400}
       overlay={isStory && showGuides ? <StoryGuides showStickerSlot={active.layout === "sticker"} /> : undefined}
+      interactiveOverlay={
+        active.layout === "livre" ? (
+          <FreeHandles
+            free={active.free ?? EMPTY_FREE}
+            canvasHeight={height}
+            selectedId={selectedElement}
+            onSelect={setSelectedElement}
+            onChange={(free) => updateActive({ free })}
+          />
+        ) : undefined
+      }
       controls={
         isStory ? (
           <label className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-ink-soft">
@@ -395,7 +408,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         <section className="min-w-0 space-y-4">
           {isPresentation && <div className="rounded-2xl border border-line bg-surface p-4">{preview}</div>}
           <SlideStrip
-            items={slides.map((s) => ({ id: s.id, label: FEED_LAYOUT_LABELS[s.layout], preview: s.title }))}
+            items={slides.map((s) => ({
+              id: s.id,
+              label: FEED_LAYOUT_LABELS[s.layout],
+              preview: s.layout === "livre" ? (s.free?.elements.find((el) => el.kind === "titulo")?.text ?? s.title) : s.title,
+            }))}
             activeIndex={safeIndex}
             onSelect={setActiveIndex}
             onAdd={addSlide}
@@ -413,6 +430,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             onRemove={removeSlide}
             onError={showError}
             onInfo={showInfo}
+            selectedElement={selectedElement}
+            onSelectElement={setSelectedElement}
             imageAi={
               studioEnabled
                 ? {
