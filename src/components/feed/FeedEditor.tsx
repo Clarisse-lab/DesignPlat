@@ -39,7 +39,7 @@ import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
 import { StoryGuides } from "./StoryGuides";
 import { EMPTY_FREE, FreeHandles } from "./FreeEditor";
 import { GeneratorPanel, type GeneratedSlide, type GeneratorStyle } from "./GeneratorPanel";
-import { FREE_PRESETS, type FreeSlide } from "@/lib/templates/free";
+import { buildPreset, type FreeSlide } from "@/lib/templates/free";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
@@ -130,23 +130,38 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, linkParams?.cliente]);
 
-  /** Monta os slides a partir das telas geradas, usando os modelos do Livre (revista) ou os layouts clássicos. */
+  /** Monta os slides a partir das telas geradas, com os modelos do Livre (revista) ou os layouts clássicos. */
   const applyGenerated = (items: GeneratedSlide[], legenda: string, genStyle: GeneratorStyle) => {
     if (slides.some((s) => s.title.trim()) && !window.confirm(`Substituir os ${slides.length} slide(s) atuais pelas ${items.length} telas geradas?`)) return;
-    const preset = (id: string) => FREE_PRESETS.find((p) => p.id === id) ?? FREE_PRESETS[0];
     const withTag = (free: FreeSlide, etiqueta: string): FreeSlide => ({
       ...free,
       elements: etiqueta.trim()
         ? free.elements.map((el) => (el.kind === "etiqueta" ? { ...el, text: etiqueta.trim().toUpperCase() } : el))
-        : free.elements.filter((el) => el.kind !== "etiqueta"),
+        : free.elements.filter((el) => el.kind !== "etiqueta" || !/^(DESTAQUE|✦ O DESAFIO)$/.test(el.text ?? "")),
     });
+    // Capa varia a cada geração; internos alternam entre dois modelos para o carrossel não ficar monótono.
+    const capas = ["capa-revista", "capa-perfil-chip", "capa-marca-texto", "capa-editorial", "capa-chip-central"];
+    const capa = capas[Math.floor(Math.random() * capas.length)];
     let interno = 0;
     const built = items.slice(0, MAX_FEED_SLIDES).map((it) => {
       const base = { title: it.titulo, body: it.texto };
-      if (genStyle === "revista" && (it.tipo === "capa" || it.tipo === "texto" || it.tipo === "cta")) {
-        const id = it.tipo === "capa" ? "capa-revista" : interno++ % 2 === 0 ? "interno-texto" : "interno-cartao";
-        const free = withTag(preset(id).build({ title: it.titulo, body: it.tipo === "capa" ? it.etiqueta : it.texto, hasImage: false }), it.etiqueta);
-        return newFeedSlide({ layout: "livre", ...base, free });
+      if (genStyle === "revista") {
+        const id =
+          it.tipo === "capa"
+            ? capa
+            : it.tipo === "lista"
+              ? "interno-checklist"
+              : it.tipo === "numero"
+                ? "interno-dado"
+                : it.tipo === "cta"
+                  ? "final-salvar"
+                  : it.tipo === "texto"
+                    ? interno++ % 2 === 0 ? "interno-texto" : "interno-cartao"
+                    : null;
+        if (id) {
+          const free = buildPreset(id, { title: it.titulo, body: it.tipo === "capa" ? it.etiqueta : it.texto, hasImage: false }, { placeholders: false });
+          return newFeedSlide({ layout: "livre", ...base, free: withTag(free, it.tipo === "capa" ? "" : it.etiqueta) });
+        }
       }
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
       return newFeedSlide({ layout, ...base });
@@ -533,6 +548,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             selectedElement={selectedElement}
             onSelectElement={setSelectedElement}
             onSpread={spreadPhoto}
+            preview={{ brand, palette: style.palette, titleFont: style.titleFont, width, height }}
             imageAi={
               studioEnabled
                 ? {

@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { POST_CANVAS_SIZES } from "../formats";
 import { FEED_DECORS, FEED_LAYOUTS } from "../templates/feed";
-import { FREE_BACKGROUNDS, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_GRIDS, FREE_HIGHLIGHTS, FREE_OVERLAYS } from "../templates/free";
+import { FREE_BACKGROUNDS, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_GRIDS, FREE_HIGHLIGHTS, FREE_OVERLAYS, FREE_PROFILE_VARIANTS } from "../templates/free";
+import { ICON_IDS, type IconId } from "../templates/icons";
 import { TITLE_FONT_IDS, type TitleFontId } from "../templates/fonts";
 
 const imageDataUrl = z.string().max(3_000_000).nullish();
@@ -50,6 +51,12 @@ export const freeSlideSchema = z.object({
         grid: z.enum(FREE_GRIDS).optional(),
         images: z.array(imageDataUrl).max(4).optional(),
         gap: z.number().min(0).max(80).optional(),
+        family: z.enum(["corpo", ...TITLE_FONT_IDS] as [TitleFontId | "corpo", ...(TitleFontId | "corpo")[]]).optional(),
+        italic: z.boolean().optional(),
+        shadow: z.boolean().optional(),
+        variant: z.enum(FREE_PROFILE_VARIANTS).optional(),
+        verified: z.boolean().optional(),
+        icon: z.enum(ICON_IDS as [IconId, ...IconId[]]).optional(),
       }),
     )
     .max(40),
