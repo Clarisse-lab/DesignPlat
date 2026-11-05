@@ -20,12 +20,21 @@ import {
   FREE_HIGHLIGHTS,
   FREE_OVERLAY_LABELS,
   FREE_OVERLAYS,
+  FREE_PRESET_CATEGORIES,
   FREE_PRESETS,
+  FREE_PROFILE_LABELS,
+  FREE_PROFILE_VARIANTS,
+  buildPreset,
   newElementId,
+  renderFreeSlide,
+  type FreePresetCategory,
   newFreeElement,
   type FreeElement,
   type FreeSlide,
 } from "@/lib/templates/free";
+import { browserFontCss, TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "@/lib/templates/fonts";
+import { ICON_IDS, ICONS, type IconId } from "@/lib/templates/icons";
+import type { FeedBrand, FeedPalette } from "@/lib/templates/feed";
 
 const TEXT_KINDS = new Set(["titulo", "texto", "etiqueta", "arraste"]);
 const SIZED_KINDS = new Set(["imagem", "cartao", "grade"]);
@@ -70,6 +79,7 @@ export function FreeEditor({
   image,
   onImage,
   onSpread,
+  preview,
 }: {
   free: FreeSlide;
   /** Título e texto do slide, usados ao aplicar um modelo. */
@@ -89,6 +99,8 @@ export function FreeEditor({
   onImage: (image: string) => void;
   /** Carrossel infinito: espalha a foto de fundo por `total` slides a partir deste. */
   onSpread: (total: number) => void;
+  /** Marca, cores e fonte da peça, para as miniaturas dos modelos. */
+  preview: PreviewContext;
 }) {
   const [tab, setTab] = useState<"elementos" | "fundo" | "modelos">(free.elements.length ? "elementos" : "modelos");
   // Clicar num elemento na prévia traz para a aba Elementos.
@@ -139,29 +151,31 @@ export function FreeEditor({
       </div>
 
       {tab === "modelos" && (
-        <>
-      <Field label="Comece por um modelo (troca os elementos deste slide)">
-        <div className="flex flex-wrap gap-1.5">
-          {FREE_PRESETS.map((preset) => (
-            <button
-              key={preset.id}
-              type="button"
-              onClick={() => {
-                if (free.elements.length && !window.confirm(`Trocar os elementos deste slide pelo modelo "${preset.label}"?`)) return;
-                const next = preset.build({ title, body, hasImage });
-                onChange(next);
-                onSelect(next.elements.find((el) => el.kind === "titulo")?.id ?? null);
-                setTab("elementos");
-              }}
-              className="rounded-full border border-line px-3 py-1.5 text-[12.5px] text-ink-soft hover:border-accent hover:text-accent"
-            >
-              {preset.label}
-            </button>
-          ))}
-        </div>
-      </Field>
-
-        </>
+        <PresetGallery
+          preview={preview}
+          image={image}
+          onPick={(id) => {
+            // Leva o texto e as fotos do slide para o modelo novo.
+            const titleEl = free.elements.find((e) => e.kind === "titulo" && (e.text ?? "").trim() && !/^\{?n\}?$|^[\d+%\-]{1,4}$/.test((e.text ?? "").trim()));
+            const bodyEl = free.elements.find((e) => e.kind === "texto" && (e.text ?? "").trim());
+            const t = titleEl?.text ?? title;
+            const b = bodyEl?.text ?? body;
+            const next = buildPreset(id, { title: t, body: b, hasImage }, { placeholders: !t.trim() && !b.trim() });
+            const photos = [
+              ...free.elements.filter((e) => e.kind === "imagem" && e.image).map((e) => e.image as string),
+              ...free.elements.flatMap((e) => (e.kind === "grade" ? (e.images ?? []).filter((x): x is string => Boolean(x)) : [])),
+            ];
+            let k = 0;
+            const elements = next.elements.map((e) => {
+              if (e.kind === "imagem" && photos[k]) return { ...e, image: photos[k++] };
+              if (e.kind === "grade") return { ...e, images: photos.slice(k, k + 4) };
+              return e;
+            });
+            onChange({ ...next, elements, pan: free.pan ?? null });
+            onSelect(null);
+            setTab("elementos");
+          }}
+        />
       )}
 
       {tab === "fundo" && (
@@ -316,8 +330,8 @@ export function FreeEditor({
               />
             </Field>
           )}
-          {(selected.kind === "titulo" || selected.kind === "texto") && (
-            <p className="-mt-2 text-[11.5px] text-ink-faint">Use **palavra** para destacar.</p>
+          {TEXT_KINDS.has(selected.kind) && (
+            <p className="-mt-2 text-[11.5px] text-ink-faint">Use **palavra** para destacar. {"{nome}"}, {"{usuario}"} e {"{n}"} viram o nome, o @ e o número do slide.</p>
           )}
 
           {selected.kind === "imagem" && (
@@ -382,7 +396,7 @@ export function FreeEditor({
                 </select>
               </Field>
             )}
-            {(selected.kind === "etiqueta" || selected.kind === "cartao") && (
+            {(selected.kind === "etiqueta" || selected.kind === "cartao" || selected.kind === "icone" || (selected.kind === "perfil" && selected.variant === "chip")) && (
               <Field label="Fundo">
                 <select value={selected.fill ?? (selected.kind === "cartao" ? "branco" : "destaque")} onChange={(e) => update(selected.id, { fill: e.target.value as FreeElement["fill"] })} className={inputClass}>
                   {FREE_COLORS.map((c) => (
@@ -408,23 +422,58 @@ export function FreeEditor({
             {(selected.kind === "titulo" || selected.kind === "texto") && (
               <Field label="Fonte">
                 <select
-                  value={selected.font ?? (selected.kind === "titulo" ? "titulo" : "corpo")}
-                  onChange={(e) => update(selected.id, { font: e.target.value as FreeElement["font"] })}
+                  value={selected.family ?? (selected.font === "corpo" || (!selected.font && selected.kind === "texto") ? "corpo" : "")}
+                  onChange={(e) => update(selected.id, { family: (e.target.value || undefined) as FreeElement["family"], font: undefined })}
                   className={inputClass}
                 >
-                  <option value="titulo">Fonte dos títulos</option>
-                  <option value="corpo">Fonte do texto</option>
+                  <option value="">Fonte dos títulos do estilo</option>
+                  <option value="corpo">Fonte do texto (Inter)</option>
+                  {TITLE_FONT_IDS.map((id) => (
+                    <option key={id} value={id}>
+                      {TITLE_FONTS[id].label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {selected.kind === "perfil" && (
+              <Field label="Estilo do perfil">
+                <select value={selected.variant ?? "linha"} onChange={(e) => update(selected.id, { variant: e.target.value as FreeElement["variant"] })} className={inputClass}>
+                  {FREE_PROFILE_VARIANTS.map((v) => (
+                    <option key={v} value={v}>
+                      {FREE_PROFILE_LABELS[v]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            {selected.kind === "icone" && (
+              <Field label="Ícone">
+                <select value={selected.icon ?? "brilho"} onChange={(e) => update(selected.id, { icon: e.target.value as IconId })} className={inputClass}>
+                  {ICON_IDS.map((id) => (
+                    <option key={id} value={id}>
+                      {ICONS[id].label}
+                    </option>
+                  ))}
                 </select>
               </Field>
             )}
           </div>
 
-          {TEXT_KINDS.has(selected.kind) && (
-            <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
-              <input type="checkbox" checked={Boolean(selected.upper)} onChange={(e) => update(selected.id, { upper: e.target.checked })} className="h-4 w-4 accent-accent" />
-              Caixa alta
-            </label>
-          )}
+          <div className="flex flex-wrap gap-x-4 gap-y-2">
+            {TEXT_KINDS.has(selected.kind) && (
+              <Check label="Caixa alta" checked={Boolean(selected.upper)} onChange={(upper) => update(selected.id, { upper })} />
+            )}
+            {(selected.kind === "titulo" || selected.kind === "texto") && (
+              <Check label="Itálico" checked={Boolean(selected.italic)} onChange={(italic) => update(selected.id, { italic })} />
+            )}
+            {(selected.kind === "titulo" || selected.kind === "texto") && (
+              <Check label="Sombra (para foto)" checked={Boolean(selected.shadow)} onChange={(shadow) => update(selected.id, { shadow })} />
+            )}
+            {selected.kind === "perfil" && (
+              <Check label="Selo de verificado" checked={Boolean(selected.verified)} onChange={(verified) => update(selected.id, { verified })} />
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-x-3 gap-y-2">
             <Slider label="Posição horizontal" value={selected.x} min={-10} max={100} step={0.5} suffix="%" onChange={(x) => update(selected.id, { x })} />
@@ -537,6 +586,88 @@ export function FreeHandles({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-accent" />
+      {label}
+    </label>
+  );
+}
+
+export interface PreviewContext {
+  brand: FeedBrand;
+  palette: FeedPalette;
+  titleFont: TitleFontId;
+  width: number;
+  height: number;
+}
+
+/** Biblioteca de modelos em miniatura, com a marca e as cores da peça. */
+function PresetGallery({ preview, image, onPick }: { preview: PreviewContext; image: string | null; onPick: (id: string) => void }) {
+  const [category, setCategory] = useState<FreePresetCategory>("capa");
+  const thumbWidth = 132;
+  const scale = thumbWidth / preview.width;
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1.5">
+        {FREE_PRESET_CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setCategory(c.id)}
+            className={`rounded-full border px-3 py-1 text-[12.5px] ${category === c.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-soft hover:text-ink"}`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11.5px] text-ink-faint">O texto e as fotos deste slide vão para o modelo escolhido.</p>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {FREE_PRESETS.filter((p) => p.category === category).map((p) => {
+          const free = buildPreset(p.id, { title: "", body: "", hasImage: Boolean(image) && Boolean(p.photo) });
+          const html = renderFreeSlide({
+            free,
+            image: p.photo ? image : null,
+            brand: preview.brand,
+            palette: preview.palette,
+            titleFont: preview.titleFont,
+            width: preview.width,
+            height: preview.height,
+            index: 1,
+            total: 6,
+            fontCss: browserFontCss,
+          });
+          return (
+            <button key={p.id} type="button" onClick={() => onPick(p.id)} className="group space-y-1 text-left">
+              <span
+                className="relative block overflow-hidden rounded-lg border border-line group-hover:border-accent"
+                style={{ width: thumbWidth, height: preview.height * scale }}
+              >
+                <iframe
+                  title={p.label}
+                  srcDoc={html}
+                  sandbox="allow-same-origin"
+                  tabIndex={-1}
+                  aria-hidden
+                  loading="lazy"
+                  className="pointer-events-none absolute left-0 top-0 border-0"
+                  style={{ width: preview.width, height: preview.height, transform: `scale(${scale})`, transformOrigin: "0 0" }}
+                />
+              </span>
+              <span className="block text-[12px] text-ink-soft group-hover:text-accent">
+                {p.label}
+                {p.photo && <span className="text-ink-faint"> · foto</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

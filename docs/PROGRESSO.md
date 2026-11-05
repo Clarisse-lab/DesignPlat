@@ -43,6 +43,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 - **Estúdio, etapa 1** (04/11/2026): login Google da equipe (mesma lista `equipe` do Escritório, pelo Supabase), painel **Cliente** que aplica o kit de marca confirmado no Escritório, **Fotos do cliente** (posts do Instagram dele) e **Gerar com IA** (Gemini) com o rosto do cliente, custo registrado em `uso_ia` e limite mensal (`LIMITE_MENSAL_IMAGENS_USD`).
 
+- **Biblioteca de modelos do Livre** (05/11/2026): 26 modelos em miniatura (12 capas, 11 telas internas, 3 de fechamento), inspirados no MyPostFlow e além: revista, marca-texto, editorial serifado, centro com etiqueta, impacto condensado, perfil + título gigante, 2 e 3 tiras, tweet, manchete de jornal, número gigante, pergunta; título + texto, cartão, cartão com foto, tweet com imagem, dado em destaque, checklist, passo a passo, mito × verdade, antes × depois, citação com foto; salve, siga, comente. Elementos ganharam fonte própria, itálico, sombra, ícone, perfil em 3 estilos (com selo de verificado) e textos automáticos ({nome}, {usuario}, {n}, {total}). Trocar de modelo leva o texto e as fotos do slide. O assistente escolhe o modelo pelo tipo de tela e não deixa texto de exemplo.
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).

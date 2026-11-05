@@ -9,9 +9,9 @@ import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
 import { FEED_LAYOUT_LABELS, type FeedLayout } from "@/lib/templates/feed";
 import { ICON_IDS, ICONS } from "@/lib/templates/icons";
-import { EMPTY_FREE, FreeEditor } from "./FreeEditor";
+import { EMPTY_FREE, FreeEditor, type PreviewContext } from "./FreeEditor";
 import type { FeedEditorSlide } from "./useFeedDraft";
-import { FREE_PRESETS } from "@/lib/templates/free";
+import { buildPreset } from "@/lib/templates/free";
 
 interface LayoutFields {
   title: string;
@@ -71,6 +71,7 @@ export function SlideFields({
   selectedElement = null,
   onSelectElement = () => {},
   onSpread = () => {},
+  preview,
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -91,6 +92,8 @@ export function SlideFields({
   onSelectElement?: (id: string | null) => void;
   /** Carrossel infinito (layout Livre): espalha a foto de fundo por N slides a partir deste. */
   onSpread?: (total: number) => void;
+  /** Marca, cores e fonte da peça (miniaturas dos modelos do Livre). */
+  preview: PreviewContext;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
@@ -144,8 +147,9 @@ export function SlideFields({
               const layout = e.target.value as FeedLayout;
               if (layout === "livre" && !slide.free) {
                 // Primeira vez no Livre: começa por um modelo com o texto e a foto que o slide já tem.
-                const preset = FREE_PRESETS.find((p) => p.id === (index === 0 ? "capa-revista" : "interno-texto")) ?? FREE_PRESETS[0];
-                onChange({ layout, free: preset.build({ title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }) });
+                const hasText = Boolean(slide.title.trim() || slide.body.trim());
+                const free = buildPreset(index === 0 ? "capa-revista" : "interno-texto", { title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }, { placeholders: !hasText });
+                onChange({ layout, free });
               } else onChange({ layout });
             }}
             className={`${inputClass} min-w-0 flex-1`}
@@ -186,6 +190,7 @@ export function SlideFields({
           image={slide.image ?? null}
           onImage={(image) => onChange({ image })}
           onSpread={onSpread}
+          preview={preview}
         />
       ) : (
         <>

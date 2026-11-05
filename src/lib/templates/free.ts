@@ -3,10 +3,11 @@
 // Mesmo motor HTML → PNG dos outros layouts: o preview continua sendo a imagem final.
 
 import type { FeedBrand, FeedPalette } from "./feed";
-import { TITLE_FONTS, type TitleFontId } from "./fonts";
-import { contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc } from "./utils";
+import { TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "./fonts";
+import { ICON_IDS, iconSvg, type IconId } from "./icons";
+import { contrastRatio, contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc } from "./utils";
 
-export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao"] as const;
+export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao", "icone"] as const;
 export type FreeElementKind = (typeof FREE_ELEMENT_KINDS)[number];
 
 export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
@@ -18,8 +19,19 @@ export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
   numeracao: "Numeração",
   imagem: "Imagem",
   grade: "Tiras / grade de fotos",
-  cartao: "Cartão",
+  cartao: "Cartão ou faixa",
+  icone: "Ícone",
 };
+
+/** Estilos do elemento Perfil. */
+export const FREE_PROFILE_VARIANTS = ["linha", "chip", "tweet"] as const;
+export type FreeProfileVariant = (typeof FREE_PROFILE_VARIANTS)[number];
+export const FREE_PROFILE_LABELS: Record<FreeProfileVariant, string> = {
+  linha: "Foto + nome + @",
+  chip: "Etiqueta com foto e @",
+  tweet: "Estilo tweet (selo de verificado)",
+};
+export { ICON_IDS, TITLE_FONT_IDS };
 
 /** Arranjos do elemento Tiras / grade. */
 export const FREE_GRIDS = ["2v", "3v", "2h", "2x2"] as const;
@@ -68,6 +80,16 @@ export interface FreeElement {
   grid?: FreeGrid;
   images?: (string | null | undefined)[];
   gap?: number;
+  /** Fonte própria do elemento (sem ela: título usa a fonte dos títulos do estilo; texto, a do corpo). */
+  family?: TitleFontId | "corpo";
+  italic?: boolean;
+  /** Sombra no texto, para ler bem sobre foto. */
+  shadow?: boolean;
+  /** Perfil: estilo e selo de verificado. */
+  variant?: FreeProfileVariant;
+  verified?: boolean;
+  /** Ícone (elemento Ícone). */
+  icon?: IconId;
   /** Fundo da etiqueta ou do cartão. */
   fill?: FreeColor | "vidro";
   radius?: number;
@@ -85,6 +107,10 @@ export interface FreeSlide {
 
 const clamp = (n: number | undefined, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, n as number)) : fallback;
+
+/** Selo de verificado (círculo azul com check), desenhado aqui para não depender de marca de terceiros. */
+const VERIFIED_SVG =
+  '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="currentColor"/><path d="M7 12.5l3.2 3.2L17.5 8.5" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const OVERLAY_CSS: Record<FreeSlide["overlay"], string> = {
   nenhuma: "transparent",
@@ -120,9 +146,22 @@ export function renderFreeSlide(params: {
   const colorOf = (c: FreeColor | undefined, fallback: string) =>
     c === "fundo" ? bg : c === "destaque" ? accent : c === "branco" ? "#FFFFFF" : c === "preto" ? "#0B0B0C" : c === "texto" ? autoText : fallback;
 
+  // Sobre fundo na cor de destaque, o destaque das palavras usa a cor de fundo (senão some).
+  // Escolhe entre a cor do texto e a de fundo a que mais se diferencia do texto branco/preto do destaque.
+  const hlColor =
+    free.bg === "destaque" && !photo
+      ? [text, bg].sort((a, b) => contrastRatio(b, onAccent) - contrastRatio(a, onAccent))[0]
+      : accent;
   const glass = photo ? "rgba(255,255,255,.16)" : `color-mix(in srgb,${autoText} 12%,transparent)`;
   const logoSrc = safeImageSrc(brand.logo);
   const handle = brand.handle.trim().replace(/^@+/, "");
+  /** {nome}, {usuario}, {n} e {total} no texto viram o nome, o @ e a numeração do slide. */
+  const fillTokens = (text: string) =>
+    text
+      .replace(/\{nome\}/g, brand.name.trim())
+      .replace(/\{usuario\}/g, handle ? `@${handle}` : "")
+      .replace(/\{n\}/g, String(index + 1))
+      .replace(/\{total\}/g, String(total));
 
   const elements = free.elements.slice(0, 40).map((el) => {
     const x = clamp(el.x, -20, 100, 8);
@@ -135,12 +174,22 @@ export function renderFreeSlide(params: {
     const box = `left:${x}%;top:${y}%;width:${w}%;text-align:${align};`;
     const highlight = el.highlight === "marca" ? " hl-marca" : el.highlight === "negrito" ? " hl-negrito" : " hl-cor";
     const upper = el.upper ? "text-transform:uppercase;" : "";
-    const useTitleFont = el.font === "titulo" || (!el.font && el.kind === "titulo");
-    const fontStyle = (useTitleFont
-      ? `font-family:${font.stack};font-weight:${font.weight};line-height:${font.uppercase ? 1 : 1.06};letter-spacing:${font.tracking};${font.uppercase ? "text-transform:uppercase;" : ""}`
-      : `font-family:"Inter",Arial,sans-serif;font-weight:400;line-height:1.4;`
+    const family =
+      el.family && el.family !== "corpo" && TITLE_FONTS[el.family]
+        ? TITLE_FONTS[el.family]
+        : el.family === "corpo"
+          ? null
+          : el.font === "titulo" || (!el.font && el.kind === "titulo")
+            ? font
+            : null;
+    const fontStyle = (
+      (family
+        ? `font-family:${family.stack};font-weight:${family.weight};line-height:${family.uppercase ? 1 : 1.06};letter-spacing:${family.tracking};${family.uppercase ? "text-transform:uppercase;" : ""}`
+        : `font-family:"Inter",Arial,sans-serif;font-weight:400;line-height:1.4;`) +
+      (el.italic ? "font-style:italic;" : "") +
+      (el.shadow ? "text-shadow:0 4px 24px rgba(0,0,0,.55);" : "")
     ).replace(/"/g, "'"); // vai dentro de style="...": aspas duplas na pilha de fontes cortariam o atributo
-    const content = formatRichText(el.text ?? "");
+    const content = formatRichText(fillTokens(el.text ?? ""));
 
     switch (el.kind) {
       case "titulo":
@@ -153,10 +202,26 @@ export function renderFreeSlide(params: {
         return `<div class="el" style="${box}"><span class="tag" style="font-size:${size}px;background:${fill};color:${ink};${upper}">${content}</span></div>`;
       }
       case "perfil": {
+        const variant = el.variant ?? "linha";
+        const avatarSize = variant === "chip" ? size * 1.5 : variant === "tweet" ? size * 2.6 : size * 2;
         const logo = logoSrc
-          ? `<img class="avatar" src="${logoSrc}" alt="" style="width:${size * 2}px;height:${size * 2}px"/>`
-          : `<span class="avatar initials" style="width:${size * 2}px;height:${size * 2}px;font-size:${Math.round(size * 0.8)}px">${escapeHtml(initials(brand.name))}</span>`;
-        return `<div class="el profile" style="${box}font-size:${size}px;color:${color};justify-content:${align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start"}">${logo}<span class="who"><b>${escapeHtml(brand.name.trim())}</b>${handle ? `<small>@${escapeHtml(handle)}</small>` : ""}</span></div>`;
+          ? `<img class="avatar" src="${logoSrc}" alt="" style="width:${avatarSize}px;height:${avatarSize}px"/>`
+          : `<span class="avatar initials" style="width:${avatarSize}px;height:${avatarSize}px;font-size:${Math.round(avatarSize * 0.4)}px">${escapeHtml(initials(brand.name))}</span>`;
+        const justify = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
+        const badge = el.verified ? `<span class="verified" style="width:${size * 0.95}px;height:${size * 0.95}px">${VERIFIED_SVG}</span>` : "";
+        if (variant === "chip") {
+          const fill = el.fill === "vidro" || !el.fill ? glass : colorOf(el.fill as FreeColor, accent);
+          const ink = el.color && el.color !== "texto" ? color : fill.startsWith("#") ? contrastText(fill) : color;
+          return `<div class="el" style="${box}display:flex;justify-content:${justify}"><span class="pchip" style="font-size:${size}px;background:${fill};color:${ink}">${logo}<b>${handle ? `@${escapeHtml(handle)}` : escapeHtml(brand.name.trim())}</b>${badge}</span></div>`;
+        }
+        return `<div class="el profile" style="${box}font-size:${size}px;color:${color};justify-content:${justify}">${logo}<span class="who"><b class="namerow">${escapeHtml(brand.name.trim())}${badge}</b>${handle ? `<small>@${escapeHtml(handle)}</small>` : ""}</span></div>`;
+      }
+      case "icone": {
+        const svg = iconSvg(el.icon ?? "brilho", "ico");
+        const fill = el.fill ? (el.fill === "vidro" ? glass : colorOf(el.fill as FreeColor, accent)) : null;
+        const ink = el.color ? color : fill && fill.startsWith("#") ? contrastText(fill) : accent;
+        const wrap = fill ? `background:${fill};border-radius:50%;padding:${Math.round(size * 0.28)}px;` : "";
+        return `<div class="el" style="${box}display:flex;justify-content:${align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start"}"><span style="display:inline-flex;${wrap}color:${ink};width:${size}px;height:${size}px;box-sizing:content-box">${svg}</span></div>`;
       }
       case "arraste":
         return `<div class="el t-body" style="${box}font-size:${size}px;color:${color};opacity:.85">${content || "Arraste →"}</div>`;
@@ -203,15 +268,20 @@ body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif
 .el{position:absolute;overflow-wrap:break-word}
 .t-body{font-family:"Inter",Arial,sans-serif;line-height:1.4}
 strong{font-weight:700}
-.hl-cor strong{color:${accent}}
+.hl-cor strong{color:${hlColor}}
 .hl-negrito strong{font-weight:800}
-.hl-marca strong{background:${accent};color:${onAccent};padding:0 .14em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
+.hl-marca strong{background:${hlColor};color:${contrastText(hlColor)};padding:0 .14em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .tag{display:inline-block;padding:.45em 1.1em;border-radius:999px;font-weight:700;letter-spacing:.04em;line-height:1.2}
 .profile{display:flex;align-items:center;gap:.7em}
 .avatar{border-radius:50%;object-fit:cover;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${accent};color:${onAccent};font-weight:700}
 .who{display:flex;flex-direction:column;line-height:1.2}
 .who b{font-weight:700}
 .who small{font-size:.8em;opacity:.75}
+.namerow{display:inline-flex;align-items:center;gap:.3em}
+.verified{display:inline-flex;color:#1D9BF0}
+.verified svg{width:100%;height:100%}
+.pchip{display:inline-flex;align-items:center;gap:.45em;padding:.3em .9em .3em .3em;border-radius:999px;font-weight:600}
+.ico{width:100%;height:100%;stroke-width:2.2}
 .img-empty{display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,${autoText} 10%,transparent);border:3px dashed color-mix(in srgb,${autoText} 35%,transparent);color:color-mix(in srgb,${autoText} 55%,transparent);font-size:32px}
 .progress{position:absolute;left:4%;right:4%;top:2.4%;display:flex;gap:10px}
 .progress span{flex:1;height:6px;border-radius:3px;background:${photo ? "rgba(255,255,255,.35)" : `color-mix(in srgb,${autoText} 18%,transparent)`}}
@@ -239,6 +309,7 @@ export function newFreeElement(kind: FreeElementKind, over: Partial<FreeElement>
     imagem: { x: 8, y: 20, w: 84, h: 40, radius: 28 },
     grade: { x: 0, y: 0, w: 100, h: 62, grid: "2v", images: [], gap: 10, radius: 0 },
     cartao: { x: 6, y: 10, w: 88, h: 74, fill: "branco", radius: 40 },
+    icone: { x: 8, y: 20, w: 12, size: 72, icon: "brilho" },
   };
   return { id: newElementId(), kind, ...base[kind], ...over } as FreeElement;
 }
@@ -249,104 +320,461 @@ export interface FreePresetInput {
   hasImage: boolean;
 }
 
-export const FREE_PRESETS: { id: string; label: string; build: (input: FreePresetInput) => FreeSlide }[] = [
+export type FreePresetCategory = "capa" | "interno" | "final";
+
+export interface FreePreset {
+  id: string;
+  label: string;
+  category: FreePresetCategory;
+  /** Pede foto de fundo (sem foto, o modelo usa a cor de fundo). */
+  photo?: boolean;
+  build: (input: FreePresetInput) => FreeSlide;
+}
+
+export const FREE_PRESET_CATEGORIES: { id: FreePresetCategory; label: string }[] = [
+  { id: "capa", label: "Capas" },
+  { id: "interno", label: "Telas internas" },
+  { id: "final", label: "Fechamento" },
+];
+
+const el = newFreeElement;
+/** Textos de exemplo só quando o slide está vazio; quem monta a partir de conteúdo (assistente) desliga. */
+let usePlaceholders = true;
+const ph = (value: string, placeholder: string) => value || (usePlaceholders ? placeholder : "");
+const firstLine = (text: string, fallback: string) => ph((text.split("\n").find((l) => l.trim()) ?? "").trim().slice(0, 60), fallback);
+const lines = (text: string, fallback: string[], max: number) => {
+  const list = text.split("\n").map((l) => l.replace(/^[-•→\d.)\s]+/, "").trim()).filter(Boolean);
+  return (list.length ? list : usePlaceholders ? fallback : []).slice(0, max);
+};
+/** Rodapé padrão: perfil à esquerda e "Arraste →" à direita. */
+const footer = (y = 90): FreeElement[] => [el("perfil", { x: 8, y, w: 55, size: 24 }), el("arraste", { x: 62, y: y + 1.5, w: 30, size: 22 })];
+const photoBg = (hasImage: boolean, overlay: FreeSlide["overlay"]): Pick<FreeSlide, "bg" | "overlay"> => ({ bg: hasImage ? "foto" : "fundo", overlay });
+
+export const FREE_PRESETS: FreePreset[] = [
+  // ---------- Capas ----------
   {
     id: "capa-revista",
-    label: "Capa revista",
+    label: "Revista",
+    category: "capa",
+    photo: true,
     build: ({ title, body, hasImage }) => ({
-      bg: hasImage ? "foto" : "fundo",
-      overlay: "base",
+      ...photoBg(hasImage, "base"),
       elements: [
-        newFreeElement("etiqueta", { x: 8, y: 52, w: 84, text: body ? body.split("\n")[0].slice(0, 40) : "TEMA DO POST", fill: "vidro" }),
-        newFreeElement("titulo", { x: 8, y: 58, w: 84, size: 104, text: title || "Título **forte** para a capa", upper: true, highlight: "cor" }),
-        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
-        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+        el("etiqueta", { x: 8, y: 52, w: 84, text: firstLine(body, "TEMA DO POST"), fill: hasImage ? "vidro" : "destaque" }),
+        el("titulo", { x: 8, y: 58, w: 84, size: 104, text: ph(title, "Título **forte** para a capa"), upper: true, highlight: "cor" }),
+        ...footer(),
       ],
     }),
   },
   {
     id: "capa-marca-texto",
-    label: "Capa marca-texto",
+    label: "Marca-texto",
+    category: "capa",
+    photo: true,
     build: ({ title, hasImage }) => ({
-      bg: hasImage ? "foto" : "fundo",
-      overlay: "forte",
+      ...photoBg(hasImage, "forte"),
       elements: [
-        newFreeElement("titulo", { x: 8, y: 56, w: 84, size: 100, text: title || "O **futuro** do seu **negócio** começa aqui", upper: true, highlight: "marca" }),
-        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
-        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+        el("titulo", { x: 8, y: 56, w: 84, size: 100, text: ph(title, "O **futuro** do seu **negócio** começa aqui"), upper: true, highlight: "marca" }),
+        ...footer(),
+      ],
+    }),
+  },
+  {
+    id: "capa-editorial",
+    label: "Editorial serifado",
+    category: "capa",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "suave"),
+      elements: [
+        el("titulo", { x: 7, y: 62, w: 80, size: 132, text: ph(title, "Yoga para **mães**"), family: "serif", italic: true, upper: true, highlight: "negrito", shadow: hasImage }),
+        el("texto", { x: 7.5, y: 86, w: 75, size: 30, text: firstLine(body, "Transforme sua rotina com estes 3 passos."), shadow: hasImage }),
+      ],
+    }),
+  },
+  {
+    id: "capa-chip-central",
+    label: "Centro com etiqueta",
+    category: "capa",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "forte"),
+      progress: false,
+      elements: [
+        el("titulo", { x: 7, y: 56, w: 86, size: 78, text: ph(title, "Transforme seu **corpo** com o treino certo"), upper: true, align: "center", family: "geometric", highlight: "cor" }),
+        el("etiqueta", { x: 10, y: 83, w: 80, size: 22, align: "center", text: firstLine(body, "GUIA COMPLETO"), fill: "preto", upper: true }),
+        el("texto", { x: 7, y: 93, w: 30, size: 20, text: "{nome}" }),
+        el("texto", { x: 63, y: 93, w: 30, size: 20, align: "right", text: "{usuario}" }),
+      ],
+    }),
+  },
+  {
+    id: "capa-impacto",
+    label: "Impacto condensado",
+    category: "capa",
+    photo: true,
+    build: ({ title, hasImage }) => ({
+      ...photoBg(hasImage, "forte"),
+      elements: [
+        el("titulo", { x: 6, y: 50, w: 88, size: 136, text: ph(title, "Destrave seus **resultados** agora"), family: "display", align: "center", highlight: "cor", shadow: hasImage }),
+        el("texto", { x: 6, y: 94, w: 28, size: 18, text: "{nome}", upper: true }),
+        el("texto", { x: 36, y: 94, w: 28, size: 18, align: "center", text: "Arraste →", upper: true }),
+        el("texto", { x: 66, y: 94, w: 28, size: 18, align: "right", text: "{usuario}" }),
+      ],
+    }),
+  },
+  {
+    id: "capa-perfil-chip",
+    label: "Perfil + título gigante",
+    category: "capa",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "base"),
+      elements: [
+        el("perfil", { x: 7, y: 60, w: 70, size: 26, variant: "chip" }),
+        el("titulo", { x: 7, y: 66, w: 86, size: 128, text: ph(title, "Claude Fable 5"), highlight: "cor" }),
+        el("texto", { x: 7, y: 84, w: 82, size: 38, text: firstLine(body, "O que mudou e como usar a partir de hoje.") }),
       ],
     }),
   },
   {
     id: "capa-tiras",
-    label: "Capa com 2 tiras",
+    label: "2 tiras de foto",
+    category: "capa",
     build: ({ title }) => ({
       bg: "fundo",
       overlay: "nenhuma",
       elements: [
-        newFreeElement("grade", { x: 0, y: 0, w: 100, h: 60, grid: "2v", gap: 8, radius: 0 }),
-        newFreeElement("titulo", { x: 8, y: 64, w: 84, size: 92, text: title || "Antes e **depois** em 30 dias", upper: true }),
-        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
-        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+        el("grade", { x: 0, y: 0, w: 100, h: 60, grid: "2v", gap: 8, radius: 0 }),
+        el("titulo", { x: 8, y: 64, w: 84, size: 92, text: ph(title, "Antes e **depois** em 30 dias"), upper: true }),
+        ...footer(),
       ],
     }),
   },
   {
     id: "capa-3-tiras",
-    label: "Capa com 3 tiras",
+    label: "3 tiras de foto",
+    category: "capa",
     build: ({ title }) => ({
       bg: "fundo",
       overlay: "nenhuma",
       elements: [
-        newFreeElement("grade", { x: 4, y: 4, w: 92, h: 56, grid: "3v", gap: 12, radius: 24 }),
-        newFreeElement("titulo", { x: 8, y: 64, w: 84, size: 88, text: title || "3 **formas** de começar hoje", upper: true }),
-        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 24 }),
-        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+        el("grade", { x: 4, y: 4, w: 92, h: 56, grid: "3v", gap: 12, radius: 24 }),
+        el("titulo", { x: 8, y: 64, w: 84, size: 88, text: ph(title, "3 **formas** de começar hoje"), upper: true }),
+        ...footer(),
+      ],
+    }),
+  },
+  {
+    id: "capa-tweet",
+    label: "Post estilo tweet",
+    category: "capa",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("perfil", { x: 10, y: 20, w: 80, size: 30, variant: "tweet", verified: true }),
+        el("texto", { x: 10, y: 31, w: 80, size: 44, text: [ph(title, "Você ainda perde horas fazendo isso na mão?"), body].filter(Boolean).join("\n") }),
+        el("imagem", { x: 10, y: 58, w: 80, h: 28, radius: 28 }),
+      ],
+    }),
+  },
+  {
+    id: "capa-manchete",
+    label: "Manchete de jornal",
+    category: "capa",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("texto", { x: 6, y: 4.5, w: 88, size: 20, align: "center", upper: true, text: "Edição especial · {nome}" }),
+        el("cartao", { x: 6, y: 9, w: 88, h: 0.5, radius: 0, fill: "texto" }),
+        el("titulo", { x: 6, y: 12, w: 88, size: 104, align: "center", family: "serif", text: ph(title, "A **notícia** que ninguém te contou") }),
+        el("imagem", { x: 6, y: 47, w: 88, h: 36, radius: 0 }),
+        el("texto", { x: 6, y: 85, w: 88, size: 26, align: "center", italic: true, text: firstLine(body, "Leia até o fim antes de decidir.") }),
+        el("cartao", { x: 6, y: 92, w: 88, h: 0.5, radius: 0, fill: "texto" }),
+        el("texto", { x: 6, y: 94, w: 88, size: 18, align: "center", upper: true, text: "{usuario} · Arraste →" }),
+      ],
+    }),
+  },
+  {
+    id: "capa-numero",
+    label: "Número gigante",
+    category: "capa",
+    build: ({ title }) => ({
+      bg: "destaque",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", { x: 5, y: 2, w: 90, size: 560, family: "display", text: ph(title.match(/\d+/)?.[0] ?? "", "7").slice(0, 3) }),
+        el("titulo", { x: 8, y: 62, w: 84, size: 84, upper: true, text: ph(title, "7 **erros** que travam suas vendas") }),
+        ...footer(),
+      ],
+    }),
+  },
+  {
+    id: "capa-pergunta",
+    label: "Pergunta provocativa",
+    category: "capa",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", { x: 56, y: 2, w: 50, size: 640, family: "serif", color: "destaque", text: "?" }),
+        el("etiqueta", { x: 8, y: 40, w: 60, size: 24, text: firstLine(body, "VOCÊ SABIA?"), fill: "destaque" }),
+        el("titulo", { x: 8, y: 47, w: 80, size: 96, text: ph(title, "Por que seu **post** não engaja?") }),
+        ...footer(),
+      ],
+    }),
+  },
+
+  // ---------- Telas internas ----------
+  {
+    id: "interno-texto",
+    label: "Título + texto",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("perfil", { x: 8, y: 30, w: 70, size: 26, variant: "chip" }),
+        el("titulo", { x: 8, y: 38, w: 84, size: 72, text: ph(title, "O mito se torna **realidade**"), upper: true }),
+        el("texto", { x: 8, y: 56, w: 84, size: 36, text: ph(body, "Texto de apoio do slide, direto ao ponto.") }),
+        el("numeracao", { x: 80, y: 92, w: 12, size: 22 }),
       ],
     }),
   },
   {
     id: "interno-cartao",
-    label: "Interno com cartão",
+    label: "Cartão branco",
+    category: "interno",
     build: ({ title, body }) => ({
       bg: "fundo",
       overlay: "nenhuma",
       elements: [
-        newFreeElement("cartao", { x: 6, y: 8, w: 88, h: 78, fill: "branco" }),
-        newFreeElement("etiqueta", { x: 12, y: 13, w: 76, size: 22, text: "DESTAQUE", fill: "destaque" }),
-        newFreeElement("titulo", { x: 12, y: 20, w: 76, size: 64, text: title || "Chega de **conteúdo** sem resultado", color: "preto", upper: true }),
-        newFreeElement("texto", { x: 12, y: 42, w: 76, size: 32, text: body || "Explique aqui a ideia principal deste slide em duas ou três frases curtas.", color: "preto" }),
-        newFreeElement("perfil", { x: 8, y: 90, w: 55, size: 22 }),
-        newFreeElement("arraste", { x: 62, y: 91.5, w: 30, size: 22 }),
+        el("cartao", { x: 6, y: 8, w: 88, h: 78, fill: "branco" }),
+        el("etiqueta", { x: 12, y: 13, w: 76, size: 22, text: "DESTAQUE", fill: "destaque" }),
+        el("titulo", { x: 12, y: 20, w: 76, size: 64, text: ph(title, "Chega de **conteúdo** sem resultado"), color: "preto", upper: true }),
+        el("texto", { x: 12, y: 42, w: 76, size: 32, text: ph(body, "Explique aqui a ideia principal deste slide em duas ou três frases curtas."), color: "preto" }),
+        ...footer(),
       ],
     }),
   },
   {
-    id: "interno-texto",
-    label: "Interno simples",
+    id: "interno-cartao-foto",
+    label: "Cartão com foto",
+    category: "interno",
     build: ({ title, body }) => ({
       bg: "fundo",
       overlay: "nenhuma",
       elements: [
-        newFreeElement("perfil", { x: 8, y: 30, w: 70, size: 26 }),
-        newFreeElement("titulo", { x: 8, y: 38, w: 84, size: 72, text: title || "O mito se torna **realidade**", upper: true }),
-        newFreeElement("texto", { x: 8, y: 56, w: 84, size: 36, text: body || "Texto de apoio do slide, direto ao ponto." }),
-        newFreeElement("numeracao", { x: 80, y: 92, w: 12, size: 22 }),
+        el("cartao", { x: 6, y: 6, w: 88, h: 82, fill: "branco" }),
+        el("etiqueta", { x: 11, y: 10.5, w: 78, size: 20, text: "✦ O DESAFIO", fill: "destaque" }),
+        el("titulo", { x: 11, y: 17, w: 78, size: 56, color: "preto", upper: true, text: ph(title, "Chega de carrosséis sem **engajamento**") }),
+        el("texto", { x: 11, y: 33, w: 78, size: 27, color: "preto", text: ph(body, "Conte o problema em duas frases e mostre a saída na imagem abaixo.") }),
+        el("imagem", { x: 11, y: 55, w: 78, h: 29, radius: 22 }),
+        ...footer(91),
+      ],
+    }),
+  },
+  {
+    id: "interno-tweet",
+    label: "Tweet com imagem",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("perfil", { x: 10, y: 18, w: 80, size: 28, variant: "tweet", verified: true }),
+        el("texto", { x: 10, y: 28, w: 80, size: 38, text: ph([title, body].filter(Boolean).join("\n"), "Texto do post, como um tweet: direto e opinativo.") }),
+        el("imagem", { x: 10, y: 56, w: 80, h: 30, radius: 26 }),
+      ],
+    }),
+  },
+  {
+    id: "interno-dado",
+    label: "Dado em destaque",
+    category: "interno",
+    build: ({ title, body }) => {
+      const number = title.match(/[+-]?\d+(?:[.,]\d+)?\s*[%x]?/)?.[0]?.trim() ?? "";
+      const rest = title.replace(number, "").trim();
+      return {
+        bg: "fundo",
+        overlay: "nenhuma",
+        elements: [
+          el("titulo", { x: 8, y: 18, w: 84, size: 300, family: "display", color: "destaque", text: ph(number, "+37%") }),
+          el("titulo", { x: 8, y: 52, w: 84, size: 60, text: rest || ph(body, "dos clientes voltam no **mesmo mês**") }),
+          el("texto", { x: 8, y: 70, w: 80, size: 30, text: rest ? ph(body, "Explique de onde vem o número e o que ele significa.") : "" }),
+          ...footer(),
+        ],
+      };
+    },
+  },
+  {
+    id: "interno-checklist",
+    label: "Checklist",
+    category: "interno",
+    build: ({ title, body }) => {
+      const items = lines(body, ["Primeiro ponto importante", "Segundo ponto importante", "Terceiro ponto importante"], 4);
+      return {
+        bg: "fundo",
+        overlay: "nenhuma",
+        elements: [
+          el("titulo", { x: 8, y: 12, w: 84, size: 68, upper: true, text: ph(title, "Antes de **começar**, confira") }),
+          ...items.flatMap((item, i) => [
+            el("icone", { x: 8, y: 35 + i * 13.5, w: 10, size: 56, icon: "check", fill: "destaque" }),
+            el("texto", { x: 22, y: 36 + i * 13.5, w: 70, size: 34, text: item }),
+          ]),
+          ...footer(),
+        ],
+      };
+    },
+  },
+  {
+    id: "interno-passo",
+    label: "Passo a passo",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", { x: 8, y: 14, w: 50, size: 220, family: "display", color: "destaque", text: "{n}" }),
+        el("cartao", { x: 8, y: 44, w: 16, h: 0.8, radius: 4, fill: "destaque" }),
+        el("titulo", { x: 8, y: 48, w: 84, size: 68, text: ph(title, "Defina **um** objetivo por post") }),
+        el("texto", { x: 8, y: 66, w: 80, size: 32, text: ph(body, "Explique o passo em duas ou três frases.") }),
+        el("numeracao", { x: 80, y: 92, w: 12, size: 22 }),
+      ],
+    }),
+  },
+  {
+    id: "interno-mito-verdade",
+    label: "Mito × verdade",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("cartao", { x: 6, y: 8, w: 88, h: 36, fill: "preto", radius: 32 }),
+        el("etiqueta", { x: 11, y: 13, w: 40, size: 22, text: "MITO", fill: "branco", color: "preto" }),
+        el("titulo", { x: 11, y: 20, w: 78, size: 52, color: "branco", text: ph(title, "Postar todo dia é o que faz crescer") }),
+        el("cartao", { x: 6, y: 48, w: 88, h: 36, fill: "destaque", radius: 32 }),
+        el("etiqueta", { x: 11, y: 53, w: 40, size: 22, text: "VERDADE", fill: "preto", color: "branco" }),
+        el("texto", { x: 11, y: 60, w: 78, size: 34, color: "fundo", text: ph(body, "Constância importa, mas o que faz crescer é conteúdo que as pessoas salvam e compartilham.") }),
+        ...footer(),
+      ],
+    }),
+  },
+  {
+    id: "interno-antes-depois",
+    label: "Antes × depois",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("grade", { x: 0, y: 0, w: 100, h: 54, grid: "2v", gap: 6, radius: 0 }),
+        el("etiqueta", { x: 4, y: 4, w: 40, size: 22, text: "ANTES", fill: "preto" }),
+        el("etiqueta", { x: 54, y: 4, w: 40, size: 22, text: "DEPOIS", fill: "destaque" }),
+        el("titulo", { x: 8, y: 59, w: 84, size: 64, text: ph(title, "O que muda em **30 dias**") }),
+        el("texto", { x: 8, y: 75, w: 84, size: 30, text: ph(body, "Conte o que foi feito entre uma foto e a outra.") }),
+        ...footer(91),
+      ],
+    }),
+  },
+  {
+    id: "interno-citacao-foto",
+    label: "Citação com foto",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("imagem", { x: 0, y: 0, w: 46, h: 100, radius: 0 }),
+        el("titulo", { x: 52, y: 14, w: 20, size: 220, family: "serif", color: "destaque", text: "“" }),
+        el("titulo", { x: 52, y: 32, w: 42, size: 54, family: "serif", italic: true, text: ph(title, "Eu sou o primeiro **filtro**.") }),
+        el("texto", { x: 52, y: 72, w: 42, size: 26, text: ph(body, "— {nome}") }),
+        el("numeracao", { x: 80, y: 92, w: 12, size: 22 }),
       ],
     }),
   },
   {
     id: "foto-com-texto",
     label: "Foto em cima, texto embaixo",
+    category: "interno",
     build: ({ title, body }) => ({
       bg: "fundo",
       overlay: "nenhuma",
       elements: [
-        newFreeElement("imagem", { x: 0, y: 0, w: 100, h: 52, radius: 0 }),
-        newFreeElement("titulo", { x: 8, y: 57, w: 84, size: 64, text: title || "Título do slide" }),
-        newFreeElement("texto", { x: 8, y: 74, w: 84, size: 32, text: body || "Texto de apoio." }),
-        newFreeElement("perfil", { x: 8, y: 91, w: 55, size: 22 }),
+        el("imagem", { x: 0, y: 0, w: 100, h: 52, radius: 0 }),
+        el("titulo", { x: 8, y: 57, w: 84, size: 64, text: ph(title, "Título do slide") }),
+        el("texto", { x: 8, y: 74, w: 84, size: 32, text: ph(body, "Texto de apoio.") }),
+        el("perfil", { x: 8, y: 91, w: 55, size: 22 }),
+      ],
+    }),
+  },
+
+  // ---------- Fechamento ----------
+  {
+    id: "final-salvar",
+    label: "Salve este post",
+    category: "final",
+    build: ({ title, body }) => ({
+      bg: "destaque",
+      overlay: "nenhuma",
+      elements: [
+        el("icone", { x: 40, y: 18, w: 20, size: 120, icon: "estrela", align: "center", fill: "fundo" }),
+        el("titulo", { x: 8, y: 40, w: 84, size: 92, align: "center", upper: true, text: ph(title, "Gostou? **Salve** para não perder") }),
+        el("texto", { x: 12, y: 64, w: 76, size: 32, align: "center", text: ph(body, "E mande para alguém que precisa ver isso hoje.") }),
+        el("perfil", { x: 15, y: 86, w: 70, size: 26, variant: "chip", align: "center", fill: "fundo" }),
+      ],
+    }),
+  },
+  {
+    id: "final-seguir",
+    label: "Siga o perfil",
+    category: "final",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "total"),
+      elements: [
+        el("perfil", { x: 10, y: 30, w: 80, size: 40, variant: "tweet", verified: true, align: "center" }),
+        el("titulo", { x: 8, y: 46, w: 84, size: 80, align: "center", text: ph(title, "Quer mais conteúdos **assim**?") }),
+        el("texto", { x: 12, y: 64, w: 76, size: 32, align: "center", text: ph(body, "Siga {usuario} e ative as notificações.") }),
+        el("etiqueta", { x: 25, y: 80, w: 50, size: 30, align: "center", text: "SEGUIR", fill: "destaque" }),
+      ],
+    }),
+  },
+  {
+    id: "final-comente",
+    label: "Comente uma palavra",
+    category: "final",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("icone", { x: 8, y: 16, w: 16, size: 90, icon: "conversa", fill: "destaque" }),
+        el("titulo", { x: 8, y: 34, w: 84, size: 90, upper: true, text: ph(title, "Comente **QUERO** que eu te mando o passo a passo") }),
+        el("texto", { x: 8, y: 66, w: 80, size: 30, text: ph(body, "Respondo um por um, no direct.") }),
+        ...footer(),
       ],
     }),
   },
 ];
+
+export const presetById = (id: string) => FREE_PRESETS.find((p) => p.id === id) ?? FREE_PRESETS[0];
+
+const TEXT_KINDS: FreeElementKind[] = ["titulo", "texto", "etiqueta"];
+
+/**
+ * Monta um modelo. Com `placeholders: false` (conteúdo vindo do assistente ou de outro slide),
+ * os elementos de texto sem conteúdo saem, em vez de mostrar texto de exemplo.
+ */
+export function buildPreset(id: string, input: FreePresetInput, { placeholders = true } = {}): FreeSlide {
+  usePlaceholders = placeholders;
+  try {
+    const slide = presetById(id).build(input);
+    if (placeholders) return slide;
+    return { ...slide, elements: slide.elements.filter((e) => !TEXT_KINDS.includes(e.kind) || (e.text ?? "").trim()) };
+  } finally {
+    usePlaceholders = true;
+  }
+}

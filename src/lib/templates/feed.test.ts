@@ -244,3 +244,24 @@ describe("layout Livre: tiras e carrossel infinito", () => {
     expect(html).toContain('style="width:300%;left:-200%"');
   });
 });
+
+describe("biblioteca de modelos do Livre", () => {
+  it("todo modelo monta e renderiza sem texto de exemplo quando vem do assistente", async () => {
+    const { FREE_PRESETS, buildPreset } = await import("./free");
+    for (const preset of FREE_PRESETS) {
+      const free = buildPreset(preset.id, { title: "Título", body: "Linha 1\nLinha 2", hasImage: false }, { placeholders: false });
+      const html = renderFeedSlide({ slide: { layout: "livre", title: "", body: "", free }, brand, style, index: 1, total: 4, fontCss: "" });
+      expect(html, preset.id).toContain("Título");
+      expect(html, preset.id).not.toContain("Texto de apoio");
+    }
+  });
+
+  it("troca {nome}, {usuario} e {n}", async () => {
+    const html = renderFeedSlide({
+      slide: { layout: "livre", title: "", body: "", free: { bg: "fundo", overlay: "nenhuma", elements: [{ id: "a", kind: "texto", x: 0, y: 0, w: 90, text: "{nome} {usuario} {n}/{total}" }] } },
+      brand, style, index: 2, total: 5, fontCss: "",
+    });
+    expect(html).toContain(`${brand.name}`);
+    expect(html).toContain("3/5");
+  });
+});
