@@ -29,6 +29,7 @@ export const freeSlideSchema = z.object({
   overlay: z.enum(FREE_OVERLAYS),
   progress: z.boolean().optional(),
   pan: z.object({ total: z.number().int().min(2).max(10), part: z.number().int().min(0).max(9) }).nullish(),
+  preset: z.string().max(40).nullish(),
   elements: z
     .array(
       z.object({
