@@ -28,6 +28,7 @@ import {
   FREE_PROFILE_VARIANTS,
   buildPreset,
   newElementId,
+  rebuildWithPreset,
   renderFreeSlide,
   type FreePresetCategory,
   newFreeElement,
@@ -84,6 +85,7 @@ export function FreeEditor({
   onImage,
   onSpread,
   preview,
+  onApplyAll,
 }: {
   free: FreeSlide;
   /** Título e texto do slide, usados ao aplicar um modelo. */
@@ -105,6 +107,8 @@ export function FreeEditor({
   onSpread: (total: number) => void;
   /** Marca, cores e fonte da peça, para as miniaturas dos modelos. */
   preview: PreviewContext;
+  /** Aplica um modelo em todas as telas da mesma categoria (internas ou fechamento). */
+  onApplyAll?: (id: string) => void;
 }) {
   const [tab, setTab] = useState<"elementos" | "fundo" | "modelos">(free.elements.length ? "elementos" : "modelos");
   // Clicar num elemento na prévia traz para a aba Elementos.
@@ -158,25 +162,9 @@ export function FreeEditor({
         <PresetGallery
           preview={preview}
           image={image}
+          onApplyAll={onApplyAll}
           onPick={(id) => {
-            // Leva o texto e as fotos do slide para o modelo novo.
-            const titleEl = free.elements.find((e) => e.kind === "titulo" && (e.text ?? "").trim() && !/^\{?n\}?$|^[\d+%\-]{1,4}$/.test((e.text ?? "").trim()));
-            const bodyEl =
-              free.elements.find((e) => e.kind === "texto" && (e.text ?? "").trim()) ?? free.elements.find((e) => e.kind === "conversa" && (e.text ?? "").trim());
-            const t = titleEl?.text ?? title;
-            const b = bodyEl?.text ?? body;
-            const next = buildPreset(id, { title: t, body: b, hasImage }, { placeholders: !t.trim() && !b.trim() });
-            const photos = [
-              ...free.elements.filter((e) => e.kind === "imagem" && e.image).map((e) => e.image as string),
-              ...free.elements.flatMap((e) => (e.kind === "grade" ? (e.images ?? []).filter((x): x is string => Boolean(x)) : [])),
-            ];
-            let k = 0;
-            const elements = next.elements.map((e) => {
-              if (e.kind === "imagem" && photos[k]) return { ...e, image: photos[k++] };
-              if (e.kind === "grade") return { ...e, images: photos.slice(k, k + 4) };
-              return e;
-            });
-            onChange({ ...next, elements, pan: free.pan ?? null });
+            onChange(rebuildWithPreset(free, id, { title, body, image }));
             onSelect(null);
             setTab("elementos");
           }}
@@ -661,8 +649,19 @@ export interface PreviewContext {
 }
 
 /** Biblioteca de modelos em miniatura, com a marca e as cores da peça. */
-function PresetGallery({ preview, image, onPick }: { preview: PreviewContext; image: string | null; onPick: (id: string) => void }) {
+function PresetGallery({
+  preview,
+  image,
+  onPick,
+  onApplyAll,
+}: {
+  preview: PreviewContext;
+  image: string | null;
+  onPick: (id: string) => void;
+  onApplyAll?: (id: string) => void;
+}) {
   const [category, setCategory] = useState<FreePresetCategory>("capa");
+  const [all, setAll] = useState(false);
   const thumbWidth = 132;
   const scale = thumbWidth / preview.width;
   return (
@@ -680,6 +679,12 @@ function PresetGallery({ preview, image, onPick }: { preview: PreviewContext; im
         ))}
       </div>
       <p className="text-[11.5px] text-ink-faint">O texto e as fotos deste slide vão para o modelo escolhido.</p>
+      {onApplyAll && category === "interno" && (
+        <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
+          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} className="h-4 w-4 accent-accent" />
+          Aplicar em todas as telas internas (menos listas, dados, passos e citações)
+        </label>
+      )}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {FREE_PRESETS.filter((p) => p.category === category).map((p) => {
           const free = buildPreset(p.id, { title: "", body: "", hasImage: Boolean(image) && Boolean(p.photo) });
@@ -696,7 +701,12 @@ function PresetGallery({ preview, image, onPick }: { preview: PreviewContext; im
             fontCss: browserFontCss,
           });
           return (
-            <button key={p.id} type="button" onClick={() => onPick(p.id)} className="group space-y-1 text-left">
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => (all && onApplyAll && category === "interno" ? onApplyAll(p.id) : onPick(p.id))}
+              className="group space-y-1 text-left"
+            >
               <span
                 className="relative block overflow-hidden rounded-lg border border-line group-hover:border-accent"
                 style={{ width: thumbWidth, height: preview.height * scale }}

@@ -73,6 +73,7 @@ export function SlideFields({
   onSelectElement = () => {},
   onSpread = () => {},
   preview,
+  onApplyAll,
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -95,6 +96,8 @@ export function SlideFields({
   onSpread?: (total: number) => void;
   /** Marca, cores e fonte da peça (miniaturas dos modelos do Livre). */
   preview: PreviewContext;
+  /** Aplica um modelo do Livre em todas as telas internas. */
+  onApplyAll?: (id: string) => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
@@ -192,6 +195,7 @@ export function SlideFields({
           onImage={(image) => onChange({ image })}
           onSpread={onSpread}
           preview={preview}
+          onApplyAll={onApplyAll}
         />
       ) : (
         <>

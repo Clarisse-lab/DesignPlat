@@ -1,7 +1,8 @@
 "use client";
 
+import { textZoneOfFree, type TextZone } from "@/lib/ai/image-direction";
 import { useEffect, useMemo, useState } from "react";
-import { Download, MoreHorizontal, Save, Wand2 } from "lucide-react";
+import { Download, MoreHorizontal, Save, Shuffle, Wand2 } from "lucide-react";
 import {
   Field,
   ImagePicker,
@@ -38,8 +39,18 @@ import { StylePanel } from "./StylePanel";
 import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
 import { StoryGuides } from "./StoryGuides";
 import { EMPTY_FREE, FreeHandles } from "./FreeEditor";
-import { GeneratorPanel, type GeneratedSlide, type GeneratorStyle } from "./GeneratorPanel";
-import { buildPreset, type FreeSlide } from "@/lib/templates/free";
+import { GeneratorPanel, type GeneratedSlide, type GeneratorOptions } from "./GeneratorPanel";
+import {
+  buildPreset,
+  FREE_PRESETS,
+  presetById,
+  presetWantsImage,
+  rebuildWithPreset,
+  SEMANTIC_PRESETS,
+  CHAT_PRESETS,
+  type FreeSlide,
+} from "@/lib/templates/free";
+import { imageFileToDataUrl } from "@/lib/client/image";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
@@ -49,6 +60,16 @@ type DownloadTarget = "one" | "all" | "pdf" | "pptx";
 type SidebarSection = "marca" | "conteudo" | "estilo" | "referencia";
 
 /** Editor com a identidade da marca: Post de Feed, Story ou Apresentação (mesmo template, tamanhos e layouts diferentes). */
+/** Modelo quando a IA não mandou um válido (ou para peças geradas antes da escolha de modelos). */
+function fallbackModel(it: GeneratedSlide): string {
+  if (it.tipo === "capa") return "capa-revista";
+  if (it.tipo === "lista") return "interno-checklist";
+  if (it.tipo === "numero") return "interno-dado";
+  if (it.tipo === "citacao") return "interno-citacao-foto";
+  if (it.tipo === "cta") return "final-salvar";
+  return "interno-texto";
+}
+
 export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const config = POST_MODES[mode];
   const isStory = mode === "story";
@@ -130,38 +151,85 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, linkParams?.cliente]);
 
-  /** Monta os slides a partir das telas geradas, com os modelos do Livre (revista) ou os layouts clássicos. */
-  const applyGenerated = (items: GeneratedSlide[], legenda: string, genStyle: GeneratorStyle) => {
+  /** Troca a etiqueta dos modelos pela da tela gerada (ou some com a etiqueta de exemplo). */
+  const withTag = (free: FreeSlide, etiqueta: string): FreeSlide => ({
+    ...free,
+    elements: etiqueta.trim()
+      ? free.elements.map((el) => (el.kind === "etiqueta" ? { ...el, text: etiqueta.trim().toUpperCase() } : el))
+      : free.elements.filter((el) => el.kind !== "etiqueta" || !/^(DESTAQUE|✦ O DESAFIO)$/.test(el.text ?? "")),
+  });
+
+  /** Coloca uma foto no slide: no primeiro espaço de imagem vazio, ou como foto de fundo. */
+  const placeImage = (slide: FeedEditorSlide, image: string): FeedEditorSlide => {
+    const free = slide.free;
+    if (!free) return { ...slide, image };
+    const slot = free.elements.findIndex((e) => (e.kind === "imagem" && !e.image) || (e.kind === "grade" && !(e.images ?? []).some(Boolean)));
+    if (slot >= 0) {
+      const elements = free.elements.map((e, k) =>
+        k !== slot ? e : e.kind === "imagem" ? { ...e, image } : { ...e, images: [image, ...(e.images ?? []).slice(1)] },
+      );
+      return { ...slide, free: { ...free, elements } };
+    }
+    return { ...slide, image, free: { ...free, bg: "foto", overlay: free.overlay === "nenhuma" ? "base" : free.overlay } };
+  };
+
+  const [generatingImages, setGeneratingImages] = useState(false);
+
+  /** Gera com o Gemini as fotos descritas pela IA, uma por vez, e coloca cada uma no seu slide. */
+  const generateImages = async (jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[]) => {
+    setGeneratingImages(true);
+    let done = 0;
+    let spent = 0;
+    try {
+      for (const job of jobs) {
+        showInfo(`Gerando imagem ${done + 1} de ${jobs.length}…`);
+        const response = await fetch("/api/estudio/imagem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: job.prompt,
+            size: style.size,
+            clienteSlug: draft.cliente?.slug ?? null,
+            rostos: job.face && brand.logo ? [brand.logo] : [],
+            paleta: [style.palette.background, style.palette.text, style.palette.accent],
+            zona: job.zone,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar a imagem.");
+        const blob = await (await fetch(data.imagem)).blob();
+        const image = await imageFileToDataUrl(new File([blob], "ia.png", { type: blob.type }), { maxSide: 1600 });
+        spent += Number(data.custo_usd) || 0;
+        setDraft((d) => ({ ...d, slides: d.slides.map((sl) => (sl.id === job.id ? placeImage(sl, image) : sl)) }));
+        done++;
+      }
+      showInfo(`Carrossel pronto: ${done} imagem(ns) geradas (US$ ${spent.toFixed(2).replace(".", ",")}). Revise e salve.`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Erro ao gerar a imagem.";
+      showError(done ? `${done} de ${jobs.length} imagens geradas. Parou em: ${reason}` : reason);
+    } finally {
+      setGeneratingImages(false);
+    }
+  };
+
+  /** Monta os slides a partir das telas geradas, com os modelos escolhidos pela IA (revista) ou os layouts clássicos. */
+  const applyGenerated = (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
     if (slides.some((s) => s.title.trim()) && !window.confirm(`Substituir os ${slides.length} slide(s) atuais pelas ${items.length} telas geradas?`)) return;
-    const withTag = (free: FreeSlide, etiqueta: string): FreeSlide => ({
-      ...free,
-      elements: etiqueta.trim()
-        ? free.elements.map((el) => (el.kind === "etiqueta" ? { ...el, text: etiqueta.trim().toUpperCase() } : el))
-        : free.elements.filter((el) => el.kind !== "etiqueta" || !/^(DESTAQUE|✦ O DESAFIO)$/.test(el.text ?? "")),
-    });
-    // Capa varia a cada geração; internos alternam entre dois modelos para o carrossel não ficar monótono.
-    const capas = ["capa-revista", "capa-perfil-chip", "capa-marca-texto", "capa-editorial", "capa-chip-central"];
-    const capa = capas[Math.floor(Math.random() * capas.length)];
-    let interno = 0;
-    const built = items.slice(0, MAX_FEED_SLIDES).map((it) => {
+    const list = items.slice(0, MAX_FEED_SLIDES);
+    const jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[] = [];
+    const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
-      if (genStyle === "revista") {
-        const id =
-          it.tipo === "capa"
-            ? capa
-            : it.tipo === "lista"
-              ? "interno-checklist"
-              : it.tipo === "numero"
-                ? "interno-dado"
-                : it.tipo === "cta"
-                  ? "final-salvar"
-                  : it.tipo === "texto"
-                    ? interno++ % 2 === 0 ? "interno-texto" : "interno-cartao"
-                    : null;
-        if (id) {
-          const free = buildPreset(id, { title: it.titulo, body: it.tipo === "capa" ? it.etiqueta : it.texto, hasImage: false }, { placeholders: false });
-          return newFeedSlide({ layout: "livre", ...base, free: withTag(free, it.tipo === "capa" ? "" : it.etiqueta) });
-        }
+      if (options.style === "revista") {
+        const id = it.modelo && presetById(it.modelo).id === it.modelo ? it.modelo : fallbackModel(it);
+        const prompt = (it.imagem ?? "").trim();
+        const wantsImage = prompt.length >= 5 && presetWantsImage(id) && (options.images === "todas" || (options.images === "capa" && k === 0));
+        const body = it.tipo === "capa" && !CHAT_PRESETS.has(id) ? it.etiqueta : it.texto;
+        const free = buildPreset(id, { title: it.titulo, body, hasImage: wantsImage }, { placeholders: false });
+        const slide = newFeedSlide({ layout: "livre", ...base, free: withTag(free, it.tipo === "capa" ? "" : it.etiqueta) });
+        // Foto de fundo: a IA deixa livre a área do texto. Foto num espaço de imagem: sem zona.
+        const slotImage = free.elements.some((e) => e.kind === "imagem" || e.kind === "grade");
+        if (wantsImage) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free) });
+        return slide;
       }
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
       return newFeedSlide({ layout, ...base });
@@ -169,6 +237,53 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     setDraft((d) => ({ ...d, slides: built, legenda }));
     setActiveIndex(0);
     setSelectedElement(null);
+    if (jobs.length) void generateImages(jobs);
+  };
+
+  /** Categoria de cada posição: primeiro é capa, último é fechamento, o resto é interno. */
+  const categoryAt = (index: number, total: number) => (index === 0 ? "capa" : index === total - 1 ? "final" : "interno");
+
+  /** "Outra versão do design": sorteia outros modelos para cada tela, mantendo texto e fotos. */
+  const shuffleDesign = () => {
+    if (!slides.some((sl) => sl.layout === "livre" && sl.free && !sl.free.pan)) {
+      showInfo("Não há telas no estilo Livre para variar. Gere o carrossel no estilo revista ou troque o layout para Livre.");
+      return;
+    }
+    setDraft((d) => ({
+      ...d,
+      slides: d.slides.map((sl, k) => {
+        if (sl.layout !== "livre" || !sl.free || sl.free.pan) return sl;
+        const current = sl.free.preset ?? "";
+        if (SEMANTIC_PRESETS.has(current)) return sl;
+        const category = categoryAt(k, d.slides.length);
+        const hasPhoto = Boolean(sl.image) || sl.free.elements.some((e) => (e.kind === "imagem" && e.image) || (e.kind === "grade" && (e.images ?? []).some(Boolean)));
+        const options = FREE_PRESETS.filter(
+          (p) => p.category === category && p.id !== current && !SEMANTIC_PRESETS.has(p.id) && (hasPhoto || !presetWantsImage(p.id) || p.photo),
+        );
+        if (!options.length) return sl;
+        const pick = options[Math.floor(Math.random() * options.length)];
+        const free = rebuildWithPreset(sl.free, pick.id, { title: sl.title, body: sl.body, image: sl.image });
+        const tag = sl.free.elements.find((e) => e.kind === "etiqueta")?.text ?? "";
+        return { ...sl, free: withTag(free, category === "capa" ? "" : tag) };
+      }),
+    }));
+    setSelectedElement(null);
+    showInfo("Nova versão do design aplicada. O texto e as fotos continuam os mesmos.");
+  };
+
+  /** Aplica um modelo interno em todas as telas internas (menos as de lista, dado, passo e citação). */
+  const applyPresetToAll = (id: string) => {
+    setDraft((d) => ({
+      ...d,
+      slides: d.slides.map((sl, k) => {
+        if (categoryAt(k, d.slides.length) !== "interno" || sl.layout !== "livre" || !sl.free || sl.free.pan) return sl;
+        if (SEMANTIC_PRESETS.has(sl.free.preset ?? "")) return sl;
+        const tag = sl.free.elements.find((e) => e.kind === "etiqueta")?.text ?? "";
+        return { ...sl, free: withTag(rebuildWithPreset(sl.free, id, { title: sl.title, body: sl.body, image: sl.image }), tag) };
+      }),
+    }));
+    setSelectedElement(null);
+    showInfo(`Modelo "${presetById(id).label}" aplicado nas telas internas.`);
   };
 
   /** Abre uma peça ou template salvo no lugar do rascunho atual. */
@@ -414,6 +529,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <MenuButton icon={MoreHorizontal} label="Mais" items={moreItems} />
+          {slides.some((sl) => sl.layout === "livre") && (
+            <ToolbarButton icon={Shuffle} disabled={generatingImages} onClick={shuffleDesign}>
+              Outra versão
+            </ToolbarButton>
+          )}
           {studioEnabled && (
             <ToolbarButton icon={Save} busy={pieces.busy === "save"} disabled={pieces.busy !== null} onClick={() => pieces.save(false)}>
               {draft.pecaId ? "Salvar" : "Salvar peça"}
@@ -548,6 +668,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             selectedElement={selectedElement}
             onSelectElement={setSelectedElement}
             onSpread={spreadPhoto}
+            onApplyAll={slides.length > 2 ? applyPresetToAll : undefined}
             preview={{ brand, palette: style.palette, titleFont: style.titleFont, width, height }}
             imageAi={
               studioEnabled

@@ -147,6 +147,8 @@ export interface FreeSlide {
   overlay: (typeof FREE_OVERLAYS)[number];
   /** Barrinhas de progresso no topo (estilo story). */
   progress?: boolean;
+  /** Modelo de origem (para variar o design e aplicar em lote sem perder o tipo da tela). */
+  preset?: string | null;
   /** Carrossel infinito: a foto de fundo ocupa `total` slides lado a lado e este mostra o pedaço `part`. */
   pan?: { total: number; part: number } | null;
   elements: FreeElement[];
@@ -990,10 +992,66 @@ const TEXT_KINDS: FreeElementKind[] = ["titulo", "texto", "etiqueta", "conversa"
 export function buildPreset(id: string, input: FreePresetInput, { placeholders = true } = {}): FreeSlide {
   usePlaceholders = placeholders;
   try {
-    const slide = presetById(id).build(input);
+    const slide = { ...presetById(id).build(input), preset: id };
     if (placeholders) return slide;
     return { ...slide, elements: slide.elements.filter((e) => !TEXT_KINDS.includes(e.kind) || (e.text ?? "").trim()) };
   } finally {
     usePlaceholders = true;
   }
+}
+
+
+/** Modelos que dependem do conteúdo (lista, número, passo...): variar o design não troca esses. */
+export const SEMANTIC_PRESETS = new Set([
+  "capa-numero",
+  "capa-pergunta",
+  "capa-tiras",
+  "capa-3-tiras",
+  "interno-dado",
+  "interno-checklist",
+  "interno-passo",
+  "interno-mito-verdade",
+  "interno-antes-depois",
+  "interno-citacao-foto",
+  // Prints de conversa: só fazem sentido com mensagens reais, nunca por sorteio.
+  "capa-conversa",
+  "capa-notificacoes",
+  "interno-conversa",
+]);
+
+/** Modelos em que o "texto" da tela são as mensagens do print (inclusive na capa). */
+export const CHAT_PRESETS: ReadonlySet<string> = new Set(["capa-conversa", "capa-notificacoes", "interno-conversa"]);
+
+/** O modelo pede uma foto (fundo ou espaço de imagem)? */
+export function presetWantsImage(id: string): boolean {
+  const preset = presetById(id);
+  if (preset.photo) return true;
+  return preset.build({ title: "", body: "", hasImage: false }).elements.some((e) => e.kind === "imagem" || e.kind === "grade");
+}
+
+/**
+ * Troca o modelo de um slide Livre levando o texto (título e texto principais) e as fotos que ele já tem.
+ * `fallback` é o título e o texto do slide, usados quando o Livre ainda está vazio.
+ */
+export function rebuildWithPreset(free: FreeSlide, id: string, fallback: { title: string; body: string; image: string | null }): FreeSlide {
+  const isPlainTitle = (t: string) => t.trim() && !/^\{n\}$|^[\d+%\-x.,\s]{1,6}$|^[“"?]$/.test(t.trim());
+  const titleEl = free.elements.find((e) => e.kind === "titulo" && isPlainTitle(e.text ?? ""));
+  const bodyEl =
+    free.elements.find((e) => e.kind === "texto" && (e.text ?? "").trim() && !/^\{/.test(e.text ?? "")) ??
+    free.elements.find((e) => e.kind === "conversa" && (e.text ?? "").trim());
+  // Sem título separado (ex.: modelo tweet junta tudo num texto), vale o título e o texto do slide.
+  const title = titleEl ? (titleEl.text ?? "") : fallback.title;
+  const body = titleEl ? (bodyEl?.text ?? fallback.body) : fallback.body;
+  const next = buildPreset(id, { title, body, hasImage: Boolean(fallback.image) }, { placeholders: !title.trim() && !body.trim() });
+  const photos = [
+    ...free.elements.filter((e) => e.kind === "imagem" && e.image).map((e) => e.image as string),
+    ...free.elements.flatMap((e) => (e.kind === "grade" ? (e.images ?? []).filter((x): x is string => Boolean(x)) : [])),
+  ];
+  let k = 0;
+  const elements = next.elements.map((e) => {
+    if (e.kind === "imagem" && photos[k]) return { ...e, image: photos[k++] };
+    if (e.kind === "grade") return { ...e, images: photos.slice(k, k + 4) };
+    return e;
+  });
+  return { ...next, elements, pan: free.pan ?? null };
 }

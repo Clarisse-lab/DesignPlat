@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Loader2, Sparkles } from "lucide-react";
 import { inputClass, Panel, Segmented } from "@/components/editor/ui";
+import { FREE_PRESETS } from "@/lib/templates/free";
 
 interface PautaResumo {
   id: number;
@@ -19,9 +20,23 @@ export interface GeneratedSlide {
   etiqueta: string;
   titulo: string;
   texto: string;
+  /** Modelo do Livre escolhido pela IA para esta tela. */
+  modelo?: string;
+  /** Descrição da foto para gerar com IA (vazia quando o modelo não usa foto). */
+  imagem?: string;
+  /** A foto mostra o próprio cliente. */
+  rosto?: boolean;
 }
 
 export type GeneratorStyle = "revista" | "classico";
+export type GeneratorImages = "nenhuma" | "capa" | "todas";
+export interface GeneratorOptions {
+  style: GeneratorStyle;
+  images: GeneratorImages;
+}
+
+const CAPAS = FREE_PRESETS.filter((p) => p.category === "capa");
+const INTERNOS = FREE_PRESETS.filter((p) => p.category === "interno");
 
 export function GeneratorPanel({
   clienteSlug,
@@ -39,7 +54,7 @@ export function GeneratorPanel({
   /** Pauta vinda do link "Abrir no Design Mantora" do Escritório. */
   initialPautaId: number | null;
   legenda: string | null;
-  onGenerated: (slides: GeneratedSlide[], legenda: string, style: GeneratorStyle) => void;
+  onGenerated: (slides: GeneratedSlide[], legenda: string, options: GeneratorOptions) => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
 }) {
@@ -49,6 +64,9 @@ export function GeneratorPanel({
   const [tema, setTema] = useState("");
   const [count, setCount] = useState<number | null>(null);
   const [style, setStyle] = useState<GeneratorStyle>("revista");
+  const [capa, setCapa] = useState("");
+  const [interno, setInterno] = useState("");
+  const [images, setImages] = useState<GeneratorImages>("nenhuma");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -85,12 +103,14 @@ export function GeneratorPanel({
           handle,
           clienteSlug,
           slides: count,
+          capa: style === "revista" && capa ? capa : null,
+          interno: style === "revista" && interno ? interno : null,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar.");
-      onGenerated(data.slides, data.legenda ?? "", style);
-      onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}). Revise o texto e gere as imagens.`);
+      onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).`);
+      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma" });
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao gerar.");
     } finally {
@@ -152,6 +172,36 @@ export function GeneratorPanel({
             <option value="classico">Layouts clássicos</option>
           </select>
         </div>
+        {style === "revista" && (
+          <div className="space-y-2">
+            <select value={capa} onChange={(e) => setCapa(e.target.value)} className={inputClass} aria-label="Modelo da capa">
+              <option value="">Capa: a IA escolhe</option>
+              {CAPAS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Capa: {p.label}
+                </option>
+              ))}
+            </select>
+            <select value={interno} onChange={(e) => setInterno(e.target.value)} className={inputClass} aria-label="Modelo das telas internas">
+              <option value="">Telas internas: a IA escolhe</option>
+              {INTERNOS.map((p) => (
+                <option key={p.id} value={p.id}>
+                  Internas: {p.label}
+                </option>
+              ))}
+            </select>
+            <select value={images} onChange={(e) => setImages(e.target.value as GeneratorImages)} className={inputClass} aria-label="Imagens com IA">
+              <option value="nenhuma">Imagens com IA: não gerar</option>
+              <option value="capa">Imagens com IA: só a capa</option>
+              <option value="todas">Imagens com IA: todas as telas com foto</option>
+            </select>
+            {images !== "nenhuma" && (
+              <p className="text-[11.5px] leading-relaxed text-ink-faint">
+                Cada imagem custa cerca de US$ 0,04 e entra no limite do mês. Quando a tela mostra o cliente, o rosto vem do logo/foto do kit.
+              </p>
+            )}
+          </div>
+        )}
         <button
           type="button"
           onClick={generate}
