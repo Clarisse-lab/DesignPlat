@@ -7,7 +7,9 @@
 import { useRef, useState } from "react";
 import { ImagePlus, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { IMAGE_STYLE_LABELS, IMAGE_STYLES, TEXT_ZONE_LABELS, TEXT_ZONES, type ImageStyle, type TextZone } from "@/lib/ai/image-direction";
+import { sendThumbnail } from "@/lib/client/generated-images";
 import { imageFileToDataUrl } from "@/lib/client/image";
+import { GeneratedGallery } from "./GeneratedGallery";
 import type { PostCanvasSizeId } from "@/lib/formats";
 import { ClientPhotoGrid, useClientPhotos } from "./ClientPhotos";
 import { inputClass } from "./ui";
@@ -43,6 +45,7 @@ export function ImageAiDialog({
   onUse: (dataUrl: string, info: string, zone: TextZone | null) => void;
   onClose: () => void;
 }) {
+  const [view, setView] = useState<"nova" | "geradas">("nova");
   const [prompt, setPrompt] = useState("");
   const [useFace, setUseFace] = useState(Boolean(context.clienteSlug) && !aspect);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -98,6 +101,8 @@ export function ImageAiDialog({
       if (data.variacao) setUsed((u) => [...u, String(data.variacao)].slice(-50));
       // A resposta vem em PNG grande: reduz para JPEG no tamanho do slide antes de usar.
       const blob = await (await fetch(data.imagem)).blob();
+      // A imagem já ficou guardada no servidor; a miniatura deixa a galeria rápida.
+      void sendThumbnail(data.imagem_id, blob);
       // Panorama do carrossel infinito vira vários slides: guarda maior para não perder nitidez.
       const image = await toDataUrl(blob, aspect ? 3200 : 1600);
       const cost = `US$ ${Number(data.custo_usd).toFixed(3).replace(".", ",")}`;
@@ -122,7 +127,38 @@ export function ImageAiDialog({
           </button>
         </div>
 
-        {result ? (
+        {!result && (
+          <div className="flex gap-1 rounded-lg bg-canvas p-1">
+            {(
+              [
+                ["nova", "Gerar nova"],
+                ["geradas", "Já geradas"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setView(id)}
+                className={`flex-1 rounded-md px-2 py-1.5 text-[12.5px] font-medium ${view === id ? "bg-surface text-ink shadow-sm" : "text-ink-soft"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!result && view === "geradas" ? (
+          <GeneratedGallery
+            clienteSlug={context.clienteSlug}
+            clienteNome={context.clienteNome}
+            aspect={aspect}
+            onPick={async (blob, info) => {
+              const image = await toDataUrl(blob, aspect ? 3200 : 1600);
+              const z = (TEXT_ZONES as readonly string[]).includes(info.zona ?? "") ? (info.zona as TextZone) : null;
+              onUse(image, "Imagem já gerada reaproveitada (sem custo).", aspect ? null : z);
+            }}
+          />
+        ) : result ? (
           <div className="space-y-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={result.image} alt="Imagem gerada" className="mx-auto max-h-[55vh] rounded-xl border border-line" />

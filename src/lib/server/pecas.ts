@@ -21,6 +21,12 @@ async function mapStrings(value: Json, fn: (s: string) => Promise<string>): Prom
   return value;
 }
 
+/**
+ * Arquivos que este servidor já subiu (o nome é o hash do conteúdo, então nunca mudam).
+ * O salvamento automático manda a peça inteira a cada mudança: sem isso, subiria as mesmas fotos toda vez.
+ */
+const KNOWN = new Set<string>();
+
 /** Troca cada imagem em data URL por uma referência ao Storage (sobe a imagem se ainda não existir). */
 export async function extractImages(dados: Json): Promise<Json> {
   const uploaded = new Map<string, string>();
@@ -30,9 +36,11 @@ export async function extractImages(dados: Json): Promise<Json> {
     const bytes = Buffer.from(match[3], "base64");
     const hash = createHash("sha256").update(bytes).digest("hex");
     const path = `pecas/${hash}.${EXT[match[2]]}`;
-    if (!uploaded.has(path)) {
+    if (!uploaded.has(path) && !KNOWN.has(path)) {
       await uploadObject(path, bytes, match[1]);
       uploaded.set(path, path);
+      KNOWN.add(path);
+      if (KNOWN.size > 5000) KNOWN.clear();
     }
     return `storage:${path}`;
   });

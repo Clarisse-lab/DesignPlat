@@ -1,7 +1,8 @@
 "use client";
 
-// Salvar e abrir peças e templates no Supabase (toda a equipe vê). O rascunho do navegador continua
-// existindo como rede de segurança; "Salvar" é o que deixa a peça disponível para os outros.
+// Salvar e abrir peças e templates no Supabase (toda a equipe vê). Com o salvamento automático,
+// a peça vai para o Supabase sozinha alguns segundos depois de cada mudança, marcada como rascunho
+// até alguém dar um nome em "Salvar". O rascunho do navegador continua como rede de segurança.
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
@@ -14,6 +15,7 @@ interface PieceSummary {
   titulo: string;
   cliente_slug: string | null;
   template: boolean;
+  rascunho?: boolean;
   atualizado_em: string;
   atualizado_por: string | null;
 }
@@ -35,6 +37,7 @@ async function savePiece(body: {
   titulo: string;
   cliente_slug: string | null;
   template: boolean;
+  rascunho?: boolean;
   dados: Record<string, unknown>;
 }): Promise<{ id: string }> {
   const response = await fetch("/api/estudio/pecas", {
@@ -63,6 +66,10 @@ export function useSavedPieces({
   onOpen,
   onError,
   onInfo,
+  autoSave = false,
+  contentKey = "",
+  hasContent = false,
+  onAutoSaved,
 }: {
   ferramenta: Ferramenta;
   pecaId: string | null;
@@ -73,12 +80,87 @@ export function useSavedPieces({
   suggestedTitle: string;
   getDados: () => Record<string, unknown>;
   onSaved: (id: string, titulo: string) => void;
-  onOpen: (piece: OpenedPiece) => void;
+  /** Devolve false quando não abriu (cancelou ou peça inválida). */
+  onOpen: (piece: OpenedPiece) => boolean | void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  /** Salvar sozinho no Supabase (precisa do login da equipe). */
+  autoSave?: boolean;
+  /** Assinatura barata do conteúdo: quando muda, agenda o salvamento automático. */
+  contentKey?: string;
+  /** Só salva sozinho quando já tem algo (título, texto ou imagem). */
+  hasContent?: boolean;
+  /** A peça ganhou id no primeiro salvamento automático (sem nome ainda). */
+  onAutoSaved?: (id: string) => void;
 }) {
   const [busy, setBusy] = useState<"save" | "template" | null>(null);
   const [browsing, setBrowsing] = useState(false);
+  const [autoStatus, setAutoStatus] = useState<{ kind: "salvando" | "salvo" | "erro"; at?: string } | null>(null);
+
+  // ---------- Salvamento automático ----------
+  // Tudo em refs: o efeito só olha a assinatura do conteúdo e lê o resto na hora de salvar.
+  const latest = useRef({ pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, ferramenta, contentKey });
+  latest.current = { pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, ferramenta, contentKey };
+  /** id criado pelo salvamento automático antes de o editor atualizar (evita criar duas peças). */
+  const createdId = useRef<string | null>(null);
+  /** Conteúdo igual ao que está no Supabase (não salva de novo). */
+  const savedKey = useRef<string | null>(null);
+  /** Acabou de abrir uma peça ou template: o conteúdo aberto é a referência, não uma mudança. */
+  const justOpened = useRef(false);
+  const inFlight = useRef(false);
+  const pending = useRef(false);
+
+  // Peça trocada por fora (abrir, recomeçar, gerar carrossel novo): esquece o id criado antes.
+  useEffect(() => {
+    if (pecaId !== createdId.current) createdId.current = null;
+  }, [pecaId]);
+
+  useEffect(() => {
+    if (!autoSave) return;
+    if (justOpened.current) {
+      justOpened.current = false;
+      savedKey.current = contentKey;
+      return;
+    }
+    if (!hasContent || contentKey === savedKey.current) return;
+    const timer = window.setTimeout(async function run() {
+      if (inFlight.current) {
+        pending.current = true;
+        return;
+      }
+      inFlight.current = true;
+      setAutoStatus({ kind: "salvando" });
+      const cur = latest.current;
+      const key = cur.contentKey;
+      const id = cur.pecaId ?? createdId.current;
+      try {
+        const saved = await savePiece({
+          id,
+          ferramenta: cur.ferramenta,
+          titulo: (cur.titulo || `Rascunho: ${cur.suggestedTitle || "sem título"}`).slice(0, 120),
+          cliente_slug: cur.clienteSlug,
+          template: false,
+          rascunho: !cur.titulo,
+          dados: cur.getDados(),
+        });
+        savedKey.current = key;
+        if (!id) {
+          createdId.current = saved.id;
+          cur.onAutoSaved?.(saved.id);
+        }
+        setAutoStatus({ kind: "salvo", at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) });
+      } catch {
+        setAutoStatus({ kind: "erro" });
+      } finally {
+        inFlight.current = false;
+        if (pending.current) {
+          pending.current = false;
+          window.setTimeout(run, 1500);
+        }
+      }
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [autoSave, contentKey, hasContent]);
 
   const save = async (asTemplate: boolean) => {
     const base = asTemplate ? `Template ${clienteNome ?? ""}`.trim() : titulo || suggestedTitle;
@@ -87,16 +169,18 @@ export function useSavedPieces({
     setBusy(asTemplate ? "template" : "save");
     try {
       const saved = await savePiece({
-        id: asTemplate ? null : pecaId,
+        id: asTemplate ? null : (pecaId ?? createdId.current),
         ferramenta,
         titulo: name.slice(0, 120),
         cliente_slug: clienteSlug,
         template: asTemplate,
+        rascunho: false,
         dados: getDados(),
       });
       if (asTemplate) onInfo(`Template "${name}" salvo. Ele aparece em Abrir → Templates.`);
       else {
         onSaved(saved.id, name);
+        createdId.current = saved.id;
         onInfo(`Peça "${name}" salva para a equipe.`);
       }
     } catch (error) {
@@ -113,13 +197,24 @@ export function useSavedPieces({
       onClose={() => setBrowsing(false)}
       onOpen={(piece) => {
         setBrowsing(false);
-        onOpen(piece);
+        // O editor devolve false se a pessoa cancelou: aí não há conteúdo aberto para ignorar.
+        if (onOpen(piece) !== false) justOpened.current = true;
       }}
       onError={onError}
     />
   ) : null;
 
-  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId) };
+  const autoLabel = !autoSave
+    ? null
+    : autoStatus?.kind === "salvando"
+      ? "Salvando…"
+      : autoStatus?.kind === "erro"
+        ? "Não salvou: confira a conexão"
+        : autoStatus?.kind === "salvo"
+          ? `Salvo às ${autoStatus.at}`
+          : null;
+
+  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro" };
 }
 
 function PiecesDialog({
@@ -174,7 +269,8 @@ function PiecesDialog({
       // Template abre como peça nova: salvar não sobrescreve o template.
       onOpen({
         id: summary.template ? null : summary.id,
-        titulo: summary.template ? "" : summary.titulo,
+        // Rascunho automático abre sem nome: "Salvar" pede um nome e tira a marca de rascunho.
+        titulo: summary.template || summary.rascunho ? "" : summary.titulo,
         cliente_slug: summary.cliente_slug,
         dados: data.dados,
         template: summary.template,
@@ -238,14 +334,17 @@ function PiecesDialog({
             </p>
           ) : list.length === 0 ? (
             <p className="py-6 text-center text-[13px] text-ink-faint">
-              {tab === "pecas" ? "Nenhuma peça salva ainda." : "Nenhum template ainda. Use \"Salvar como template\" numa peça pronta."}
+              {tab === "pecas" ? "Nenhuma peça salva ainda. As peças novas se salvam sozinhas enquanto você edita." : "Nenhum template ainda. Use \"Salvar como template\" numa peça pronta."}
             </p>
           ) : (
             <ul className="divide-y divide-line">
               {list.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 py-2.5">
                   <button type="button" onClick={() => open(p)} disabled={opening !== null} className="min-w-0 flex-1 text-left">
-                    <span className="block truncate text-[14px] font-medium">{p.titulo}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-[14px] font-medium">{p.titulo}</span>
+                      {p.rascunho && <span className="shrink-0 rounded-full bg-canvas px-2 py-0.5 text-[10.5px] font-medium text-ink-soft">rascunho automático</span>}
+                    </span>
                     <span className="block text-[12px] text-ink-faint">
                       {p.cliente_slug ?? "sem cliente"} · {whenBR(p.atualizado_em)}
                       {p.atualizado_por ? ` · ${p.atualizado_por}` : ""}

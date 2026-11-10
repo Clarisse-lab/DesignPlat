@@ -19,6 +19,8 @@ const saveSchema = z.object({
   titulo: z.string().trim().min(1).max(120),
   cliente_slug: z.string().regex(/^[a-z0-9-]{2,60}$/).nullish(),
   template: z.boolean().default(false),
+  /** Salva sozinho pelo editor (ainda sem nome dado por alguém). */
+  rascunho: z.boolean().default(false),
   dados: z.record(z.string(), z.unknown()),
 });
 
@@ -27,7 +29,7 @@ export async function GET(request: Request) {
   const member = await requireMember(request, { strict: true });
   if (isResponse(member)) return member;
   const params = new URL(request.url).searchParams;
-  const filtros = ["select=id,ferramenta,titulo,cliente_slug,template,atualizado_em,atualizado_por", "order=atualizado_em.desc", "limit=200"];
+  const filtros = ["select=id,ferramenta,titulo,cliente_slug,template,rascunho,atualizado_em,atualizado_por", "order=atualizado_em.desc", "limit=200"];
   const ferramenta = params.get("ferramenta");
   if (ferramenta && (FERRAMENTAS as readonly string[]).includes(ferramenta)) filtros.push(`ferramenta=eq.${ferramenta}`);
   const cliente = params.get("cliente");
@@ -48,14 +50,14 @@ export async function POST(request: Request) {
   if (isResponse(member)) return member;
   const parsed = saveSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Dados inválidos para salvar." }, { status: 400 });
-  const { id, ferramenta, titulo, cliente_slug, template, dados } = parsed.data;
+  const { id, ferramenta, titulo, cliente_slug, template, rascunho, dados } = parsed.data;
   try {
     const semImagens = await extractImages(dados as Json);
     if (JSON.stringify(semImagens).length > MAX_JSON_SEM_IMAGENS) {
       return NextResponse.json({ error: "Peça grande demais para salvar." }, { status: 413 });
     }
     const autor = member.nome || member.email || null;
-    const linha = { ferramenta, titulo, cliente_slug: cliente_slug ?? null, template, dados: semImagens, atualizado_por: autor, atualizado_em: new Date().toISOString() };
+    const linha = { ferramenta, titulo, cliente_slug: cliente_slug ?? null, template, rascunho: template ? false : rascunho, dados: semImagens, atualizado_por: autor, atualizado_em: new Date().toISOString() };
     const rows = id
       ? await rest<{ id: string; atualizado_em: string }[]>(`design_pecas?id=eq.${id}&select=id,atualizado_em`, {
           method: "PATCH",

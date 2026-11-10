@@ -50,6 +50,7 @@ import {
   CHAT_PRESETS,
   type FreeSlide,
 } from "@/lib/templates/free";
+import { sendThumbnail } from "@/lib/client/generated-images";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
 
@@ -198,6 +199,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar a imagem.");
         const blob = await (await fetch(data.imagem)).blob();
+        void sendThumbnail(data.imagem_id, blob);
         const image = await imageFileToDataUrl(new File([blob], "ia.png", { type: blob.type }), { maxSide: 1600 });
         spent += Number(data.custo_usd) || 0;
         setDraft((d) => ({ ...d, slides: d.slides.map((sl) => (sl.id === job.id ? placeImage(sl, image) : sl)) }));
@@ -234,7 +236,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
       return newFeedSlide({ layout, ...base });
     });
-    setDraft((d) => ({ ...d, slides: built, legenda }));
+    // Carrossel novo vira peça nova: o anterior continua salvo (não é sobrescrito).
+    setDraft((d) => ({ ...d, slides: built, legenda, pecaId: null, titulo: null }));
     setActiveIndex(0);
     setSelectedElement(null);
     if (jobs.length) void generateImages(jobs);
@@ -287,12 +290,12 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   };
 
   /** Abre uma peça ou template salvo no lugar do rascunho atual. */
-  const openPiece = (piece: OpenedPiece) => {
+  const openPiece = (piece: OpenedPiece): boolean => {
     if (!isFeedDraft(piece.dados)) {
       showError("Essa peça não é deste editor ou está incompleta.");
-      return;
+      return false;
     }
-    if (!window.confirm("Abrir no lugar do rascunho atual? O que não foi salvo se perde.")) return;
+    if (!window.confirm("Abrir no lugar da peça atual? A atual fica salva em Mais → Abrir peça.")) return false;
     const dados = piece.dados;
     const cliente = piece.cliente_slug ? (clients?.find((c) => c.slug === piece.cliente_slug) ?? { slug: piece.cliente_slug, nome: piece.cliente_slug }) : null;
     setDraft({
@@ -303,7 +306,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       titulo: piece.titulo || null,
     });
     setActiveIndex(0);
-    showInfo(piece.template ? "Template aberto como peça nova: troque os textos e salve com outro nome." : `Peça "${piece.titulo}" aberta.`);
+    showInfo(piece.template ? "Template aberto como peça nova: troque os textos e salve com outro nome." : piece.titulo ? `Peça "${piece.titulo}" aberta.` : "Rascunho aberto. Use \"Dar nome e salvar\" para dar um nome a ele.");
+    return true;
   };
 
   /** Carrossel infinito: este slide vira o pedaço 1 e entram novos slides Livre com os pedaços seguintes. */
@@ -467,6 +471,22 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     />
   );
 
+  // Assinatura do rascunho para o salvamento automático: imagens entram só pelo tamanho e pelo fim
+  // (comparar MB de base64 a cada tecla seria caro); pecaId e titulo ficam de fora.
+  const draftKey = useMemo(() => {
+    const { pecaId: _id, titulo: _t, ...rest } = draft;
+    void _id;
+    void _t;
+    return JSON.stringify(rest, (_k, v) => (typeof v === "string" && v.startsWith("data:") ? `img:${v.length}:${v.slice(-32)}` : v));
+  }, [draft]);
+  const draftHasContent = slides.some(
+    (sl) =>
+      sl.title.trim() ||
+      sl.body.trim() ||
+      sl.image ||
+      (sl.free?.elements ?? []).some((e) => (e.text ?? "").trim() || e.image || (e.images ?? []).some(Boolean)),
+  );
+
   const pieces = useSavedPieces({
     ferramenta: mode,
     pecaId: draft.pecaId ?? null,
@@ -484,6 +504,10 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     onOpen: openPiece,
     onError: showError,
     onInfo: showInfo,
+    autoSave: studioEnabled,
+    contentKey: draftKey,
+    hasContent: draftHasContent,
+    onAutoSaved: (id) => setDraft((d) => ({ ...d, pecaId: id })),
   });
 
   const downloadItems: MenuItem[] = isPresentation
@@ -536,8 +560,13 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           )}
           {studioEnabled && (
             <ToolbarButton icon={Save} busy={pieces.busy === "save"} disabled={pieces.busy !== null} onClick={() => pieces.save(false)}>
-              {draft.pecaId ? "Salvar" : "Salvar peça"}
+              {draft.titulo ? "Salvar" : "Dar nome e salvar"}
             </ToolbarButton>
+          )}
+          {pieces.autoLabel && (
+            <span className={`text-[12px] ${pieces.autoError ? "text-danger" : "text-ink-faint"}`} title="A peça se salva sozinha para a equipe. Abra em Mais → Abrir peça.">
+              {pieces.autoLabel}
+            </span>
           )}
           <MenuButton icon={Download} label="Baixar" primary busy={downloading !== null} items={downloadItems} />
         </div>
