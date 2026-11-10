@@ -4,20 +4,58 @@ import "server-only";
 
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
+import { FREE_PRESETS } from "../templates/free";
 import { anthropic, GenerationError } from "./claude";
 
 export const CAROUSEL_MODEL = process.env.CLAUDE_MODEL_CARROSSEL || "claude-sonnet-5-5";
 /** US$ por milhão de tokens [entrada, saída], os mesmos do Escritório. */
 const PRICES: Record<string, [number, number]> = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10] };
 
+/** Quando usar cada modelo do Livre (o assistente escolhe por aqui). */
+const MODEL_GUIDE: Record<string, string> = {
+  "capa-revista": "capa com foto, etiqueta curta e título forte em caixa alta (padrão versátil)",
+  "capa-marca-texto": "capa com foto e 2 ou 3 palavras do título em marca-texto; bom para tema polêmico ou notícia",
+  "capa-editorial": "capa elegante com título serifado em itálico; bom para bem-estar, lifestyle, temas delicados",
+  "capa-chip-central": "capa com título centralizado e etiqueta embaixo; bom para guias e listas de dicas",
+  "capa-impacto": "capa com título enorme condensado; bom para frase curta e chamada forte (até 5 palavras)",
+  "capa-perfil-chip": "capa com o @ do cliente acima de um título gigante e subtítulo; bom para novidade ou lançamento",
+  "capa-tiras": "capa com 2 fotos lado a lado; bom para antes e depois ou comparação",
+  "capa-3-tiras": "capa com 3 fotos; bom para '3 formas de', '3 erros'",
+  "capa-tweet": "capa estilo tweet com selo de verificado; bom para opinião em primeira pessoa",
+  "capa-manchete": "capa estilo manchete de jornal com foto; bom para notícia, dado novo, revelação",
+  "capa-numero": "capa com um número gigante; só quando o título começa com número (ex.: 7 erros)",
+  "capa-pergunta": "capa com interrogação gigante; quando o gancho é uma pergunta",
+  "interno-texto": "tela com título e parágrafo curto (padrão)",
+  "interno-cartao": "tela com cartão branco, etiqueta, título e texto; bom para destacar um ponto",
+  "interno-cartao-foto": "cartão com título, texto curto e uma foto; bom para exemplo ou cenário",
+  "interno-tweet": "tela estilo tweet com foto; bom para depoimento ou opinião",
+  "interno-dado": "número enorme + explicação; só quando a tela gira em torno de um dado real da copy",
+  "interno-checklist": "título + 2 a 4 itens com check; para listas e critérios (itens um por linha no texto)",
+  "interno-passo": "passo numerado automaticamente; para passo a passo (uma etapa por tela)",
+  "interno-mito-verdade": "mito no título e verdade no texto; quando a copy desmonta uma crença",
+  "interno-antes-depois": "2 fotos antes/depois + título e texto",
+  "interno-citacao-foto": "foto do cliente + frase dele em destaque; para citação",
+  "foto-com-texto": "foto em cima, título e texto embaixo; bom para cena ou bastidor",
+  "final-salvar": "fechamento pedindo para salvar e compartilhar",
+  "final-seguir": "fechamento pedindo para seguir o perfil, com foto",
+  "final-comente": "fechamento pedindo um comentário com palavra-chave (ex.: comente QUERO)",
+};
+const MODEL_IDS = FREE_PRESETS.map((p) => p.id) as [string, ...string[]];
+const PHOTO_MODELS = new Set(FREE_PRESETS.filter((p) => p.photo).map((p) => p.id));
+const IMAGE_SLOT_MODELS = new Set(["capa-tiras", "capa-3-tiras", "capa-tweet", "capa-manchete", "interno-cartao-foto", "interno-tweet", "interno-antes-depois", "interno-citacao-foto", "foto-com-texto"]);
+export const modelUsesImage = (id: string) => PHOTO_MODELS.has(id) || IMAGE_SLOT_MODELS.has(id);
+
 export const studioCarouselSchema = z.object({
   slides: z
     .array(
       z.object({
         tipo: z.enum(["capa", "texto", "lista", "numero", "citacao", "cta"]),
+        modelo: z.enum(MODEL_IDS).describe("Modelo visual da tela, escolhido no catálogo"),
         etiqueta: z.string().describe("Etiqueta curta acima do título (até 4 palavras), ou vazio"),
-        titulo: z.string().describe("Título da tela. Na lista, o título; no número, só o número (ex.: +37%)"),
+        titulo: z.string().describe("Título da tela. Na lista, o título; no número, o número seguido do que ele mede"),
         texto: z.string().describe("Texto de apoio. Na lista, um item por linha; na citação, o autor"),
+        imagem: z.string().describe("Se o modelo usa foto: descrição da cena para gerar com IA, em português, sem nenhum texto na imagem. Vazio se não usa foto"),
+        rosto: z.boolean().describe("true se a foto deve mostrar o próprio cliente"),
       }),
     )
     .describe("As telas do carrossel, de 3 a 12"),
@@ -43,12 +81,28 @@ Regras:
 - Nada de emojis nem travessões (—) no texto das telas.
 - A legenda: gancho nos primeiros 125 caracteres, 2 ou 3 parágrafos curtos, CTA no fim e de 3 a 8 hashtags. Se a copy trouxer a legenda pronta, use a dela.`;
 
+function catalog(): string {
+  return FREE_PRESETS.map((p) => `- ${p.id} (${p.category}): ${MODEL_GUIDE[p.id] ?? p.label}`).join("\n");
+}
+
+const DESIGN_RULES = `
+DESIGN: para cada tela, escolha um modelo do catálogo abaixo pelo conteúdo, não ao acaso.
+- A primeira tela usa um modelo de capa; a última, um de fechamento; as do meio, telas internas.
+- Varie: não repita o mesmo modelo interno em duas telas seguidas, a menos que seja uma sequência de passos (interno-passo).
+- Use interno-dado, capa-numero e interno-checklist só quando o conteúdo combinar (número real, lista de itens).
+- Para modelos com foto, escreva em "imagem" uma cena concreta e fotografável que ilustre a tela (pessoas, lugar, luz, objetos), sem texto, logotipo nem pessoas famosas. Marque "rosto" quando fizer sentido o próprio cliente aparecer (capa, bastidor, citação). Para modelos sem foto, deixe "imagem" vazio.
+
+CATÁLOGO:
+`;
+
 export async function generateStudioCarousel(input: {
   nome: string;
   handle: string;
   slideCount: number | null;
   pauta?: { titulo: string; formato: string | null; angulo: string | null; copy: string } | null;
   tema?: string | null;
+  /** Modelos escolhidos no painel (ex.: "capa: capa-manchete; internas: interno-cartao"). */
+  prefer?: string | null;
 }): Promise<{ carousel: StudioCarousel; costUsd: number; inputTokens: number; outputTokens: number; model: string }> {
   const source = input.pauta
     ? [
@@ -73,7 +127,7 @@ export async function generateStudioCarousel(input: {
     output_config: { effort: "medium", format: betaZodOutputFormat(studioCarouselSchema) },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
-    system: SYSTEM,
+    system: SYSTEM + DESIGN_RULES + catalog() + (input.prefer ? `\n\nPREFERÊNCIA DA EQUIPE: ${input.prefer}` : ""),
     messages: [{ role: "user", content: prompt }],
   });
   if (response.stop_reason === "refusal") throw new GenerationError("A IA recusou este conteúdo. Tente reformular.");
