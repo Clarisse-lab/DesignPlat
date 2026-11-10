@@ -7,7 +7,7 @@ import { TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "./fonts";
 import { ICON_IDS, iconSvg, type IconId } from "./icons";
 import { contrastRatio, contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc } from "./utils";
 
-export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao", "icone"] as const;
+export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao", "icone", "conversa"] as const;
 export type FreeElementKind = (typeof FREE_ELEMENT_KINDS)[number];
 
 export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
@@ -21,7 +21,50 @@ export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
   grade: "Tiras / grade de fotos",
   cartao: "Cartão ou faixa",
   icone: "Ícone",
+  conversa: "Print de conversa",
 };
+
+/**
+ * Estilos do Print de conversa. Montado só com HTML (custo zero de IA): parece um print real,
+ * sem logotipo nem nome de aplicativo de terceiros.
+ */
+export const FREE_CHAT_STYLES = ["escuro", "claro", "notificacoes"] as const;
+export type FreeChatStyle = (typeof FREE_CHAT_STYLES)[number];
+export const FREE_CHAT_LABELS: Record<FreeChatStyle, string> = {
+  escuro: "Conversa (modo escuro)",
+  claro: "Conversa (modo claro)",
+  notificacoes: "Notificações na tela bloqueada",
+};
+
+export interface ChatMessage {
+  mine: boolean;
+  text: string;
+}
+
+/** Uma mensagem por linha; "Eu:" no começo vira resposta (balão da direita). */
+export function parseChatMessages(text: string | undefined): ChatMessage[] {
+  return (text ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 12)
+    .map((line) => {
+      const mine = /^eu\s*:/i.test(line);
+      return { mine, text: mine ? line.replace(/^eu\s*:\s*/i, "") : line };
+    })
+    .filter((m) => m.text);
+}
+
+/** Soma minutos a "HH:MM" (horários que andam devagar, como numa conversa de verdade). */
+export function addMinutes(time: string, minutes: number): string {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!match) return time;
+  const total = (Number(match[1]) * 60 + Number(match[2]) + minutes) % (24 * 60);
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+
+/** Idade das notificações, da mais nova para a mais antiga (números "quebrados", não redondos). */
+const NOTIFICATION_AGES = ["agora", "2 min", "7 min", "13 min", "26 min", "41 min", "1 h"];
 
 /** Estilos do elemento Perfil. */
 export const FREE_PROFILE_VARIANTS = ["linha", "chip", "tweet"] as const;
@@ -93,6 +136,10 @@ export interface FreeElement {
   /** Fundo da etiqueta ou do cartão. */
   fill?: FreeColor | "vidro";
   radius?: number;
+  /** Print de conversa: estilo, nome do contato (sem ele, o nome do cliente) e horário. */
+  chat?: FreeChatStyle;
+  contact?: string;
+  time?: string;
 }
 
 export interface FreeSlide {
@@ -119,6 +166,100 @@ const OVERLAY_CSS: Record<FreeSlide["overlay"], string> = {
   forte: "linear-gradient(180deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 45%,rgba(0,0,0,.95) 100%)",
   total: "rgba(0,0,0,.55)",
 };
+
+// ---------- Print de conversa ----------
+
+const CHAT_THEMES = {
+  escuro: { wall: "#0B141A", dots: "rgba(255,255,255,.035)", bar: "#1F2C34", barInk: "#E9EDEF", sub: "#8696A0", them: "#202C33", me: "#005C4B", ink: "#E9EDEF", time: "rgba(233,237,239,.6)", tick: "#53BDEB" },
+  claro: { wall: "#EFEAE2", dots: "rgba(0,0,0,.045)", bar: "#F0F2F5", barInk: "#111B21", sub: "#667781", them: "#FFFFFF", me: "#D9FDD3", ink: "#111B21", time: "rgba(17,27,33,.5)", tick: "#53BDEB" },
+} as const;
+
+const TICKS_SVG =
+  '<svg viewBox="0 0 18 11" xmlns="http://www.w3.org/2000/svg"><path d="M1 6l3.2 3.2L11 2.4M7.4 8.6l.6.6L14.8 2.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const BACK_SVG =
+  '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const BUBBLE_SVG =
+  '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" fill="currentColor"/></svg>';
+
+const CHAT_CSS = `
+.chat{position:absolute;overflow:hidden;display:flex;flex-direction:column;font-family:"Inter",Arial,sans-serif;box-shadow:0 30px 70px rgba(0,0,0,.28)}
+.chat-bar{display:flex;align-items:center;gap:.55em;padding:.55em .8em;flex-shrink:0}
+.chat-bar .back{width:1.1em;height:1.1em;display:inline-flex;opacity:.9}
+.chat-bar .back svg,.n-ico svg{width:100%;height:100%}
+.chat-av{border-radius:50%;object-fit:cover;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-weight:700}
+.chat-who{display:flex;flex-direction:column;line-height:1.15}
+.chat-who b{font-weight:600}
+.chat-who small{font-size:.72em}
+.chat-body{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:.38em;padding:.6em .8em .9em}
+.bub{max-width:80%;padding:.42em .62em .32em;border-radius:.55em;line-height:1.32;box-shadow:0 1px .5px rgba(0,0,0,.13);overflow-wrap:break-word}
+.bub.them{align-self:flex-start;border-top-left-radius:.12em}
+.bub.me{align-self:flex-end;border-top-right-radius:.12em}
+.bub .meta{display:flex;justify-content:flex-end;align-items:center;gap:.25em;font-size:.6em;margin-top:.15em;white-space:nowrap}
+.bub .meta i{display:inline-flex;width:1.35em;height:.85em}
+.bub .meta i svg{width:100%;height:100%}
+.bub strong{font-weight:700}
+.lock{position:absolute;display:flex;flex-direction:column;align-items:stretch;gap:.5em;font-family:"Inter",Arial,sans-serif;color:#fff}
+.lock-clock{text-align:center;font-weight:300;line-height:1;letter-spacing:-.02em}
+.notif{display:flex;gap:.6em;align-items:flex-start;padding:.62em .7em;border-radius:.9em;background:rgba(245,245,247,.78);color:#111;box-shadow:0 10px 30px rgba(0,0,0,.16);backdrop-filter:blur(18px)}
+.notif.dark{background:rgba(28,28,32,.72);color:#fff}
+.notif .n-ico{width:1.9em;height:1.9em;border-radius:.45em;flex-shrink:0;overflow:hidden;display:inline-flex;align-items:center;justify-content:center;padding:.35em}
+.notif .n-ico.img{padding:0}
+.notif .n-ico img{width:100%;height:100%;object-fit:cover}
+.notif .n-main{flex:1;min-width:0;line-height:1.28}
+.notif .n-top{display:flex;justify-content:space-between;gap:.6em}
+.notif .n-top b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notif .n-top small{opacity:.6;font-size:.82em;white-space:nowrap}
+.notif strong{font-weight:700}
+`;
+
+function renderChat(
+  el: FreeElement,
+  ctx: { box: string; h: number; size: number; brandName: string; logo: string | null; accent: string; ink: string; fillTokens: (t: string) => string },
+): string {
+  const style: FreeChatStyle = (FREE_CHAT_STYLES as readonly string[]).includes(el.chat ?? "") ? (el.chat as FreeChatStyle) : "escuro";
+  const contact = escapeHtml((el.contact ?? "").trim() || ctx.brandName || "Contato");
+  const time = /^\d{1,2}:\d{2}$/.test((el.time ?? "").trim()) ? (el.time as string).trim() : "09:41";
+  const messages = parseChatMessages(ctx.fillTokens(el.text ?? ""));
+  const radius = clamp(el.radius, 0, 120, 36);
+  const avatar = (px: number) =>
+    ctx.logo
+      ? `<img class="chat-av" src="${ctx.logo}" alt="" style="width:${px}px;height:${px}px"/>`
+      : `<span class="chat-av" style="width:${px}px;height:${px}px;font-size:${Math.round(px * 0.4)}px;background:${ctx.accent};color:${contrastText(ctx.accent)}">${escapeHtml(initials(contact))}</span>`;
+
+  if (style === "notificacoes") {
+    const dark = el.fill === "preto";
+    const icon = ctx.logo
+      ? `<span class="n-ico img"><img src="${ctx.logo}" alt=""/></span>`
+      : `<span class="n-ico" style="background:${ctx.accent};color:${contrastText(ctx.accent)}">${BUBBLE_SVG}</span>`;
+    // Mais recente em cima, como na tela bloqueada.
+    const cards = messages
+      .slice(0, 6)
+      .map(
+        (m, i) =>
+          `<div class="notif${dark ? " dark" : ""}">${icon}<div class="n-main"><div class="n-top"><b>${m.mine ? "Você" : contact}</b><small>${NOTIFICATION_AGES[i] ?? "1 h"}</small></div><div>${formatRichText(m.text)}</div></div></div>`,
+      )
+      .join("");
+    // O relógio grande só aparece quando o horário foi preenchido.
+    const clock = (el.time ?? "").trim() ? `<div class="lock-clock" style="font-size:${(ctx.size * 3.4).toFixed(0)}px;margin-bottom:.25em">${time}</div>` : "";
+    // Relógio na cor do texto do slide: branco sobre foto, escuro sobre fundo claro.
+    return `<div class="lock" style="${ctx.box}font-size:${ctx.size}px;color:${ctx.ink}">${clock}${cards}</div>`;
+  }
+
+  const t = CHAT_THEMES[style];
+  let minute = 0;
+  const bubbles = messages
+    .map((m, i) => {
+      // O relógio anda um pouco a cada duas mensagens.
+      if (i > 0 && i % 2 === 0) minute += 1;
+      const meta = `<span class="meta" style="color:${t.time}">${addMinutes(time, minute)}${m.mine ? `<i style="color:${t.tick}">${TICKS_SVG}</i>` : ""}</span>`;
+      return `<div class="bub ${m.mine ? "me" : "them"}" style="background:${m.mine ? t.me : t.them};color:${t.ink}">${formatRichText(m.text)}${meta}</div>`;
+    })
+    .join("");
+  const wall = `background-color:${t.wall};background-image:radial-gradient(${t.dots} 1.2px,transparent 1.3px);background-size:22px 22px;`;
+  const barAvatar = Math.round(ctx.size * 1.6);
+  // A altura é o máximo: com poucas mensagens a caixa encolhe (sem vazio em cima).
+  return `<div class="chat" style="${ctx.box}max-height:${ctx.h}%;border-radius:${radius}px;font-size:${ctx.size}px;${wall}"><div class="chat-bar" style="background:${t.bar};color:${t.barInk}"><span class="back">${BACK_SVG}</span>${avatar(barAvatar)}<span class="chat-who"><b>${contact}</b><small style="color:${t.sub}">online</small></span></div><div class="chat-body">${bubbles}</div></div>`;
+}
 
 export function renderFreeSlide(params: {
   free: FreeSlide;
@@ -248,6 +389,8 @@ export function renderFreeSlide(params: {
         }).join("");
         return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
       }
+      case "conversa":
+        return renderChat(el, { box, h, size, brandName: brand.name.trim(), logo: logoSrc, accent, ink: autoText, fillTokens });
       case "cartao": {
         const fill = el.fill === "vidro" ? glass : colorOf(el.fill as FreeColor | undefined, "#FFFFFF");
         const radius = clamp(el.radius, 0, 200, 36);
@@ -283,6 +426,7 @@ strong{font-weight:700}
 .pchip{display:inline-flex;align-items:center;gap:.45em;padding:.3em .9em .3em .3em;border-radius:999px;font-weight:600}
 .ico{width:100%;height:100%;stroke-width:2.2}
 .img-empty{display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,${autoText} 10%,transparent);border:3px dashed color-mix(in srgb,${autoText} 35%,transparent);color:color-mix(in srgb,${autoText} 55%,transparent);font-size:32px}
+${CHAT_CSS}
 .progress{position:absolute;left:4%;right:4%;top:2.4%;display:flex;gap:10px}
 .progress span{flex:1;height:6px;border-radius:3px;background:${photo ? "rgba(255,255,255,.35)" : `color-mix(in srgb,${autoText} 18%,transparent)`}}
 .progress span.on{background:${photo ? "rgba(255,255,255,.95)" : autoText}}
@@ -310,6 +454,7 @@ export function newFreeElement(kind: FreeElementKind, over: Partial<FreeElement>
     grade: { x: 0, y: 0, w: 100, h: 62, grid: "2v", images: [], gap: 10, radius: 0 },
     cartao: { x: 6, y: 10, w: 88, h: 74, fill: "branco", radius: 40 },
     icone: { x: 8, y: 20, w: 12, size: 72, icon: "brilho" },
+    conversa: { x: 8, y: 22, w: 84, h: 62, size: 32, chat: "escuro", text: "Oi! Posso te fazer uma pergunta?\nEu: Claro, pode mandar!" },
   };
   return { id: newElementId(), kind, ...base[kind], ...over } as FreeElement;
 }
@@ -345,6 +490,11 @@ const firstLine = (text: string, fallback: string) => ph((text.split("\n").find(
 const lines = (text: string, fallback: string[], max: number) => {
   const list = text.split("\n").map((l) => l.replace(/^[-•→\d.)\s]+/, "").trim()).filter(Boolean);
   return (list.length ? list : usePlaceholders ? fallback : []).slice(0, max);
+};
+/** Mensagens do Print de conversa: as linhas do texto (com "Eu:" para a resposta) ou o exemplo. */
+const chatText = (text: string, fallback: string[]) => {
+  const list = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  return (list.length ? list : usePlaceholders ? fallback : []).slice(0, 8).join("\n");
 };
 /** Rodapé padrão: perfil à esquerda e "Arraste →" à direita. */
 const footer = (y = 90): FreeElement[] => [el("perfil", { x: 8, y, w: 55, size: 24 }), el("arraste", { x: 62, y: y + 1.5, w: 30, size: 22 })];
@@ -480,6 +630,52 @@ export const FREE_PRESETS: FreePreset[] = [
     }),
   },
   {
+    id: "capa-conversa",
+    label: "Print de conversa",
+    category: "capa",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", { x: 8, y: 6, w: 84, size: 72, text: ph(title, "Ela me mandou isso **ontem**") }),
+        el("conversa", {
+          x: 8,
+          y: 25,
+          w: 84,
+          h: 64,
+          size: 38,
+          chat: "escuro",
+          time: "21:14",
+          text: chatText(body, ["Oi! Desculpa o horário", "Testei o que você ensinou no post e **funcionou**", "Eu: Que demais! Me conta como foi?", "Em uma semana já vi diferença"]),
+        }),
+        el("arraste", { x: 62, y: 91, w: 30, size: 22 }),
+      ],
+    }),
+  },
+  {
+    id: "capa-notificacoes",
+    label: "Notificações",
+    category: "capa",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "suave"),
+      elements: [
+        el("conversa", {
+          x: 7,
+          y: 5,
+          w: 86,
+          h: 54,
+          size: 34,
+          chat: "notificacoes",
+          time: "09:41",
+          text: chatText(body, ["Preciso falar com você sobre aquele post", "Fiz o passo 2 e mudou tudo aqui", "Você vai abrir vaga de novo?"]),
+        }),
+        el("titulo", { x: 8, y: 66, w: 84, size: 84, upper: true, text: ph(title, "Isso chegou **hoje** cedo"), shadow: hasImage }),
+        ...footer(),
+      ],
+    }),
+  },
+  {
     id: "capa-manchete",
     label: "Manchete de jornal",
     category: "capa",
@@ -587,6 +783,29 @@ export const FREE_PRESETS: FreePreset[] = [
         el("perfil", { x: 10, y: 18, w: 80, size: 28, variant: "tweet", verified: true }),
         el("texto", { x: 10, y: 28, w: 80, size: 38, text: ph([title, body].filter(Boolean).join("\n"), "Texto do post, como um tweet: direto e opinativo.") }),
         el("imagem", { x: 10, y: 56, w: 80, h: 30, radius: 26 }),
+      ],
+    }),
+  },
+  {
+    id: "interno-conversa",
+    label: "Print de conversa",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", { x: 8, y: 7, w: 84, size: 56, text: ph(title, "O que os clientes **dizem**") }),
+        el("conversa", {
+          x: 8,
+          y: 22,
+          w: 84,
+          h: 66,
+          size: 36,
+          chat: "claro",
+          time: "14:32",
+          text: chatText(body, ["Passando pra agradecer", "Segui as dicas e fechei 3 clientes essa semana", "Eu: Isso é resultado seu! Parabéns", "Obrigada por compartilhar"]),
+        }),
+        el("numeracao", { x: 80, y: 92, w: 12, size: 22 }),
       ],
     }),
   },
@@ -762,7 +981,7 @@ export const FREE_PRESETS: FreePreset[] = [
 
 export const presetById = (id: string) => FREE_PRESETS.find((p) => p.id === id) ?? FREE_PRESETS[0];
 
-const TEXT_KINDS: FreeElementKind[] = ["titulo", "texto", "etiqueta"];
+const TEXT_KINDS: FreeElementKind[] = ["titulo", "texto", "etiqueta", "conversa"];
 
 /**
  * Monta um modelo. Com `placeholders: false` (conteúdo vindo do assistente ou de outro slide),

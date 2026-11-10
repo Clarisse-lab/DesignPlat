@@ -21,4 +21,11 @@ describe("pecaRequestSchema", () => {
   it("recusa peça sem slides", () => {
     expect(pecaRequestSchema.safeParse({ ...base, slides: [] }).success).toBe(false);
   });
+
+  it("aceita o Print de conversa no layout Livre", () => {
+    const free = { bg: "fundo", overlay: "nenhuma", elements: [{ id: "c", kind: "conversa", x: 8, y: 20, w: 84, h: 60, text: "Oi\nEu: Olá", chat: "claro", contact: "Ana", time: "09:41" }] };
+    expect(pecaRequestSchema.safeParse({ ...base, slides: [{ layout: "livre", title: "", body: "", free }] }).success).toBe(true);
+    const bad = { ...free, elements: [{ ...free.elements[0], chat: "outro" }] };
+    expect(pecaRequestSchema.safeParse({ ...base, slides: [{ layout: "livre", title: "", body: "", free: bad }] }).success).toBe(false);
+  });
 });

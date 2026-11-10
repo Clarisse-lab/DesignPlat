@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Images, Search, Sparkles, Trash2 } from "lucide-react";
 import { ClientPhotosDialog } from "@/components/editor/ClientPhotos";
 import { ImageAiDialog, type ImageAiContext } from "@/components/editor/ImageAiDialog";
+import { textZoneOfFree } from "@/lib/ai/image-direction";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
@@ -280,7 +281,7 @@ export function SlideFields({
 
       {generating && imageAi && (
         <ImageAiDialog
-          context={{ ...imageAi, currentImage: slide.image ?? null }}
+          context={{ ...imageAi, currentImage: slide.image ?? null, textZone: slide.layout === "livre" ? textZoneOfFree(slide.free) : undefined }}
           onClose={() => setGenerating(false)}
           onUse={(image, info) => {
             onChange({ image });

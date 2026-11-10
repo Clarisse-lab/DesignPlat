@@ -45,6 +45,13 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 - **Biblioteca de modelos do Livre** (05/11/2026): 26 modelos em miniatura (12 capas, 11 telas internas, 3 de fechamento), inspirados no MyPostFlow e além: revista, marca-texto, editorial serifado, centro com etiqueta, impacto condensado, perfil + título gigante, 2 e 3 tiras, tweet, manchete de jornal, número gigante, pergunta; título + texto, cartão, cartão com foto, tweet com imagem, dado em destaque, checklist, passo a passo, mito × verdade, antes × depois, citação com foto; salve, siga, comente. Elementos ganharam fonte própria, itálico, sombra, ícone, perfil em 3 estilos (com selo de verificado) e textos automáticos ({nome}, {usuario}, {n}, {total}). Trocar de modelo leva o texto e as fotos do slide. O assistente escolhe o modelo pelo tipo de tela e não deixa texto de exemplo.
 
+- **Imagens mais inteligentes e Print de conversa** (10/11/2026), com ideias da `ads-creative-factory` (repo `marketingLendario/cohort-de-marketing`, MIT; análise em `claude/analise-cohort-de-marketing.md` no projeto do Claude):
+  - **Gerar com IA** deixa livre a área onde o layout põe o texto (embaixo, em cima, esquerda, direita, centro ou nenhuma), calculada pelos elementos do slide Livre; dá para trocar no diálogo. Imagem de elemento (foto, tira, grade) vai sem zona.
+  - **Estilo** da imagem: Automático, Foto natural, Editorial, Produto / objeto, Conceito.
+  - **Variação**: cada imagem sorteia luz, enquadramento e fundo; **Outra versão** gera de novo sem repetir combinação. Regras novas no prompt: fundo nunca liso, sem "cara de IA" (pele de plástico, neon roxo/azul, dedos errados) e o rosto do cliente fiel (sem embelezar, afinar ou envelhecer). Instruções em `src/lib/ai/image-direction.ts`.
+  - Elemento **Print de conversa** no Livre (só HTML, custo zero de IA): conversa em modo escuro ou claro, ou notificações na tela bloqueada, com o nome e a logo do cliente. Modelos novos: **Print de conversa** (capa e tela interna) e **Notificações** (capa). Uma mensagem por linha; "Eu:" vira a resposta.
+  - Os campos novos da rota `/api/estudio/imagem` (`zona`, `estilo`, `evitar`) são opcionais: quem não manda (Estúdio automático do PR #18) recebe o comportamento de antes. Depois do #18, falta incluir os 3 modelos novos no guia do assistente (`MODEL_GUIDE`).
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).
