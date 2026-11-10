@@ -1,5 +1,6 @@
 "use client";
 
+import { textZoneOfFree, type TextZone } from "@/lib/ai/image-direction";
 import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Save, Shuffle, Wand2 } from "lucide-react";
 import {
@@ -46,6 +47,7 @@ import {
   presetWantsImage,
   rebuildWithPreset,
   SEMANTIC_PRESETS,
+  CHAT_PRESETS,
   type FreeSlide,
 } from "@/lib/templates/free";
 import { imageFileToDataUrl } from "@/lib/client/image";
@@ -174,7 +176,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [generatingImages, setGeneratingImages] = useState(false);
 
   /** Gera com o Gemini as fotos descritas pela IA, uma por vez, e coloca cada uma no seu slide. */
-  const generateImages = async (jobs: { id: string; prompt: string; face: boolean }[]) => {
+  const generateImages = async (jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[]) => {
     setGeneratingImages(true);
     let done = 0;
     let spent = 0;
@@ -190,6 +192,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             clienteSlug: draft.cliente?.slug ?? null,
             rostos: job.face && brand.logo ? [brand.logo] : [],
             paleta: [style.palette.background, style.palette.text, style.palette.accent],
+            zona: job.zone,
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -213,16 +216,19 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const applyGenerated = (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
     if (slides.some((s) => s.title.trim()) && !window.confirm(`Substituir os ${slides.length} slide(s) atuais pelas ${items.length} telas geradas?`)) return;
     const list = items.slice(0, MAX_FEED_SLIDES);
-    const jobs: { id: string; prompt: string; face: boolean }[] = [];
+    const jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[] = [];
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
       if (options.style === "revista") {
         const id = it.modelo && presetById(it.modelo).id === it.modelo ? it.modelo : fallbackModel(it);
         const prompt = (it.imagem ?? "").trim();
         const wantsImage = prompt.length >= 5 && presetWantsImage(id) && (options.images === "todas" || (options.images === "capa" && k === 0));
-        const free = buildPreset(id, { title: it.titulo, body: it.tipo === "capa" ? it.etiqueta : it.texto, hasImage: wantsImage }, { placeholders: false });
+        const body = it.tipo === "capa" && !CHAT_PRESETS.has(id) ? it.etiqueta : it.texto;
+        const free = buildPreset(id, { title: it.titulo, body, hasImage: wantsImage }, { placeholders: false });
         const slide = newFeedSlide({ layout: "livre", ...base, free: withTag(free, it.tipo === "capa" ? "" : it.etiqueta) });
-        if (wantsImage) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto) });
+        // Foto de fundo: a IA deixa livre a área do texto. Foto num espaço de imagem: sem zona.
+        const slotImage = free.elements.some((e) => e.kind === "imagem" || e.kind === "grade");
+        if (wantsImage) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free) });
         return slide;
       }
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;

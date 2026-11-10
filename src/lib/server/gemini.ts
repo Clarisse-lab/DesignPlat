@@ -1,6 +1,9 @@
 import "server-only";
 // Geração de imagem com o Gemini (a mesma conta do Prisma). Chave só no Railway: GEMINI_API_KEY.
 // Modelo trocável por GEMINI_IMAGE_MODEL; o preço por imagem entra no custo registrado em uso_ia.
+// As instruções (zona do texto, estilo, variação, rosto) são montadas em lib/ai/image-direction.ts.
+
+import { buildImageInstructions, type ImageStyle, type TextZone } from "../ai/image-direction";
 
 const clean = (value: string | undefined) => (value ?? "").trim().replace(/^[<"']+|[>"']+$/g, "");
 const API_KEY = clean(process.env.GEMINI_API_KEY);
@@ -23,16 +26,6 @@ export function aspectFor(width: number, height: number): string {
   return options.reduce((best, option) => (Math.abs(option[1] - ratio) < Math.abs(best[1] - ratio) ? option : best))[0];
 }
 
-const RULES = [
-  "Create a single high-quality image for an Instagram post.",
-  "Absolutely no text, letters, numbers, captions, logos or watermarks anywhere in the image.",
-  "Keep the lower third calm and darker so a headline can be placed over it.",
-  "Do not depict any real, identifiable public figure or celebrity.",
-].join(" ");
-
-const FACE_RULE =
-  "The person in the generated image must be the same person shown in the reference photo(s): keep the face, facial features, skin tone, hair and age faithful. Do not add other identifiable people.";
-
 export interface GeneratedImage {
   mimeType: string;
   base64: string;
@@ -54,22 +47,24 @@ export async function generateImage(input: {
   paletteHint?: string;
   /** Editar esta imagem em vez de criar uma nova (vai como a primeira imagem do pedido). */
   base?: string | null;
+  /** Onde o layout põe o texto: a IA deixa essa área livre. */
+  textZone?: TextZone;
+  style?: ImageStyle;
+  /** Fragmentos de luz, enquadramento e fundo sorteados (pickVariation). */
+  variation?: string[];
 }): Promise<GeneratedImage> {
   if (!API_KEY) throw new Error("GEMINI_API_KEY não configurada no Railway.");
-  const instructions = [
-    input.base
-      ? "Edit the FIRST image provided. Apply only the change requested below and keep everything else (people, composition, framing) as it is. No text, letters, logos or watermarks."
-      : RULES,
-    input.faces.length ? FACE_RULE : "",
-    input.references.length ? "Use the other reference image(s) only as visual style/composition inspiration." : "",
-    input.paletteHint && !input.base ? `Brand colors to echo subtly: ${input.paletteHint}.` : "",
-    input.aspectRatio === "21:9" || input.aspectRatio === "16:9"
-      ? "This is a wide panorama that will be split into side-by-side Instagram carousel slides: spread the scene continuously across the whole width."
-      : "",
-    `${input.base ? "Change requested" : "Scene requested"} by the user (Portuguese): ${input.prompt}`,
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const instructions = buildImageInstructions({
+    prompt: input.prompt,
+    aspectRatio: input.aspectRatio,
+    hasFaces: input.faces.length > 0,
+    hasReferences: input.references.length > 0,
+    paletteHint: input.paletteHint,
+    editing: Boolean(input.base),
+    textZone: input.textZone,
+    style: input.style,
+    variation: input.variation,
+  });
 
   const parts = [
     { text: instructions },

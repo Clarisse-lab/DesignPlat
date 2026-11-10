@@ -1,10 +1,13 @@
 // Gera uma imagem com o Gemini para o slide (fundo, foto ou capa), com o rosto do cliente quando pedido.
 // Custo de cada imagem vai para uso_ia (tipo "imagem"); passa do limite do mês, a rota recusa.
+// zona (onde fica o texto), estilo e evitar (variações já usadas) são opcionais: quem não manda
+// recebe o comportamento de antes (texto embaixo, sem estilo fixo).
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { CANVAS_SIZES, POST_CANVAS_SIZES } from "@/lib/formats";
 import { isResponse, requireMember } from "@/lib/server/auth";
+import { IMAGE_STYLES, pickVariation, TEXT_ZONES } from "@/lib/ai/image-direction";
 import { aspectFor, geminiConfigured, generateImage, IMAGE_MODEL, pricePerImage } from "@/lib/server/gemini";
 import { rest } from "@/lib/server/supabase";
 
@@ -25,6 +28,11 @@ const schema = z.object({
   base: dataUrl.nullish(),
   /** Proporção fixa (ex.: panorama do carrossel infinito); sem ela, segue o tamanho do slide. */
   proporcao: z.enum(["1:1", "4:5", "3:4", "9:16", "16:9", "21:9", "2:3", "3:2"]).optional(),
+  /** Onde o layout põe o texto (a IA deixa livre). Padrão: embaixo. */
+  zona: z.enum(TEXT_ZONES).optional(),
+  estilo: z.enum(IMAGE_STYLES).optional(),
+  /** Combinações de luz|enquadramento|fundo já usadas neste pedido ("Outra versão" não repete). */
+  evitar: z.array(z.string().max(60)).max(60).default([]),
 });
 
 async function spentThisMonth(): Promise<number> {
@@ -46,7 +54,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.path.join(".") === "prompt" ? "Descreva a imagem com pelo menos 5 letras." : "Pedido inválido." }, { status: 400 });
   }
-  const { prompt, size, clienteSlug, rostos, referencias, paleta, base, proporcao } = parsed.data;
+  const { prompt, size, clienteSlug, rostos, referencias, paleta, base, proporcao, zona, estilo, evitar } = parsed.data;
 
   const limit = LIMIT_USD();
   const price = pricePerImage();
@@ -63,7 +71,19 @@ export async function POST(request: Request) {
 
   const { width, height } = CANVAS_SIZES[size];
   try {
-    const image = await generateImage({ prompt, aspectRatio: proporcao ?? aspectFor(width, height), faces: rostos, references: referencias, paletteHint: paleta?.join(", "), base });
+    // Editar não sorteia variação: muda só o que foi pedido.
+    const variation = base ? null : pickVariation(evitar);
+    const image = await generateImage({
+      prompt,
+      aspectRatio: proporcao ?? aspectFor(width, height),
+      faces: rostos,
+      references: referencias,
+      paletteHint: paleta?.join(", "),
+      base,
+      textZone: zona,
+      style: estilo,
+      variation: variation?.fragments,
+    });
     await rest("uso_ia", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
@@ -83,6 +103,7 @@ export async function POST(request: Request) {
       gasto_mes_usd: Math.round((spent + price) * 100) / 100,
       limite_usd: limit,
       modelo: IMAGE_MODEL,
+      variacao: variation?.key ?? null,
     });
   } catch (error) {
     console.error("[estudio/imagem]", error);

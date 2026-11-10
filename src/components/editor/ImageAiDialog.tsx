@@ -1,10 +1,12 @@
 "use client";
 
-// Gerar imagem com IA (Gemini) para o slide: descrição, rosto do cliente (fotos do Instagram,
-// foto de perfil do kit ou upload) e, se quiser, a imagem atual como base de estilo.
+// Gerar imagem com IA (Gemini) para o slide: descrição, estilo, onde fica o texto, rosto do cliente
+// (fotos do Instagram, foto de perfil do kit ou upload) e, se quiser, a imagem atual como base de estilo.
+// "Outra versão" repete o pedido com outra luz/enquadramento/fundo, sem repetir combinação.
 
 import { useRef, useState } from "react";
 import { ImagePlus, Loader2, RefreshCw, Sparkles, X } from "lucide-react";
+import { IMAGE_STYLE_LABELS, IMAGE_STYLES, TEXT_ZONE_LABELS, TEXT_ZONES, type ImageStyle, type TextZone } from "@/lib/ai/image-direction";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import type { PostCanvasSizeId } from "@/lib/formats";
 import { ClientPhotoGrid, useClientPhotos } from "./ClientPhotos";
@@ -18,6 +20,8 @@ export interface ImageAiContext {
   clienteNome: string | null;
   palette: string[];
   currentImage: string | null;
+  /** Onde o layout do slide põe o texto (a IA deixa essa área livre). Sem ela: embaixo. */
+  textZone?: TextZone;
 }
 
 async function toDataUrl(blob: Blob, maxSide: number) {
@@ -44,6 +48,10 @@ export function ImageAiDialog({
   const [uploads, setUploads] = useState<string[]>([]);
   const [useCurrent, setUseCurrent] = useState(false);
   const [mode, setMode] = useState<"criar" | "editar">("criar");
+  const [style, setStyle] = useState<ImageStyle>("auto");
+  const [zone, setZone] = useState<TextZone>(context.textZone ?? "inferior");
+  /** Combinações já usadas neste diálogo: "Outra versão" pede uma diferente. */
+  const [used, setUsed] = useState<string[]>([]);
   const editing = mode === "editar" && Boolean(context.currentImage);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,10 +87,14 @@ export function ImageAiDialog({
           paleta: context.palette,
           base: editing ? context.currentImage : null,
           proporcao: aspect,
+          zona: aspect ? undefined : zone,
+          estilo: style,
+          evitar: used,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar a imagem.");
+      if (data.variacao) setUsed((u) => [...u, String(data.variacao)].slice(-50));
       // A resposta vem em PNG grande: reduz para JPEG no tamanho do slide antes de usar.
       const blob = await (await fetch(data.imagem)).blob();
       // Panorama do carrossel infinito vira vários slides: guarda maior para não perder nitidez.
@@ -114,16 +126,30 @@ export function ImageAiDialog({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={result.image} alt="Imagem gerada" className="mx-auto max-h-[55vh] rounded-xl border border-line" />
             <p className="text-center text-[12.5px] text-ink-soft">{result.info}</p>
+            {error && <p className="rounded-lg bg-orange-50 px-3 py-2 text-center text-[13px] text-danger">{error}</p>}
             <div className="flex justify-center gap-2">
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => setResult(null)}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-[13px] text-ink-soft hover:text-ink"
               >
-                <RefreshCw className="h-4 w-4" /> Ajustar e gerar de novo
+                Ajustar o pedido
               </button>
+              {!editing && (
+                <button
+                  type="button"
+                  onClick={generate}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-4 py-2 text-[13px] text-ink-soft hover:text-ink disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  {busy ? "Gerando…" : "Outra versão"}
+                </button>
+              )}
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => onUse(result.image, result.info)}
                 className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:bg-accent/90"
               >
@@ -170,6 +196,40 @@ export function ImageAiDialog({
                 className={`${inputClass} resize-y`}
               />
             </label>
+
+            {!editing && (
+              <div className="space-y-2">
+                <span className="block text-[12.5px] font-medium text-ink-soft">Estilo</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {IMAGE_STYLES.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      title={IMAGE_STYLE_LABELS[id].hint}
+                      onClick={() => setStyle(id)}
+                      className={`rounded-full border px-3 py-1 text-[12.5px] ${style === id ? "border-accent bg-accent-soft font-medium text-accent" : "border-line text-ink-soft hover:text-ink"}`}
+                    >
+                      {IMAGE_STYLE_LABELS[id].label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11.5px] text-ink-faint">{IMAGE_STYLE_LABELS[style].hint}. A luz e o enquadramento variam a cada imagem.</p>
+              </div>
+            )}
+
+            {!editing && !aspect && (
+              <label className="flex flex-wrap items-center gap-2 text-[12.5px] text-ink-soft">
+                Espaço livre para o texto:
+                <select value={zone} onChange={(e) => setZone(e.target.value as TextZone)} className={`${inputClass} w-auto py-1`}>
+                  {TEXT_ZONES.map((z) => (
+                    <option key={z} value={z}>
+                      {TEXT_ZONE_LABELS[z]}
+                    </option>
+                  ))}
+                </select>
+                {context.textZone && zone === context.textZone && <span className="text-ink-faint">(pelo layout do slide)</span>}
+              </label>
+            )}
 
             <div className="space-y-2 rounded-xl border border-line p-3">
               <label className="flex items-center gap-2 text-[13px] font-medium">

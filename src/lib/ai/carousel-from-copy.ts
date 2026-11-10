@@ -39,6 +39,9 @@ const MODEL_GUIDE: Record<string, string> = {
   "final-salvar": "fechamento pedindo para salvar e compartilhar",
   "final-seguir": "fechamento pedindo para seguir o perfil, com foto",
   "final-comente": "fechamento pedindo um comentário com palavra-chave (ex.: comente QUERO)",
+  "capa-conversa": "capa com print de conversa (mensagens no texto, uma por linha; 'Eu:' para a resposta); só para depoimento ou mensagem real que a copy traz",
+  "capa-notificacoes": "capa com notificações na tela bloqueada (uma por linha no texto) e título embaixo; bom para prova social ou urgência",
+  "interno-conversa": "tela com print de conversa (mensagens no texto, uma por linha; 'Eu:' para a resposta); só para depoimento ou diálogo real da copy",
 };
 const MODEL_IDS = FREE_PRESETS.map((p) => p.id) as [string, ...string[]];
 const PHOTO_MODELS = new Set(FREE_PRESETS.filter((p) => p.photo).map((p) => p.id));

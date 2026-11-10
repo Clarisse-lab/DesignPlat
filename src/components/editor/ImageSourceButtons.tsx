@@ -77,7 +77,8 @@ export function ImageSourceButtons({
       />
       {dialog === "ia" && imageAi && (
         <ImageAiDialog
-          context={{ ...imageAi, currentImage: value ?? null }}
+          // Imagem de elemento (foto, tira, grade): o texto fica fora dela.
+          context={{ ...imageAi, currentImage: value ?? null, textZone: "nenhuma" }}
           onClose={() => setDialog(null)}
           onUse={(image) => {
             onChange(image);

@@ -9,6 +9,8 @@ import { ImageAiDialog } from "@/components/editor/ImageAiDialog";
 import { ImageSourceButtons, type ImageAiBase } from "@/components/editor/ImageSourceButtons";
 import { Field, inputClass, MenuButton, Segmented } from "@/components/editor/ui";
 import {
+  FREE_CHAT_LABELS,
+  FREE_CHAT_STYLES,
   FREE_COLOR_LABELS,
   FREE_COLORS,
   FREE_ELEMENT_KINDS,
@@ -38,7 +40,9 @@ import { ICON_IDS, ICONS, type IconId } from "@/lib/templates/icons";
 import type { FeedBrand, FeedPalette } from "@/lib/templates/feed";
 
 const TEXT_KINDS = new Set(["titulo", "texto", "etiqueta", "arraste"]);
-const SIZED_KINDS = new Set(["imagem", "cartao", "grade"]);
+const SIZED_KINDS = new Set(["imagem", "cartao", "grade", "conversa"]);
+/** Sem alinhamento nem cor de texto próprios (o print segue o estilo dele). */
+const CHAT_KINDS = new Set(["conversa"]);
 const NO_TEXT_KINDS = new Set(["imagem", "cartao", "grade"]);
 
 export const EMPTY_FREE: FreeSlide = { bg: "fundo", overlay: "nenhuma", elements: [] };
@@ -323,6 +327,53 @@ export function FreeEditor({
             <p className="-mt-2 text-[11.5px] text-ink-faint">Use **palavra** para destacar. {"{nome}"}, {"{usuario}"} e {"{n}"} viram o nome, o @ e o número do slide.</p>
           )}
 
+          {selected.kind === "conversa" && (
+            <div className="space-y-2">
+              <Field label="Mensagens">
+                <textarea
+                  value={selected.text ?? ""}
+                  onChange={(e) => update(selected.id, { text: e.target.value })}
+                  rows={6}
+                  className={`${inputClass} resize-y`}
+                />
+              </Field>
+              <p className="-mt-1 text-[11.5px] text-ink-faint">Uma mensagem por linha. Comece com &quot;Eu:&quot; para a resposta (balão da direita). **palavra** fica em negrito.</p>
+              <Field label="Estilo">
+                <select value={selected.chat ?? "escuro"} onChange={(e) => update(selected.id, { chat: e.target.value as FreeElement["chat"] })} className={inputClass}>
+                  {FREE_CHAT_STYLES.map((c) => (
+                    <option key={c} value={c}>
+                      {FREE_CHAT_LABELS[c]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Nome do contato">
+                  <input
+                    value={selected.contact ?? ""}
+                    maxLength={60}
+                    placeholder={preview.brand.name || "Nome do cliente"}
+                    onChange={(e) => update(selected.id, { contact: e.target.value })}
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label={selected.chat === "notificacoes" ? "Relógio (vazio: sem)" : "Horário"}>
+                  <input
+                    value={selected.time ?? ""}
+                    maxLength={5}
+                    placeholder="09:41"
+                    onChange={(e) => update(selected.id, { time: e.target.value })}
+                    className={inputClass}
+                  />
+                </Field>
+              </div>
+              {selected.chat === "notificacoes" && (
+                <Check label="Cartões escuros" checked={selected.fill === "preto"} onChange={(dark) => update(selected.id, { fill: dark ? "preto" : undefined })} />
+              )}
+              <p className="text-[11.5px] text-ink-faint">Sem foto do contato, aparecem a logo do kit ou as iniciais. Use só conversas reais ou autorizadas pelo cliente.</p>
+            </div>
+          )}
+
           {selected.kind === "imagem" && (
             <ImageSourceButtons value={selected.image} onChange={(img) => update(selected.id, { image: img })} onError={onError} imageAi={imageAi} label="Imagem" />
           )}
@@ -361,7 +412,7 @@ export function FreeEditor({
             <Slider label="Tamanho da fonte" value={selected.size ?? 40} min={12} max={240} suffix="px" onChange={(size) => update(selected.id, { size })} />
           )}
 
-          {!NO_TEXT_KINDS.has(selected.kind) && (
+          {!NO_TEXT_KINDS.has(selected.kind) && !CHAT_KINDS.has(selected.kind) && (
             <Segmented
               value={selected.align ?? "left"}
               options={[
@@ -374,7 +425,7 @@ export function FreeEditor({
           )}
 
           <div className="grid grid-cols-2 gap-2">
-            {!NO_TEXT_KINDS.has(selected.kind) && (
+            {!NO_TEXT_KINDS.has(selected.kind) && !CHAT_KINDS.has(selected.kind) && (
               <Field label="Cor do texto">
                 <select value={selected.color ?? "texto"} onChange={(e) => update(selected.id, { color: e.target.value as FreeElement["color"] })} className={inputClass}>
                   {FREE_COLORS.map((c) => (
@@ -471,7 +522,7 @@ export function FreeEditor({
             {SIZED_KINDS.has(selected.kind) && (
               <Slider label="Altura" value={selected.h ?? 20} min={2} max={120} step={0.5} suffix="%" onChange={(h) => update(selected.id, { h })} />
             )}
-            {SIZED_KINDS.has(selected.kind) && (
+            {SIZED_KINDS.has(selected.kind) && selected.chat !== "notificacoes" && (
               <Slider label="Arredondado" value={selected.radius ?? 24} min={0} max={120} suffix="px" onChange={(radius) => update(selected.id, { radius })} />
             )}
           </div>
