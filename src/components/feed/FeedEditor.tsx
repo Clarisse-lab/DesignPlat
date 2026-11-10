@@ -262,7 +262,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         );
         if (!options.length) return sl;
         const pick = options[Math.floor(Math.random() * options.length)];
-        const free = rebuildWithPreset(sl.free, pick.id, { title: sl.title, body: sl.body, image: sl.image });
+        const free = rebuildWithPreset(sl.free, pick.id, { title: sl.title, body: sl.body, image: sl.image ?? null });
         const tag = sl.free.elements.find((e) => e.kind === "etiqueta")?.text ?? "";
         return { ...sl, free: withTag(free, category === "capa" ? "" : tag) };
       }),
@@ -279,7 +279,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         if (categoryAt(k, d.slides.length) !== "interno" || sl.layout !== "livre" || !sl.free || sl.free.pan) return sl;
         if (SEMANTIC_PRESETS.has(sl.free.preset ?? "")) return sl;
         const tag = sl.free.elements.find((e) => e.kind === "etiqueta")?.text ?? "";
-        return { ...sl, free: withTag(rebuildWithPreset(sl.free, id, { title: sl.title, body: sl.body, image: sl.image }), tag) };
+        return { ...sl, free: withTag(rebuildWithPreset(sl.free, id, { title: sl.title, body: sl.body, image: sl.image ?? null }), tag) };
       }),
     }));
     setSelectedElement(null);
