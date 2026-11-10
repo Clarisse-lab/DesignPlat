@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildPreset } from "../templates/free";
-import { buildImageInstructions, pickVariation, textZoneOfFree } from "./image-direction";
+import { buildImageInstructions, overlayForZone, pickVariation, textZoneOfFree } from "./image-direction";
 
 describe("textZoneOfFree", () => {
   it("acha onde o texto do slide está", () => {
@@ -35,11 +35,14 @@ describe("buildImageInstructions", () => {
     const text = buildImageInstructions({ ...base, textZone: "esquerda", style: "natural" });
     expect(text).toContain("LEFT 55%");
     expect(text).toContain("smartphone photo");
-    expect(text.trim().endsWith("a cliente no consultório")).toBe(true);
+    expect(text).toContain("a cliente no consultório");
+    // A regra da zona é repetida no fim, depois do pedido.
+    expect(text.trim().split("\n").pop()).toContain("left 55%");
   });
 
   it("sem zona, deixa o texto embaixo (comportamento anterior)", () => {
     expect(buildImageInstructions(base)).toContain("LOWER 40%");
+    expect(buildImageInstructions(base)).toContain("waist or knees up");
   });
 
   it("panorama não reserva zona e editar não sorteia estilo", () => {
@@ -47,5 +50,14 @@ describe("buildImageInstructions", () => {
     const edit = buildImageInstructions({ ...base, editing: true, style: "editorial", hasFaces: true });
     expect(edit).not.toContain("STYLE");
     expect(edit).toContain("SAME person");
+  });
+});
+
+describe("overlayForZone", () => {
+  it("só põe sombra quando o slide está sem", () => {
+    expect(overlayForZone("inferior", "nenhuma")).toBe("base");
+    expect(overlayForZone("esquerda", "nenhuma")).toBe("total");
+    expect(overlayForZone("inferior", "forte")).toBeNull();
+    expect(overlayForZone("nenhuma", "nenhuma")).toBeNull();
   });
 });

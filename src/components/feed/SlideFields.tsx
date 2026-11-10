@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, ArrowRight, Images, Search, Sparkles, Trash2 } from "lucide-react";
 import { ClientPhotosDialog } from "@/components/editor/ClientPhotos";
 import { ImageAiDialog, type ImageAiContext } from "@/components/editor/ImageAiDialog";
-import { textZoneOfFree } from "@/lib/ai/image-direction";
+import { overlayForZone, textZoneOfFree } from "@/lib/ai/image-direction";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { PhotoSearch } from "@/components/editor/PhotoSearch";
 import { Field, IconButton, ImagePicker, inputClass } from "@/components/editor/ui";
@@ -287,10 +287,12 @@ export function SlideFields({
         <ImageAiDialog
           context={{ ...imageAi, currentImage: slide.image ?? null, textZone: slide.layout === "livre" ? textZoneOfFree(slide.free) : undefined }}
           onClose={() => setGenerating(false)}
-          onUse={(image, info) => {
-            onChange({ image });
+          onUse={(image, info, zone) => {
+            // Foto nova num slide Livre "Sem sombra" com texto por cima: liga a sombra para o texto ler bem.
+            const overlay = slide.layout === "livre" && slide.free && zone ? overlayForZone(zone, slide.free.overlay) : null;
+            onChange(overlay && slide.free ? { image, free: { ...slide.free, overlay } } : { image });
             setGenerating(false);
-            onInfo(info);
+            onInfo(overlay ? `${info} Sombra ligada para o texto ler bem (aba Fundo).` : info);
           }}
         />
       )}

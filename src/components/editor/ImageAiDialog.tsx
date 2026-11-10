@@ -39,7 +39,8 @@ export function ImageAiDialog({
   /** Proporção fixa (ex.: "21:9" para o panorama do carrossel infinito). */
   aspect?: string;
   title?: string;
-  onUse: (dataUrl: string, info: string) => void;
+  /** `zone`: a área do texto usada na geração (null ao editar ou no panorama). */
+  onUse: (dataUrl: string, info: string, zone: TextZone | null) => void;
   onClose: () => void;
 }) {
   const [prompt, setPrompt] = useState("");
@@ -55,7 +56,7 @@ export function ImageAiDialog({
   const editing = mode === "editar" && Boolean(context.currentImage);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ image: string; info: string } | null>(null);
+  const [result, setResult] = useState<{ image: string; info: string; zone: TextZone | null } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const { photos, loading, error: photosError } = useClientPhotos(useFace ? context.clienteSlug : null);
 
@@ -100,7 +101,7 @@ export function ImageAiDialog({
       // Panorama do carrossel infinito vira vários slides: guarda maior para não perder nitidez.
       const image = await toDataUrl(blob, aspect ? 3200 : 1600);
       const cost = `US$ ${Number(data.custo_usd).toFixed(3).replace(".", ",")}`;
-      setResult({ image, info: `Imagem gerada (${cost}; no mês: US$ ${String(data.gasto_mes_usd).replace(".", ",")} de ${data.limite_usd}).` });
+      setResult({ image, zone: editing || aspect ? null : zone, info: `Imagem gerada (${cost}; no mês: US$ ${String(data.gasto_mes_usd).replace(".", ",")} de ${data.limite_usd}).` });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erro ao gerar a imagem.");
     } finally {
@@ -150,7 +151,7 @@ export function ImageAiDialog({
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => onUse(result.image, result.info)}
+                onClick={() => onUse(result.image, result.info, result.zone)}
                 className="rounded-lg bg-accent px-4 py-2 text-[13px] font-semibold text-white hover:bg-accent/90"
               >
                 Usar no slide
