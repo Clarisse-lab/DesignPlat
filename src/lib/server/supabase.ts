@@ -91,3 +91,18 @@ export async function downloadObject(path: string): Promise<{ bytes: Buffer; con
   if (!response.ok) throw new Error(`Storage ${response.status} em ${path}`);
   return { bytes: Buffer.from(await response.arrayBuffer()), contentType: response.headers.get("content-type") ?? "image/jpeg" };
 }
+
+/** Links temporários (para <img>) de vários arquivos do bucket de uma vez. */
+export async function signObjects(paths: string[], expiresIn = 3600): Promise<Record<string, string>> {
+  if (!paths.length) return {};
+  const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${DESIGN_BUCKET}`, {
+    method: "POST",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn, paths }),
+  });
+  if (!response.ok) throw new Error(`Storage ${response.status}: ${(await response.text()).slice(0, 200)}`);
+  const rows = (await response.json()) as { path: string; signedURL?: string | null; error?: string | null }[];
+  const out: Record<string, string> = {};
+  for (const row of rows) if (row.signedURL) out[row.path] = `${SUPABASE_URL}/storage/v1${row.signedURL}`;
+  return out;
+}

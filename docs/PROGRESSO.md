@@ -53,6 +53,14 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Elemento **Print de conversa** no Livre (só HTML, custo zero de IA): conversa em modo escuro ou claro, ou notificações na tela bloqueada, com o nome e a logo do cliente. Modelos novos: **Print de conversa** (capa e tela interna) e **Notificações** (capa). Uma mensagem por linha; "Eu:" vira a resposta.
   - Os campos novos da rota `/api/estudio/imagem` (`zona`, `estilo`, `evitar`) são opcionais: quem não manda (Estúdio automático do PR #18) recebe o comportamento de antes. Os 3 modelos novos entraram no guia do assistente (`MODEL_GUIDE`).
 
+- **Nada se perde** (10/11/2026). Antes, das 6 imagens e 5 carrosséis gerados com IA, só 2 peças estavam salvas.
+  - **Toda imagem gerada fica guardada**, mesmo sem ir para o slide: arquivo no bucket `design` (pasta `geradas/`) e linha na tabela `design_imagens` (cliente, pedido, estilo, zona, proporção, se usou rosto, custo, quem gerou). A miniatura é feita no navegador e vai para `geradas/miniaturas/`. Se guardar falhar, a geração não falha (só fica no log).
+  - **Aba "Já geradas"** no Gerar com IA (slide, elemento de imagem e panorama): galeria do cliente ou de todos, e usar uma imagem de lá não gasta nada. Rotas `/api/estudio/imagens` (lista com link temporário) e `/api/estudio/imagens/[id]` (imagem inteira e miniatura).
+  - **Salvamento automático** no Feed, no Story e na Apresentação: 4 s depois de cada mudança a peça vai para `design_pecas`, marcada como `rascunho` até alguém usar "Dar nome e salvar". Em "Abrir peça", os rascunhos aparecem com a etiqueta "rascunho automático". O topo mostra "Salvo às HH:MM".
+  - **Gerar carrossel de novo cria uma peça nova**; a anterior continua salva.
+  - O servidor não sobe de novo uma foto que já subiu (o nome é o hash), para o salvamento automático não reenviar as fotos a cada mudança.
+  - Ainda sem salvamento: o Carrossel Tweet (ferramenta separada).
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).

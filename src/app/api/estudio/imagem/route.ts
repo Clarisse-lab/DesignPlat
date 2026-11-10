@@ -2,6 +2,7 @@
 // Custo de cada imagem vai para uso_ia (tipo "imagem"); passa do limite do mês, a rota recusa.
 // zona (onde fica o texto), estilo e evitar (variações já usadas) são opcionais: quem não manda
 // recebe o comportamento de antes (texto embaixo, sem estilo fixo).
+// Toda imagem gerada fica guardada (design_imagens + bucket), mesmo que não vá para o slide.
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -9,6 +10,7 @@ import { CANVAS_SIZES, POST_CANVAS_SIZES } from "@/lib/formats";
 import { isResponse, requireMember } from "@/lib/server/auth";
 import { IMAGE_STYLES, pickVariation, TEXT_ZONES } from "@/lib/ai/image-direction";
 import { aspectFor, geminiConfigured, generateImage, IMAGE_MODEL, pricePerImage } from "@/lib/server/gemini";
+import { saveGeneratedImage } from "@/lib/server/imagens";
 import { rest } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -97,7 +99,26 @@ export async function POST(request: Request) {
         custo_usd: price.toFixed(4),
       }),
     }).catch((error) => console.error("[estudio/imagem] não registrou o custo:", error));
+    // Guardar não pode derrubar a geração (a imagem já foi paga): se falhar, só registra no log.
+    let imagemId: string | null = null;
+    try {
+      imagemId = await saveGeneratedImage(image, {
+        clienteSlug: clienteSlug ?? null,
+        prompt,
+        estilo: base ? null : (estilo ?? "auto"),
+        zona: base || proporcao ? null : (zona ?? "inferior"),
+        proporcao: proporcao ?? aspectFor(width, height),
+        editada: Boolean(base),
+        comRosto: rostos.length > 0,
+        modelo: IMAGE_MODEL,
+        custoUsd: price,
+        criadoPor: member.nome || member.email || null,
+      });
+    } catch (error) {
+      console.error("[estudio/imagem] não guardou a imagem:", error);
+    }
     return NextResponse.json({
+      imagem_id: imagemId,
       imagem: `data:${image.mimeType};base64,${image.base64}`,
       custo_usd: price,
       gasto_mes_usd: Math.round((spent + price) * 100) / 100,
