@@ -22,18 +22,29 @@ export const TEXT_ZONE_LABELS: Record<TextZone, string> = {
   nenhuma: "Sem texto por cima",
 };
 
+// O Gemini trata "deixe X% livre" como sugestão: o pedido diz COMO enquadrar para sobrar a área
+// (pessoa da cintura para cima, ângulo, superfície lisa) e repete a regra no fim (ZONE_REMINDER).
 const ZONE_PROMPTS: Record<TextZone, string> = {
   inferior:
-    "Reserve the LOWER 40% of the frame for a headline: keep it calm, uncluttered and slightly darker; place the main subject in the upper part and never let it cross into the lower area.",
+    "A headline will cover the LOWER 40% of the frame. Compose so the whole subject sits in the UPPER 60%: frame people from the waist or knees up (never full body down to the feet), or use a slightly higher camera so the subject and any objects end above that line. The lower 40% must be a plain, low-detail, fairly dark surface (floor, table, wall or soft shadow) with no bright highlights, no bags, feet or props in it, so white text reads clearly.",
   superior:
-    "Reserve the UPPER 40% of the frame for a headline: keep it calm and uncluttered (soft sky, wall, blurred background); place the main subject in the lower part.",
+    "A headline will cover the UPPER 40% of the frame. Compose so the whole subject sits in the LOWER 60%, with plenty of headroom: the upper 40% must be a plain, low-detail, evenly toned area (wall, sky, ceiling or soft blur) with no faces, heads or objects in it.",
   esquerda:
-    "Reserve the LEFT 55% of the frame for a text column: keep it calm, uncluttered and evenly lit; place the main subject only in the right third and never let it cross into the left side.",
+    "A text column will cover the LEFT 55% of the frame. Place the whole subject inside the RIGHT 40%, facing toward the left. The left 55% must be a plain, low-detail, evenly toned and slightly darker area (wall, backdrop or soft blur) with no part of the subject or props in it.",
   direita:
-    "Reserve the RIGHT 55% of the frame for a text column: keep it calm, uncluttered and evenly lit; place the main subject only in the left third and never let it cross into the right side.",
+    "A text column will cover the RIGHT 55% of the frame. Place the whole subject inside the LEFT 40%, facing toward the right. The right 55% must be a plain, low-detail, evenly toned and slightly darker area (wall, backdrop or soft blur) with no part of the subject or props in it.",
   centro:
-    "Keep the CENTER of the frame calm and uncluttered for a centered headline; frame the subject around the edges or as a soft, out-of-focus background.",
+    "A headline will sit in the CENTER of the frame. Keep the center plain and low-detail: frame the subject toward the edges or as a soft, out-of-focus background, never with a face behind the center.",
   nenhuma: "The image is shown on its own (no text over it): use the whole frame for the subject.",
+};
+
+const ZONE_REMINDER: Record<TextZone, string> = {
+  inferior: "Final check: nothing important (feet, bags, hands, objects, bright light) in the lower 40%.",
+  superior: "Final check: nothing important (heads, faces, objects) in the upper 40%.",
+  esquerda: "Final check: the left 55% is empty and plain.",
+  direita: "Final check: the right 55% is empty and plain.",
+  centro: "Final check: the center is plain, with no face behind it.",
+  nenhuma: "",
 };
 
 const TEXT_ELEMENT_KINDS = new Set<FreeElement["kind"]>(["titulo", "texto", "etiqueta", "conversa"]);
@@ -202,7 +213,17 @@ export function buildImageInstructions(input: ImageDirectionInput): string {
     input.paletteHint ? `Brand colors to echo subtly in props, clothing or light (never as a flat fill): ${input.paletteHint}.` : "",
     wide ? "This is a wide panorama that will be split into side-by-side Instagram carousel slides: spread the scene continuously across the whole width." : "",
     `Scene requested by the user (Portuguese): ${input.prompt}`,
+    zone ? ZONE_REMINDER[input.textZone ?? "inferior"] : "",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * Sombra para o texto ler bem sobre a foto nova: só quando o slide está "Sem sombra".
+ * Texto embaixo usa a base forte (degradê de baixo); nas outras zonas, escurece por igual.
+ */
+export function overlayForZone(zone: TextZone, current: string): "base" | "total" | null {
+  if (current !== "nenhuma" || zone === "nenhuma") return null;
+  return zone === "inferior" ? "base" : "total";
 }
