@@ -60,6 +60,10 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - **Gerar carrossel de novo cria uma peça nova**; a anterior continua salva.
   - O servidor não sobe de novo uma foto que já subiu (o nome é o hash), para o salvamento automático não reenviar as fotos a cada mudança.
   - Ainda sem salvamento: o Carrossel Tweet (ferramenta separada).
+- **Correção: carrossel "preso" e peça de outro cliente** (10/11/2026):
+  - O "Gerar carrossel" perguntava "Substituir os slides atuais?" depois de 20 a 40 s de espera. Com a pessoa em outra aba, o Chrome cancelava a pergunta e as telas pagas eram descartadas. Agora não pergunta: salva o carrossel atual e monta o novo.
+  - Trocar de cliente salva o carrossel do anterior e começa limpo com o kit do novo (antes ficavam os slides do outro cliente).
+  - O rascunho do navegador guarda a assinatura do que está igual no Supabase (`syncKey`). Se ao abrir a página ele aponta para uma peça mas tem mudanças nunca salvas, vira peça nova. Foi assim que a peça da Sabrina "Antes de contratar uma agência…" acabou com o carrossel da Black Friday (Template Hosaka).
 
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
