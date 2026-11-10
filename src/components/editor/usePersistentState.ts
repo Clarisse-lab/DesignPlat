@@ -33,5 +33,6 @@ export function usePersistentState<T>(key: string, initial: () => T, isValid: (v
     }
   }, [key, state, loaded]);
 
-  return [state, setState] as const;
+  /** loaded: o rascunho do navegador já foi lido (antes disso o estado é o inicial). */
+  return [state, setState, loaded] as const;
 }

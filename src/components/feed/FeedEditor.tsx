@@ -75,7 +75,9 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const config = POST_MODES[mode];
   const isStory = mode === "story";
   const isPresentation = mode === "apresentacao";
-  const { draft, setDraft, reset } = useFeedDraft(config.storageKey, config.initialDraft);
+  const { draft, setDraft, reset, loaded } = useFeedDraft(config.storageKey, config.initialDraft);
+  /** O rascunho do navegador já foi conferido com a peça do Supabase (só depois disso salva sozinho). */
+  const [draftChecked, setDraftChecked] = useState(false);
   const { brand, style, slides } = draft;
   const [showGuides, setShowGuides] = useState(true);
 
@@ -122,12 +124,22 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     setDraft((d) => ({ ...d, slides: d.slides.map((s, i) => (i === safeIndex ? { ...s, ...patch } : s)) }));
 
   /** Aplica o kit de marca do cliente: marca inteira e estilo (mantendo o formato desta ferramenta). */
-  const selectClient = (client: StudioClient | null) => {
+  const selectClient = async (client: StudioClient | null) => {
     if (!client) {
       setDraft((d) => ({ ...d, cliente: null }));
       return;
     }
     const kit = client.kit;
+    // Outro cliente: o carrossel do anterior fica salvo e o editor começa limpo para o novo.
+    // (Antes os slides ficavam, e o salvamento automático gravaria por cima da peça do outro cliente.)
+    const previous = draft.cliente;
+    const switching = Boolean(previous && previous.slug !== client.slug && draftHasContent);
+    if (switching) {
+      await pieces.flush();
+      reset();
+      setActiveIndex(0);
+      setSelectedElement(null);
+    }
     setDraft((d) => {
       if (!kit) return { ...d, cliente: { slug: client.slug, nome: client.nome } };
       const { size: kitSize, customLayout: _ignored, ...kitStyle } = kit.estilo;
@@ -140,7 +152,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         style: { ...d.style, ...kitStyle, size, customLayout: null },
       };
     });
-    showInfo(kit ? `Kit de marca de ${client.nome} aplicado.` : `${client.nome} ainda não tem kit de marca: só as fotos e a IA usam o cliente.`);
+    const kitInfo = kit ? `Kit de marca de ${client.nome} aplicado.` : `${client.nome} ainda não tem kit de marca: só as fotos e a IA usam o cliente.`;
+    showInfo(switching && previous ? `${kitInfo} O carrossel de ${previous.nome} ficou salvo em Mais → Abrir peça.` : kitInfo);
   };
 
   // Aplica o cliente do link do Escritório assim que a lista de clientes chega.
@@ -215,8 +228,12 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   };
 
   /** Monta os slides a partir das telas geradas, com os modelos escolhidos pela IA (revista) ou os layouts clássicos. */
-  const applyGenerated = (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
-    if (slides.some((s) => s.title.trim()) && !window.confirm(`Substituir os ${slides.length} slide(s) atuais pelas ${items.length} telas geradas?`)) return;
+  const applyGenerated = async (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
+    // Sem pergunta: a janela de confirmação chegava depois de 20-40 s de espera e o Chrome a
+    // cancelava sozinho quando a pessoa tinha trocado de aba (as telas pagas eram descartadas).
+    // O carrossel atual é salvo antes e continua em "Abrir peça".
+    const hadContent = draftHasContent;
+    const saved = await pieces.flush();
     const list = items.slice(0, MAX_FEED_SLIDES);
     const jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[] = [];
     const built = list.map((it, k) => {
@@ -240,6 +257,13 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     setDraft((d) => ({ ...d, slides: built, legenda, pecaId: null, titulo: null }));
     setActiveIndex(0);
     setSelectedElement(null);
+    if (hadContent) {
+      showInfo(
+        saved
+          ? `${built.length} telas montadas. O carrossel anterior ficou salvo em Mais → Abrir peça.`
+          : `${built.length} telas montadas. Atenção: o carrossel anterior não conseguiu ser salvo (sem conexão?).`,
+      );
+    }
     if (jobs.length) void generateImages(jobs);
   };
 
@@ -474,9 +498,10 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   // Assinatura do rascunho para o salvamento automático: imagens entram só pelo tamanho e pelo fim
   // (comparar MB de base64 a cada tecla seria caro); pecaId e titulo ficam de fora.
   const draftKey = useMemo(() => {
-    const { pecaId: _id, titulo: _t, ...rest } = draft;
+    const { pecaId: _id, titulo: _t, syncKey: _s, ...rest } = draft;
     void _id;
     void _t;
+    void _s;
     return JSON.stringify(rest, (_k, v) => (typeof v === "string" && v.startsWith("data:") ? `img:${v.length}:${v.slice(-32)}` : v));
   }, [draft]);
   const draftHasContent = slides.some(
@@ -495,20 +520,37 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     clienteNome: draft.cliente?.nome ?? null,
     suggestedTitle: (slides[0]?.title || config.title).replace(/\*\*/g, "").slice(0, 80),
     getDados: () => {
-      const { pecaId: _id, titulo: _titulo, ...rest } = draft;
+      const { pecaId: _id, titulo: _titulo, syncKey: _sync, ...rest } = draft;
       void _id;
       void _titulo;
+      void _sync;
       return rest as unknown as Record<string, unknown>;
     },
     onSaved: (id, titulo) => setDraft((d) => ({ ...d, pecaId: id, titulo })),
     onOpen: openPiece,
     onError: showError,
     onInfo: showInfo,
-    autoSave: studioEnabled,
+    autoSave: studioEnabled && draftChecked,
     contentKey: draftKey,
     hasContent: draftHasContent,
     onAutoSaved: (id) => setDraft((d) => ({ ...d, pecaId: id })),
+    syncedKey: draft.syncKey ?? null,
+    onSynced: (key) => setDraft((d) => (d.syncKey === key ? d : { ...d, syncKey: key })),
   });
+
+  // Ao abrir a página: se o rascunho do navegador aponta para uma peça mas tem mudanças que nunca
+  // foram salvas nela (ex.: rascunho antigo, de antes do salvamento automático), ele vira peça nova.
+  // Sem isso, o salvamento automático gravaria por cima de uma peça com outro conteúdo.
+  useEffect(() => {
+    if (!loaded || draftChecked) return;
+    if (draft.pecaId && draft.syncKey !== draftKey) {
+      setDraft((d) => ({ ...d, pecaId: null, titulo: null, syncKey: null }));
+      showInfo("Este rascunho tinha mudanças que não estavam na peça salva: ele vai ser salvo como peça nova (a original ficou como estava).");
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDraftChecked(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   const downloadItems: MenuItem[] = isPresentation
     ? [

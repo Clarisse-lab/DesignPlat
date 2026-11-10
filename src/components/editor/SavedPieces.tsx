@@ -70,6 +70,8 @@ export function useSavedPieces({
   contentKey = "",
   hasContent = false,
   onAutoSaved,
+  syncedKey = null,
+  onSynced,
 }: {
   ferramenta: Ferramenta;
   pecaId: string | null;
@@ -92,6 +94,10 @@ export function useSavedPieces({
   hasContent?: boolean;
   /** A peça ganhou id no primeiro salvamento automático (sem nome ainda). */
   onAutoSaved?: (id: string) => void;
+  /** Assinatura do conteúdo que está igual ao do Supabase (guardada no rascunho do navegador). */
+  syncedKey?: string | null;
+  /** O conteúdo com esta assinatura acabou de ficar igual ao do Supabase. */
+  onSynced?: (key: string) => void;
 }) {
   const [busy, setBusy] = useState<"save" | "template" | null>(null);
   const [browsing, setBrowsing] = useState(false);
@@ -99,8 +105,8 @@ export function useSavedPieces({
 
   // ---------- Salvamento automático ----------
   // Tudo em refs: o efeito só olha a assinatura do conteúdo e lê o resto na hora de salvar.
-  const latest = useRef({ pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, ferramenta, contentKey });
-  latest.current = { pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, ferramenta, contentKey };
+  const latest = useRef({ pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, onSynced, ferramenta, contentKey, hasContent, syncedKey });
+  latest.current = { pecaId, titulo, clienteSlug, suggestedTitle, getDados, onAutoSaved, onSynced, ferramenta, contentKey, hasContent, syncedKey };
   /** id criado pelo salvamento automático antes de o editor atualizar (evita criar duas peças). */
   const createdId = useRef<string | null>(null);
   /** Conteúdo igual ao que está no Supabase (não salva de novo). */
@@ -108,59 +114,68 @@ export function useSavedPieces({
   /** Acabou de abrir uma peça ou template: o conteúdo aberto é a referência, não uma mudança. */
   const justOpened = useRef(false);
   const inFlight = useRef(false);
-  const pending = useRef(false);
 
   // Peça trocada por fora (abrir, recomeçar, gerar carrossel novo): esquece o id criado antes.
   useEffect(() => {
     if (pecaId !== createdId.current) createdId.current = null;
   }, [pecaId]);
 
+  /** Salva agora o que está no editor (se mudou desde o último salvamento). */
+  const saveNow = async (): Promise<boolean> => {
+    // Espera um salvamento em andamento terminar (no máximo ~20 s).
+    for (let i = 0; inFlight.current && i < 80; i++) await new Promise((r) => window.setTimeout(r, 250));
+    const cur = latest.current;
+    if (!cur.hasContent || cur.contentKey === savedKey.current || cur.contentKey === cur.syncedKey) return true;
+    inFlight.current = true;
+    setAutoStatus({ kind: "salvando" });
+    const key = cur.contentKey;
+    const id = cur.pecaId ?? createdId.current;
+    try {
+      const saved = await savePiece({
+        id,
+        ferramenta: cur.ferramenta,
+        titulo: (cur.titulo || `Rascunho: ${cur.suggestedTitle || "sem título"}`).slice(0, 120),
+        cliente_slug: cur.clienteSlug,
+        template: false,
+        rascunho: !cur.titulo,
+        dados: cur.getDados(),
+      });
+      savedKey.current = key;
+      if (!id) {
+        createdId.current = saved.id;
+        cur.onAutoSaved?.(saved.id);
+      }
+      cur.onSynced?.(key);
+      setAutoStatus({ kind: "salvo", at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) });
+      return true;
+    } catch {
+      setAutoStatus({ kind: "erro" });
+      return false;
+    } finally {
+      inFlight.current = false;
+    }
+  };
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+
   useEffect(() => {
     if (!autoSave) return;
     if (justOpened.current) {
       justOpened.current = false;
       savedKey.current = contentKey;
+      latest.current.onSynced?.(contentKey);
       return;
     }
-    if (!hasContent || contentKey === savedKey.current) return;
-    const timer = window.setTimeout(async function run() {
-      if (inFlight.current) {
-        pending.current = true;
-        return;
-      }
-      inFlight.current = true;
-      setAutoStatus({ kind: "salvando" });
-      const cur = latest.current;
-      const key = cur.contentKey;
-      const id = cur.pecaId ?? createdId.current;
-      try {
-        const saved = await savePiece({
-          id,
-          ferramenta: cur.ferramenta,
-          titulo: (cur.titulo || `Rascunho: ${cur.suggestedTitle || "sem título"}`).slice(0, 120),
-          cliente_slug: cur.clienteSlug,
-          template: false,
-          rascunho: !cur.titulo,
-          dados: cur.getDados(),
-        });
-        savedKey.current = key;
-        if (!id) {
-          createdId.current = saved.id;
-          cur.onAutoSaved?.(saved.id);
-        }
-        setAutoStatus({ kind: "salvo", at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) });
-      } catch {
-        setAutoStatus({ kind: "erro" });
-      } finally {
-        inFlight.current = false;
-        if (pending.current) {
-          pending.current = false;
-          window.setTimeout(run, 1500);
-        }
-      }
-    }, 4000);
+    if (!hasContent || contentKey === savedKey.current || contentKey === syncedKey) return;
+    const timer = window.setTimeout(() => void saveNowRef.current(), 4000);
     return () => window.clearTimeout(timer);
-  }, [autoSave, contentKey, hasContent]);
+  }, [autoSave, contentKey, hasContent, syncedKey]);
+
+  /**
+   * Antes de trocar o conteúdo do editor (carrossel novo, outro cliente): salva o atual na hora.
+   * Devolve false se não conseguiu salvar (o editor decide se troca mesmo assim).
+   */
+  const flush = async (): Promise<boolean> => (autoSave ? saveNowRef.current() : true);
 
   const save = async (asTemplate: boolean) => {
     const base = asTemplate ? `Template ${clienteNome ?? ""}`.trim() : titulo || suggestedTitle;
@@ -181,6 +196,8 @@ export function useSavedPieces({
       else {
         onSaved(saved.id, name);
         createdId.current = saved.id;
+        savedKey.current = latest.current.contentKey;
+        latest.current.onSynced?.(latest.current.contentKey);
         onInfo(`Peça "${name}" salva para a equipe.`);
       }
     } catch (error) {
@@ -214,7 +231,7 @@ export function useSavedPieces({
           ? `Salvo às ${autoStatus.at}`
           : null;
 
-  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro" };
+  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro", flush };
 }
 
 function PiecesDialog({

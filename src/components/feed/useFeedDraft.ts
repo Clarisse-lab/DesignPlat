@@ -11,6 +11,11 @@ export interface FeedDraft {
   /** Peça salva no Supabase que este rascunho está editando (null: ainda não salva). */
   pecaId?: string | null;
   titulo?: string | null;
+  /**
+   * Assinatura do conteúdo no último salvamento no Supabase. Se o rascunho do navegador não bate
+   * com ela, ele tem mudanças que nunca foram salvas na peça: vira peça nova em vez de gravar por cima.
+   */
+  syncKey?: string | null;
   /** Legenda do post (gerada junto com o carrossel). */
   legenda?: string | null;
   brand: FeedBrand;
@@ -29,8 +34,8 @@ export function isFeedDraft(value: unknown): value is FeedDraft {
 
 /** Rascunho do post (Feed ou Story), salvo no navegador para não se perder ao recarregar. */
 export function useFeedDraft(storageKey: string, initialDraft: () => FeedDraft) {
-  const [stored, setDraft] = usePersistentState(storageKey, initialDraft, isFeedDraft);
+  const [stored, setDraft, loaded] = usePersistentState(storageKey, initialDraft, isFeedDraft);
   // Rascunhos salvos antes de novas opções existirem ganham os valores padrão.
   const draft: FeedDraft = { ...stored, style: resolveFeedStyle(stored.style) };
-  return { draft, setDraft, reset: () => setDraft(initialDraft()) };
+  return { draft, setDraft, loaded, reset: () => setDraft(initialDraft()) };
 }
