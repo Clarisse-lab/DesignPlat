@@ -65,6 +65,15 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Trocar de cliente salva o carrossel do anterior e começa limpo com o kit do novo (antes ficavam os slides do outro cliente).
   - O rascunho do navegador guarda a assinatura do que está igual no Supabase (`syncKey`). Se ao abrir a página ele aponta para uma peça mas tem mudanças nunca salvas, vira peça nova. Foi assim que a peça da Sabrina "Antes de contratar uma agência…" acabou com o carrossel da Black Friday (Template Hosaka).
 
+- **Biblioteca de estilos e Colagem editorial** (11/11/2026). Análise do Instagram da Sabrina em `claude/estilos-sabrina-nascimento.md` (projeto do Claude): ela alterna 5 linguagens.
+  - Tabela `design_estilos` (nome, cliente ou agência, padrão, dados: modelos, cores e fonte, estilo e orientação das imagens, tom do texto) e rota `/api/estudio/estilos`. Um padrão por cliente.
+  - **Gerar carrossel**: campo **Estilo**, que já vem no padrão do cliente. Com estilo, a IA usa só os modelos dele e segue o tom e a orientação de imagens; o carrossel recebe as cores e a fonte do estilo (logo, nome e @ continuam os do kit). Sem estilo, funciona como antes.
+  - Fonte **Máquina de escrever** (Cutive, OFL, em WOFF em `public/fonts`).
+  - Livre: fundos **Papel amassado**, **Papel no tom do destaque** e **Escuro com grão** (SVG puro, sem imagem); destaque **Caneta marca-texto**; imagem como **recorte de colagem** (sem moldura, some no papel).
+  - Estilo de imagem **Recorte retrô** (gravura P&B em meio-tom, fundo branco), usado sozinho nos recortes.
+  - Modelos **Colagem: capa / item / fechamento**; os títulos encolhem sozinhos para caber (`fitFontSize`).
+  - Primeiro estilo: **Colagem editorial**, padrão da Sabrina. Próximos: Cultura pop escuro, Texto nativo vinho, Meme comparativo; Tweet ligado ao kit.
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).

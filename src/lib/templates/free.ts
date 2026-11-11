@@ -87,11 +87,67 @@ export type FreeColor = (typeof FREE_COLORS)[number];
 export const FREE_COLOR_LABELS: Record<FreeColor, string> = { texto: "Texto", fundo: "Fundo", destaque: "Destaque", branco: "Branco", preto: "Preto" };
 
 /** Como as palavras entre **asteriscos** aparecem. */
-export const FREE_HIGHLIGHTS = ["cor", "marca", "negrito"] as const;
+export const FREE_HIGHLIGHTS = ["cor", "marca", "negrito", "caneta"] as const;
 export type FreeHighlight = (typeof FREE_HIGHLIGHTS)[number];
-export const FREE_HIGHLIGHT_LABELS: Record<FreeHighlight, string> = { cor: "Na cor de destaque", marca: "Marca-texto", negrito: "Só negrito" };
+export const FREE_HIGHLIGHT_LABELS: Record<FreeHighlight, string> = {
+  cor: "Na cor de destaque",
+  marca: "Marca-texto",
+  negrito: "Só negrito",
+  caneta: "Caneta marca-texto (faixa clara atrás)",
+};
 
-export const FREE_BACKGROUNDS = ["fundo", "destaque", "foto"] as const;
+export const FREE_BACKGROUNDS = ["fundo", "destaque", "foto", "papel", "papel-destaque", "grao"] as const;
+export type FreeBackground = (typeof FREE_BACKGROUNDS)[number];
+export const FREE_BACKGROUND_LABELS: Record<FreeBackground, string> = {
+  fundo: "Cor de fundo",
+  destaque: "Cor de destaque",
+  foto: "Foto",
+  papel: "Papel amassado",
+  "papel-destaque": "Papel no tom do destaque",
+  grao: "Escuro com grão",
+};
+
+// ---------- Texturas (SVG puro, sem imagem: funcionam no preview e no renderizador) ----------
+
+const svgUrl = (w: number, h: number, body: string) =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}'>${body}</svg>`)}")`;
+
+/** Papel amassado: ruído iluminado de lado (vincos) multiplicado sobre a cor, mais um grão fino. */
+function paperCss(base: string, width: number, height: number): string {
+  const crumple = svgUrl(
+    width,
+    height,
+    "<filter id='c' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='0.006 0.008' numOctaves='4' seed='11'/>" +
+      "<feDiffuseLighting lighting-color='#fff' surfaceScale='9' diffuseConstant='1'><feDistantLight azimuth='225' elevation='45'/></feDiffuseLighting>" +
+      "<feComponentTransfer><feFuncR type='linear' slope='0.38' intercept='0.68'/><feFuncG type='linear' slope='0.38' intercept='0.68'/><feFuncB type='linear' slope='0.38' intercept='0.68'/></feComponentTransfer>" +
+      "</filter><rect width='100%' height='100%' filter='url(#c)'/>",
+  );
+  const grain = svgUrl(
+    300,
+    300,
+    "<filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.10 0'/></filter><rect width='100%' height='100%' filter='url(#g)'/>",
+  );
+  return `background-color:${base};background-image:${grain},${crumple};background-size:300px 300px,100% 100%;background-blend-mode:normal,multiply;`;
+}
+
+/** Fundo escuro com grão claro e um leve vinhetado. */
+function grainCss(base: string): string {
+  const grain = svgUrl(
+    300,
+    300,
+    "<filter id='g'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='5' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.09 0'/></filter><rect width='100%' height='100%' filter='url(#g)'/>",
+  );
+  return `background-color:${base};background-image:${grain},radial-gradient(ellipse at 50% 40%,rgba(255,255,255,.06),rgba(0,0,0,.35) 75%);background-size:300px 300px,100% 100%;`;
+}
+
+/** Mistura duas cores hex (t = quanto de `a`). */
+function mixHex(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [ar, ag, ab] = p(a);
+  const [br, bg, bb] = p(b);
+  const m = (x: number, y: number) => Math.round(x * t + y * (1 - t)).toString(16).padStart(2, "0");
+  return `#${m(ar, br)}${m(ag, bg)}${m(ab, bb)}`;
+}
 export const FREE_OVERLAYS = ["nenhuma", "suave", "base", "forte", "total"] as const;
 export const FREE_OVERLAY_LABELS: Record<(typeof FREE_OVERLAYS)[number], string> = {
   nenhuma: "Sem sombra",
@@ -136,6 +192,8 @@ export interface FreeElement {
   /** Fundo da etiqueta ou do cartão. */
   fill?: FreeColor | "vidro";
   radius?: number;
+  /** Imagem como recorte (colagem): inteira, sem moldura, com o fundo claro da imagem sumindo no papel. */
+  cutout?: boolean;
   /** Print de conversa: estilo, nome do contato (sem ele, o nome do cliente) e horário. */
   chat?: FreeChatStyle;
   contact?: string;
@@ -283,9 +341,18 @@ export function renderFreeSlide(params: {
   const font = TITLE_FONTS[params.titleFont] ?? TITLE_FONTS.sans;
   const photo = free.bg === "foto" ? safeImageSrc(params.image) : null;
 
-  const pageBg = free.bg === "destaque" ? accent : photo ? "#000000" : bg;
+  const paperTint = mixHex(accent.length === 7 ? accent : "#4F46E5", "#FFFFFF", 0.38);
+  const darkBase = contrastRatio(bg, "#FFFFFF") > 7 ? bg : "#141414";
+  const pageBg =
+    free.bg === "destaque" ? accent : photo ? "#000000" : free.bg === "papel-destaque" ? paperTint : free.bg === "grao" ? darkBase : bg;
   // Cor "texto" se adapta ao fundo: sobre foto ou destaque fica legível sozinha.
-  const autoText = photo ? "#FFFFFF" : free.bg === "destaque" ? onAccent : text;
+  const autoText = photo ? "#FFFFFF" : free.bg === "destaque" ? onAccent : free.bg === "grao" ? "#F5F5F4" : text;
+  const textureCss =
+    free.bg === "papel" || free.bg === "papel-destaque"
+      ? paperCss(pageBg, width, height)
+      : free.bg === "grao"
+        ? grainCss(pageBg)
+        : "";
   const colorOf = (c: FreeColor | undefined, fallback: string) =>
     c === "fundo" ? bg : c === "destaque" ? accent : c === "branco" ? "#FFFFFF" : c === "preto" ? "#0B0B0C" : c === "texto" ? autoText : fallback;
 
@@ -294,7 +361,11 @@ export function renderFreeSlide(params: {
   const hlColor =
     free.bg === "destaque" && !photo
       ? [text, bg].sort((a, b) => contrastRatio(b, onAccent) - contrastRatio(a, onAccent))[0]
-      : accent;
+      : free.bg === "papel-destaque"
+        ? text
+        : accent;
+  /** Caneta marca-texto: faixa clara da cor de destaque atrás das palavras (o texto continua na cor dele). */
+  const penColor = free.bg === "grao" ? mixHex(accent.length === 7 ? accent : "#4F46E5", "#000000", 0.75) : mixHex(accent.length === 7 ? accent : "#4F46E5", "#FFFFFF", 0.62);
   const glass = photo ? "rgba(255,255,255,.16)" : `color-mix(in srgb,${autoText} 12%,transparent)`;
   const logoSrc = safeImageSrc(brand.logo);
   const handle = brand.handle.trim().replace(/^@+/, "");
@@ -315,7 +386,8 @@ export function renderFreeSlide(params: {
     const align = el.align === "center" || el.align === "right" ? el.align : "left";
     const color = colorOf(el.color, autoText);
     const box = `left:${x}%;top:${y}%;width:${w}%;text-align:${align};`;
-    const highlight = el.highlight === "marca" ? " hl-marca" : el.highlight === "negrito" ? " hl-negrito" : " hl-cor";
+    const highlight =
+      el.highlight === "marca" ? " hl-marca" : el.highlight === "negrito" ? " hl-negrito" : el.highlight === "caneta" ? " hl-caneta" : " hl-cor";
     const upper = el.upper ? "text-transform:uppercase;" : "";
     const family =
       el.family && el.family !== "corpo" && TITLE_FONTS[el.family]
@@ -327,7 +399,7 @@ export function renderFreeSlide(params: {
             : null;
     const fontStyle = (
       (family
-        ? `font-family:${family.stack};font-weight:${family.weight};line-height:${family.uppercase ? 1 : 1.06};letter-spacing:${family.tracking};${family.uppercase ? "text-transform:uppercase;" : ""}`
+        ? `font-family:${family.stack};font-weight:${family.weight};line-height:${el.kind === "texto" ? 1.32 : family.uppercase ? 1 : 1.06};letter-spacing:${family.tracking};${family.uppercase ? "text-transform:uppercase;" : ""}`
         : `font-family:"Inter",Arial,sans-serif;font-weight:400;line-height:1.4;`) +
       (el.italic ? "font-style:italic;" : "") +
       (el.shadow ? "text-shadow:0 4px 24px rgba(0,0,0,.55);" : "")
@@ -373,6 +445,11 @@ export function renderFreeSlide(params: {
       case "imagem": {
         const src = safeImageSrc(el.image);
         const radius = clamp(el.radius, 0, 200, 24);
+        if (src && el.cutout) {
+          // Recorte de colagem: imagem inteira; "multiply" faz o fundo claro dela sumir no papel. O filtro leva o
+          // "quase branco" do fundo da imagem a branco puro (senão sobra um retângulo um pouco mais escuro).
+          return `<div class="el" style="${box}height:${h}%"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:contain;object-position:center bottom;display:block;mix-blend-mode:multiply;filter:brightness(1.1) contrast(1.12)"/></div>`;
+        }
         return src
           ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
           : `<div class="el img-empty" style="${box}height:${h}%;border-radius:${radius}px">Imagem</div>`;
@@ -407,7 +484,7 @@ export function renderFreeSlide(params: {
 
   const css = `
 body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif}
-.root{position:relative;width:${width}px;height:${height}px;overflow:hidden}
+.root{position:relative;width:${width}px;height:${height}px;overflow:hidden;${textureCss}}
 .photo{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;max-width:none}
 .shade{position:absolute;inset:0;background:${photo ? OVERLAY_CSS[free.overlay] ?? "transparent" : "transparent"}}
 .el{position:absolute;overflow-wrap:break-word}
@@ -415,6 +492,7 @@ body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif
 strong{font-weight:700}
 .hl-cor strong{color:${hlColor}}
 .hl-negrito strong{font-weight:800}
+.hl-caneta strong{font-weight:inherit;background:linear-gradient(transparent 18%,${penColor} 18%,${penColor} 92%,transparent 92%);padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .hl-marca strong{background:${hlColor};color:${contrastText(hlColor)};padding:0 .14em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .tag{display:inline-block;padding:.45em 1.1em;border-radius:999px;font-weight:700;letter-spacing:.04em;line-height:1.2}
 .profile{display:flex;align-items:center;gap:.7em}
@@ -501,6 +579,38 @@ const chatText = (text: string, fallback: string[]) => {
 /** Rodapé padrão: perfil à esquerda e "Arraste →" à direita. */
 const footer = (y = 90): FreeElement[] => [el("perfil", { x: 8, y, w: 55, size: 24 }), el("arraste", { x: 62, y: y + 1.5, w: 30, size: 22 })];
 const photoBg = (hasImage: boolean, overlay: FreeSlide["overlay"]): Pick<FreeSlide, "bg" | "overlay"> => ({ bg: hasImage ? "foto" : "fundo", overlay });
+
+/** Título inteiro na caneta marca-texto (quando o texto ainda não marca palavras com **). */
+const penAll = (text: string) => (!text.trim() || text.includes("**") ? text : `**${text.trim()}**`);
+/**
+ * Maior tamanho de fonte (até `base`) em que o texto cabe na caixa, por estimativa: largura média
+ * de caractere `charEm` (em "em") e entrelinha `lineH`. Os modelos têm posições fixas, então um título
+ * longo precisa encolher para não invadir o elemento de baixo. Caixa em % de 1080×1350.
+ */
+export function fitFontSize(text: string, base: number, boxW: number, boxH: number, charEm: number, lineH: number, min = 36): number {
+  const plain = text.replace(/\*\*/g, "").trim();
+  if (!plain) return base;
+  const widthPx = (boxW / 100) * 1080;
+  const heightPx = (boxH / 100) * 1350;
+  for (let size = base; size > min; size -= 2) {
+    const perLine = Math.max(1, Math.floor(widthPx / (size * charEm)));
+    // Quebra por palavra: conta linhas encaixando palavra por palavra.
+    let lines = 1;
+    let used = 0;
+    for (const word of plain.split(/\s+/)) {
+      const len = word.length;
+      if (used && used + 1 + len > perLine) {
+        lines++;
+        used = len;
+      } else used += (used ? 1 : 0) + len;
+    }
+    if (lines * size * lineH <= heightPx) return size;
+  }
+  return min;
+}
+
+/** @ do cliente pequeno, centralizado no rodapé, na cor de destaque. */
+const handleFooter = (y = 94): FreeElement => el("texto", { x: 15, y, w: 70, size: 20, align: "center", color: "destaque", text: "{usuario}" });
 
 export const FREE_PRESETS: FreePreset[] = [
   // ---------- Capas ----------
@@ -628,6 +738,31 @@ export const FREE_PRESETS: FreePreset[] = [
         el("perfil", { x: 10, y: 20, w: 80, size: 30, variant: "tweet", verified: true }),
         el("texto", { x: 10, y: 31, w: 80, size: 44, text: [ph(title, "Você ainda perde horas fazendo isso na mão?"), body].filter(Boolean).join("\n") }),
         el("imagem", { x: 10, y: 58, w: 80, h: 28, radius: 28 }),
+      ],
+    }),
+  },
+  // ---------- Colagem editorial (papel, máquina de escrever, recortes retrô) ----------
+  {
+    id: "colagem-capa",
+    label: "Colagem: capa",
+    category: "capa",
+    build: ({ title, body }) => ({
+      bg: "papel",
+      overlay: "nenhuma",
+      elements: [
+        el("imagem", { x: 26, y: 42, w: 74, h: 50, cutout: true }),
+        el("titulo", {
+          x: 7,
+          y: 6,
+          w: 86,
+          // Montserrat 800: ~0,62 em por caractere; espaço até a linha de apoio (y 34).
+          size: fitFontSize(ph(title, "**7 coisas** que travam o seu marketing"), 100, 86, 26, 0.62, 1.08),
+          family: "geometric",
+          highlight: "caneta",
+          text: ph(title, "**7 coisas** que travam o seu marketing"),
+        }),
+        el("texto", { x: 7, y: 34, w: 66, size: 44, family: "maquina", highlight: "caneta", text: penAll(ph(body, "e o que fazer no lugar")) }),
+        handleFooter(),
       ],
     }),
   },
@@ -785,6 +920,37 @@ export const FREE_PRESETS: FreePreset[] = [
         el("perfil", { x: 10, y: 18, w: 80, size: 28, variant: "tweet", verified: true }),
         el("texto", { x: 10, y: 28, w: 80, size: 38, text: ph([title, body].filter(Boolean).join("\n"), "Texto do post, como um tweet: direto e opinativo.") }),
         el("imagem", { x: 10, y: 56, w: 80, h: 30, radius: 26 }),
+      ],
+    }),
+  },
+  {
+    id: "colagem-item",
+    label: "Colagem: item",
+    category: "interno",
+    build: ({ title, body }) => ({
+      bg: "papel",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", {
+          x: 8,
+          y: 10,
+          w: 84,
+          // Cutive: ~0,5 em por caractere; espaço até o texto (y 30).
+          size: fitFontSize(ph(title, "1. Inventar urgência para forçar uma compra."), 60, 84, 17, 0.53, 1.12),
+          family: "maquina",
+          highlight: "caneta",
+          text: penAll(ph(title, "1. Inventar urgência para forçar uma compra.")),
+        }),
+        el("texto", {
+          x: 9,
+          y: 30,
+          w: 52,
+          size: 34,
+          family: "maquina",
+          text: ph(body, "“Últimas vagas” que nunca acabam.\n\nUrgência funciona. Mas quando ela é falsa, você treina o público a não acreditar em você."),
+        }),
+        el("imagem", { x: 56, y: 46, w: 40, h: 44, cutout: true }),
+        handleFooter(),
       ],
     }),
   },
@@ -961,6 +1127,27 @@ export const FREE_PRESETS: FreePreset[] = [
         el("titulo", { x: 8, y: 46, w: 84, size: 80, align: "center", text: ph(title, "Quer mais conteúdos **assim**?") }),
         el("texto", { x: 12, y: 64, w: 76, size: 32, align: "center", text: ph(body, "Siga {usuario} e ative as notificações.") }),
         el("etiqueta", { x: 25, y: 80, w: 50, size: 30, align: "center", text: "SEGUIR", fill: "destaque" }),
+      ],
+    }),
+  },
+  {
+    id: "colagem-final",
+    label: "Colagem: fechamento",
+    category: "final",
+    build: ({ title, body }) => ({
+      bg: "papel-destaque",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", {
+          x: 9,
+          y: 24,
+          w: 78,
+          size: fitFontSize(ph(title, "Seu marketing não precisa parecer com o de todo mundo para vender."), 74, 78, 30, 0.5, 1.1),
+          family: "maquina",
+          text: ph(title, "Seu marketing não precisa parecer com o de todo mundo para vender."),
+        }),
+        el("texto", { x: 9, y: 56, w: 74, size: 36, family: "maquina", text: ph(body, "Se você quer uma comunicação mais clara e coerente, comente CONSULTORIA.") }),
+        handleFooter(),
       ],
     }),
   },

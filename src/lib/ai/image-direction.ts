@@ -85,7 +85,7 @@ export function textZoneOfFree(free: Pick<FreeSlide, "elements"> | null | undefi
 
 // ---------- Estilos ----------
 
-export const IMAGE_STYLES = ["auto", "natural", "editorial", "produto", "conceito"] as const;
+export const IMAGE_STYLES = ["auto", "natural", "editorial", "produto", "conceito", "recorte"] as const;
 export type ImageStyle = (typeof IMAGE_STYLES)[number];
 
 export const IMAGE_STYLE_LABELS: Record<ImageStyle, { label: string; hint: string }> = {
@@ -94,6 +94,7 @@ export const IMAGE_STYLE_LABELS: Record<ImageStyle, { label: string; hint: strin
   editorial: { label: "Editorial", hint: "Foto de revista, luz pensada" },
   produto: { label: "Produto / objeto", hint: "Objeto em destaque, still" },
   conceito: { label: "Conceito", hint: "Metáfora visual da ideia" },
+  recorte: { label: "Recorte retrô", hint: "Gravura P&B em meio-tom, fundo branco, para colagem" },
 };
 
 const STYLE_PROMPTS: Record<ImageStyle, string> = {
@@ -106,6 +107,8 @@ const STYLE_PROMPTS: Record<ImageStyle, string> = {
     "STYLE: high-end product still life. One hero object, clean considered set, controlled soft shadows, tactile materials and texture, crisp focus on the object.",
   conceito:
     "STYLE: conceptual visual metaphor of the idea, simple and bold, one clear focal element, artful lighting; no literal infographic and no text.",
+  recorte:
+    "STYLE: a single vintage black-and-white halftone engraving cutout (1950s print, high contrast, visible dot screen) of ONE object or anonymous retro figure that works as a visual metaphor of the idea. Isolated on a PURE WHITE, completely plain background: no shadow on the floor, no scenery, no frame, no color except black, grays and white. The object fills most of the frame and is fully visible (not cropped).",
 };
 
 // ---------- Eixos de variação ----------
@@ -202,12 +205,14 @@ export function buildImageInstructions(input: ImageDirectionInput): string {
       .filter(Boolean)
       .join("\n");
   }
-  const zone = wide ? null : ZONE_PROMPTS[input.textZone ?? "inferior"];
+  // Recorte vai num espaço de imagem, isolado: sem área de texto e sem luz/fundo sorteados.
+  const cutout = input.style === "recorte";
+  const zone = wide || cutout ? null : ZONE_PROMPTS[input.textZone ?? "inferior"];
   return [
-    BASE_RULES,
+    cutout ? BASE_RULES.replace("The background must have real texture, depth or atmosphere: never a flat, empty, uniform color.", "") : BASE_RULES,
     zone ? `TEXT AREA: ${zone}` : "",
     STYLE_PROMPTS[input.style ?? "auto"],
-    input.variation?.length ? `LOOK (unless the user's description says otherwise): ${input.variation.filter(Boolean).join("; ")}.` : "",
+    input.variation?.length && !cutout ? `LOOK (unless the user's description says otherwise): ${input.variation.filter(Boolean).join("; ")}.` : "",
     input.hasFaces ? FACE_RULE : "",
     input.hasReferences ? "Use the other reference image(s) only as visual style/composition inspiration." : "",
     input.paletteHint ? `Brand colors to echo subtly in props, clothing or light (never as a flat fill): ${input.paletteHint}.` : "",

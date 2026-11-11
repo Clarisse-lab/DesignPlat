@@ -24,6 +24,8 @@ export interface ImageAiContext {
   currentImage: string | null;
   /** Onde o layout do slide põe o texto (a IA deixa essa área livre). Sem ela: embaixo. */
   textZone?: TextZone;
+  /** Estilo que já vem marcado. */
+  defaultStyle?: ImageStyle;
 }
 
 async function toDataUrl(blob: Blob, maxSide: number) {
@@ -52,7 +54,7 @@ export function ImageAiDialog({
   const [uploads, setUploads] = useState<string[]>([]);
   const [useCurrent, setUseCurrent] = useState(false);
   const [mode, setMode] = useState<"criar" | "editar">("criar");
-  const [style, setStyle] = useState<ImageStyle>("auto");
+  const [style, setStyle] = useState<ImageStyle>(context.defaultStyle ?? "auto");
   const [zone, setZone] = useState<TextZone>(context.textZone ?? "inferior");
   /** Combinações já usadas neste diálogo: "Outra versão" pede uma diferente. */
   const [used, setUsed] = useState<string[]>([]);

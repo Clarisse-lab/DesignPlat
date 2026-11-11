@@ -9,6 +9,7 @@ import { ImageAiDialog } from "@/components/editor/ImageAiDialog";
 import { ImageSourceButtons, type ImageAiBase } from "@/components/editor/ImageSourceButtons";
 import { Field, inputClass, MenuButton, Segmented } from "@/components/editor/ui";
 import {
+  FREE_BACKGROUND_LABELS,
   FREE_CHAT_LABELS,
   FREE_CHAT_STYLES,
   FREE_COLOR_LABELS,
@@ -176,15 +177,27 @@ export function FreeEditor({
       <div className="space-y-3 rounded-xl border border-line p-3">
         <Field label="Fundo">
           <Segmented
-            value={free.bg}
+            value={free.bg === "fundo" || free.bg === "destaque" || free.bg === "foto" ? free.bg : "textura"}
             options={[
               { value: "fundo", label: "Cor de fundo" },
               { value: "destaque", label: "Cor de destaque" },
               { value: "foto", label: "Foto" },
+              { value: "textura", label: "Textura" },
             ]}
-            onChange={(bg) => onChange({ ...free, bg })}
+            onChange={(bg) => onChange({ ...free, bg: bg === "textura" ? "papel" : bg })}
           />
         </Field>
+        {(free.bg === "papel" || free.bg === "papel-destaque" || free.bg === "grao") && (
+          <Field label="Textura">
+            <select value={free.bg} onChange={(e) => onChange({ ...free, bg: e.target.value as FreeSlide["bg"] })} className={inputClass}>
+              {(["papel", "papel-destaque", "grao"] as const).map((b) => (
+                <option key={b} value={b}>
+                  {FREE_BACKGROUND_LABELS[b]}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
         {free.bg === "foto" && (
           <>
             {imageControls}
@@ -375,7 +388,21 @@ export function FreeEditor({
           )}
 
           {selected.kind === "imagem" && (
-            <ImageSourceButtons value={selected.image} onChange={(img) => update(selected.id, { image: img })} onError={onError} imageAi={imageAi} label="Imagem" />
+            <div className="space-y-2">
+              <ImageSourceButtons
+                value={selected.image}
+                onChange={(img) => update(selected.id, { image: img })}
+                onError={onError}
+                imageAi={imageAi}
+                label="Imagem"
+                aiStyle={selected.cutout ? "recorte" : undefined}
+              />
+              <Check
+                label="Recorte de colagem (sem moldura; o fundo claro da imagem some no fundo do slide)"
+                checked={Boolean(selected.cutout)}
+                onChange={(cutout) => update(selected.id, { cutout })}
+              />
+            </div>
           )}
 
           {selected.kind === "grade" && (
