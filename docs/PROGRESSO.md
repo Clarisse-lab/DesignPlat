@@ -134,3 +134,9 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Botões **Desfazer** e **Refazer** no topo do editor (atalhos Ctrl+Z e Ctrl+Shift+Z / Ctrl+Y). Valem para telas, estilo e marca; mudanças seguidas (arrastar, digitar) contam como um passo. Imagens da IA chegando sozinhas não viram passo; gerar carrossel, abrir peça e trocar de cliente começam um histórico novo.
 - Gerador: saiu o seletor "Estilo revista / Layouts clássicos" (sempre revista). Os layouts clássicos continuam no seletor "Layout" de cada tela.
 - O seletor de estilo agora se chama "Estilo de referência".
+
+## Salvar como estilo e referência com várias telas (PR #31)
+- **Mais → Salvar como estilo…** (Post de Feed): guarda o desenho do carrossel aberto como estilo de referência. A tela 1 vira a capa, a última o fechamento e as do meio (uma de cada desenho, até 4) as internas; cores e fonte vêm da seção Estilo. Dá para salvar para o cliente (e marcar como padrão) ou para a agência, escolher o estilo das fotos e o tom do texto. Se o carrossel foi gerado com um estilo, dá para substituí-lo.
+- Estilos com telas próprias (`dados.layouts` em design_estilos): no Gerar carrossel, a IA escreve cada tela no tamanho do texto do modelo (blocos, listas, número de fotos) e escolhe qual interna usar (`variante`); o editor monta as telas a partir dos modelos e gera as fotos nos espaços de foto.
+- **Copiar de uma referência**: agora recebe capa, tela interna e fechamento (uma, duas ou as três) e a IA recria cada uma como tela Livre editável (antes era um HTML fixo de uma tela só). Com carrossel aberto, cada tela ganha o desenho da posição dela, mantendo texto e fotos.
+- Cartão fino (divisória) sem sombra e com altura mínima de 0,1%.

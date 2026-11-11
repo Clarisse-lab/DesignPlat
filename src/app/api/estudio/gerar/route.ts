@@ -7,6 +7,7 @@ import { z } from "zod";
 import { GenerationError } from "@/lib/ai/claude";
 import { generateStudioCarousel } from "@/lib/ai/carousel-from-copy";
 import { isResponse, requireMember } from "@/lib/server/auth";
+import { hasLayouts } from "@/lib/estilos";
 import { loadEstilo } from "@/lib/server/estilos";
 import { FREE_PRESETS } from "@/lib/templates/free";
 import { rest } from "@/lib/server/supabase";
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   if (estiloId && !estilo) return NextResponse.json({ error: "Estilo não encontrado." }, { status: 404 });
   // Estilo cujos modelos não existem nesta versão (ex.: a versão nova ainda não terminou de publicar):
   // melhor avisar do que gerar com modelos quaisquer e cobrar por isso.
-  if (estilo && !estilo.dados.modelos.some((m: string) => FREE_PRESETS.some((p) => p.id === m))) {
+  if (estilo && !hasLayouts(estilo.dados.layouts) && !estilo.dados.modelos.some((m: string) => FREE_PRESETS.some((p) => p.id === m))) {
     return NextResponse.json(
       { error: `Os modelos do estilo "${estilo.nome}" ainda não existem nesta versão da plataforma. Espere a publicação terminar (alguns minutos) e recarregue a página.` },
       { status: 409 },
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       pauta: pauta ? { titulo: pauta.titulo, formato: pauta.formato, angulo: pauta.angulo, copy: pauta.copy! } : null,
       tema: tema ?? null,
       prefer: [capa ? `use ${capa} na capa` : "", interno ? `use ${interno} em todas as telas internas que não forem lista, dado ou citação` : ""].filter(Boolean).join("; ") || null,
-      estilo: estilo ? { nome: estilo.nome, modelos: estilo.dados.modelos, texto: estilo.dados.texto, cenaImagem: estilo.dados.imagem?.cena ?? "" } : null,
+      estilo: estilo ? { nome: estilo.nome, modelos: estilo.dados.modelos, texto: estilo.dados.texto, cenaImagem: estilo.dados.imagem?.cena ?? "", layouts: estilo.dados.layouts ?? null } : null,
     });
     await rest("uso_ia", {
       method: "POST",

@@ -388,7 +388,7 @@ export function renderFreeSlide(params: {
     const x = clamp(el.x, -20, 100, 8);
     const y = clamp(el.y, -20, 100, 8);
     const w = clamp(el.w, 2, 140, 80);
-    const h = clamp(el.h, 1, 140, 20);
+    const h = clamp(el.h, 0.1, 140, 20);
     const size = clamp(el.size, 10, 400, 40);
     const align = el.align === "center" || el.align === "right" ? el.align : "left";
     const color = colorOf(el.color, autoText);
@@ -496,7 +496,9 @@ export function renderFreeSlide(params: {
       case "cartao": {
         const fill = el.fill === "vidro" ? glass : colorOf(el.fill as FreeColor | undefined, "#FFFFFF");
         const radius = clamp(el.radius, 0, 200, 36);
-        return `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;background:${fill};box-shadow:0 30px 60px rgba(0,0,0,.18)"></div>`;
+        // Linha fina (divisória) não leva sombra.
+        const shadow = h < 2 ? "" : "box-shadow:0 30px 60px rgba(0,0,0,.18)";
+        return `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;background:${fill};${shadow}"></div>`;
       }
     }
   });
@@ -1355,4 +1357,145 @@ export function rebuildWithPreset(free: FreeSlide, id: string, fallback: { title
     return e;
   });
   return { ...next, elements, pan: free.pan ?? null };
+}
+
+// ---------- Telas salvas como estilo (modelos próprios do cliente) ----------
+
+/** Título "de verdade" (não um número de lista, "?" ou aspas soltas). */
+const isMainText = (t: string | undefined) => Boolean(t?.trim()) && !/^\{n\}$|^[\d+%\-x.,\s]{1,6}$|^[“"?]$/.test((t ?? "").trim());
+
+/** O título principal da tela: o maior título com texto. */
+function mainTitle(free: FreeSlide): FreeElement | undefined {
+  return free.elements
+    .filter((e) => e.kind === "titulo" && isMainText(e.text))
+    .sort((a, b) => (b.size ?? 96) * b.w - (a.size ?? 96) * a.w)[0];
+}
+
+const isToken = (t: string | undefined) => /^\{\w+\}$/.test((t ?? "").trim());
+
+/** O texto de apoio principal: o texto mais longo que não é marca ({usuario}, {n}...). */
+function mainBody(free: FreeSlide): FreeElement | undefined {
+  return free.elements
+    .filter((e) => e.kind === "texto" && (e.text ?? "").trim() && !isToken(e.text))
+    .sort((a, b) => (b.text ?? "").length - (a.text ?? "").length)[0];
+}
+
+/**
+ * Blocos de texto de conteúdo de um modelo salvo, de cima para baixo: textos com letra de leitura
+ * (26 px ou mais). Textos pequenos (rodapé, data, "Powered by") e marcas ({usuario}) ficam fixos.
+ */
+function bodyBlocks(free: FreeSlide): FreeElement[] {
+  const blocks = free.elements
+    .filter((e) => e.kind === "texto" && (e.text ?? "").trim() && !isToken(e.text) && (e.size ?? 38) >= 26)
+    .sort((a, b) => a.y - b.y);
+  if (blocks.length) return blocks;
+  const main = mainBody(free);
+  return main ? [main] : [];
+}
+
+const isListText = (t: string | undefined) => (t ?? "").split("\n").filter((l) => /^\s*([→•\-–✓✔]|\d+[.)])/.test(l)).length >= 2;
+
+const plainLength = (t: string | undefined) => (t ?? "").replace(/\*\*/g, "").trim().length;
+
+/** Tira as fotos e o que é do carrossel (pedaço de foto espalhada) para guardar a tela como modelo. */
+export function stripTemplate(free: FreeSlide): FreeSlide {
+  return {
+    bg: free.bg,
+    overlay: free.overlay,
+    progress: free.progress,
+    preset: null,
+    pan: null,
+    elements: free.elements.map((e) => {
+      const out: FreeElement = { ...e };
+      if (e.kind === "imagem") out.image = null;
+      if (e.kind === "grade") out.images = [];
+      return out;
+    }),
+  };
+}
+
+/** O que a IA precisa saber de um modelo salvo para escrever o texto do tamanho certo. */
+export interface TemplateInfo {
+  titleChars: number;
+  bodyChars: number;
+  /** Blocos de texto (de cima para baixo): tamanho e se é lista. */
+  blocks: { chars: number; list: boolean }[];
+  hasTag: boolean;
+  photos: number;
+}
+
+export function templateInfo(tpl: FreeSlide): TemplateInfo {
+  const photos =
+    (tpl.bg === "foto" ? 1 : 0) +
+    tpl.elements.reduce((n, e) => n + (e.kind === "imagem" ? 1 : e.kind === "grade" ? gridSlots(e.grid) : 0), 0);
+  return {
+    titleChars: plainLength(mainTitle(tpl)?.text),
+    bodyChars: bodyBlocks(tpl).reduce((n, e) => n + plainLength(e.text), 0),
+    blocks: bodyBlocks(tpl).map((e) => ({ chars: plainLength(e.text), list: isListText(e.text) })),
+    hasTag: tpl.elements.some((e) => e.kind === "etiqueta" && (e.text ?? "").trim()),
+    photos,
+  };
+}
+
+/** O modelo pede foto (fundo, imagem ou grade)? */
+export const templateWantsImage = (tpl: FreeSlide) => templateInfo(tpl).photos > 0;
+
+/**
+ * Monta uma tela a partir de um modelo salvo: o título e o texto principais recebem o conteúdo novo
+ * (com a fonte encolhendo se o texto for maior que o do modelo); textos fixos (@, rodapé, data) ficam.
+ * A etiqueta só muda quando vem uma; sem foto, o fundo de foto vira cor de fundo.
+ */
+export function fillTemplate(tpl: FreeSlide, input: { title: string; body: string; tag?: string; hasImage: boolean }): FreeSlide {
+  const titleEl = mainTitle(tpl);
+  const blocks = bodyBlocks(tpl);
+  const shrink = (el: FreeElement, text: string): number | undefined => {
+    const before = plainLength(el.text);
+    const after = plainLength(text);
+    if (!el.size || !before || after <= before * 1.1) return el.size;
+    return Math.max(Math.round(el.size * 0.6), Math.round(el.size * Math.sqrt(before / after)));
+  };
+  // Modelo sem título separado (ex.: tweet): título e texto vão juntos no texto principal.
+  const bodyText = titleEl ? input.body : [input.title, input.body].filter((t) => t.trim()).join("\n\n");
+  // Vários blocos: o texto vem separado por linha em branco, um pedaço por bloco (o último leva o resto).
+  const parts = blocks.length > 1 ? bodyText.split(/\n\s*\n/).map((p) => p.trim()) : [bodyText.trim()];
+  const textOf = (k: number) => (k < blocks.length - 1 ? (parts[k] ?? "") : parts.slice(k).filter(Boolean).join("\n\n"));
+  const elements = tpl.elements
+    .map((e): FreeElement | null => {
+      const fresh = { ...e, id: newElementId() };
+      if (titleEl && e.id === titleEl.id) return { ...fresh, text: input.title, size: shrink(e, input.title) };
+      const k = blocks.findIndex((b) => b.id === e.id);
+      if (k >= 0) {
+        const text = textOf(k);
+        return text ? { ...fresh, text, size: shrink(e, text) } : null;
+      }
+      if (e.kind === "etiqueta" && input.tag?.trim()) return { ...fresh, text: e.upper === false ? input.tag.trim() : input.tag.trim().toUpperCase() };
+      return fresh;
+    })
+    .filter((e): e is FreeElement => e !== null);
+  return { ...tpl, bg: tpl.bg === "foto" && !input.hasImage ? "fundo" : tpl.bg, elements, preset: null, pan: null };
+}
+
+/** Assinatura do desenho de uma tela (tipos e posições), para não salvar duas telas internas iguais. */
+export function layoutSignature(free: FreeSlide): string {
+  const r = (n: number | undefined) => Math.round((n ?? 0) / 4);
+  return [free.bg, free.overlay, ...free.elements.map((e) => `${e.kind}:${r(e.x)},${r(e.y)},${r(e.w)},${r(e.h)},${e.grid ?? ""}`)].join("|");
+}
+
+/** Título, texto e etiqueta principais de uma tela Livre (o que a equipe escreveu nela). */
+export function freeTexts(free: FreeSlide): { title: string; body: string; tag: string } {
+  return {
+    title: mainTitle(free)?.text ?? "",
+    body: bodyBlocks(free)
+      .map((e) => e.text ?? "")
+      .join("\n\n"),
+    tag: free.elements.find((e) => e.kind === "etiqueta")?.text ?? "",
+  };
+}
+
+/** Fotos de uma tela Livre, na ordem dos espaços (imagens e grades) e o fundo por último. */
+export function freePhotos(free: FreeSlide | null | undefined, bgImage: string | null | undefined): string[] {
+  const slots = (free?.elements ?? []).flatMap((e) =>
+    e.kind === "imagem" ? (e.image ? [e.image] : []) : e.kind === "grade" ? (e.images ?? []).filter((x): x is string => Boolean(x)) : [],
+  );
+  return bgImage ? [...slots, bgImage] : slots;
 }

@@ -46,7 +46,7 @@ import {
   type FeedStyle,
 } from "@/lib/templates/feed";
 import { browserFontCss } from "@/lib/templates/fonts";
-import { ReferencePanel, type AiReferenceResult } from "./ReferencePanel";
+import { ReferencePanel, type AiReferenceLayouts } from "./ReferencePanel";
 import { SlideFields } from "./SlideFields";
 import { StylePanel } from "./StylePanel";
 import { FEED_STORAGE_KEY, POST_MODES, type PostMode } from "./modes";
@@ -62,9 +62,16 @@ import {
   SEMANTIC_PRESETS,
   CHAT_PRESETS,
   gridSlots,
+  fillTemplate,
+  freePhotos,
+  freeTexts,
+  newElementId,
+  templateInfo,
   type FreeElement,
   type FreeSlide,
 } from "@/lib/templates/free";
+import { hasLayouts, type EstiloLayouts } from "@/lib/estilos";
+import { SaveStyleDialog } from "./SaveStyleDialog";
 import { sendThumbnail } from "@/lib/client/generated-images";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from "./useFeedDraft";
@@ -102,6 +109,9 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [message, setMessage] = useState<NoticeMessage | null>(null);
   const { clients, enabled: studioEnabled } = useStudioClients();
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
+  const [saveStyleOpen, setSaveStyleOpen] = useState(false);
+  /** Muda quando um estilo é salvo: o Gerar carrossel recarrega a lista e já escolhe o salvo. */
+  const [savedEstilo, setSavedEstilo] = useState<{ id: string; version: number } | null>(null);
   const [section, setSection] = useState<SidebarSection | null>("conteudo");
   // Link do Escritório: /feed?cliente=<slug>&pauta=<id> já escolhe o cliente e a pauta.
   const [linkParams, setLinkParams] = useState<{ cliente: string | null; pauta: number | null } | null>(null);
@@ -295,6 +305,14 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     return valid.find((m) => presetById(m).category === want) ?? valid.find((m) => presetById(m).category === "interno") ?? valid[0];
   };
 
+  /** Tela própria do estilo para a posição: capa na 1ª, fechamento na última, interna (pela variante) no meio. */
+  const pickTemplate = (layouts: EstiloLayouts, k: number, total: number, variante: number): FreeSlide | null => {
+    const interno = layouts.internos.length ? layouts.internos[Math.abs(variante) % layouts.internos.length] : null;
+    if (k === 0) return layouts.capa ?? interno ?? null;
+    if (k === total - 1) return layouts.final ?? interno ?? null;
+    return interno ?? null;
+  };
+
   /** Monta os slides a partir das telas geradas, com os modelos escolhidos pela IA (revista) ou os layouts clássicos. */
   const applyGenerated = async (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
     // Sem pergunta: a janela de confirmação chegava depois de 20-40 s de espera e o Chrome a
@@ -306,6 +324,35 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const jobs: ImageJob[] = [];
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
+      const layouts = options.estilo?.dados.layouts;
+      if (options.style === "revista" && hasLayouts(layouts)) {
+        // Estilo com telas próprias (salvas pela equipe): o desenho vem delas, a IA só escreveu o texto.
+        const tpl = pickTemplate(layouts, k, list.length, it.variante ?? 0);
+        if (tpl) {
+          const prompt = (it.imagem ?? "").trim();
+          const info = templateInfo(tpl);
+          const wantsImage = prompt.length >= 5 && info.photos > 0 && (options.images === "todas" || (options.images === "capa" && k === 0));
+          const free = fillTemplate(tpl, { title: it.titulo, body: it.texto, tag: it.etiqueta, hasImage: wantsImage });
+          const slide = newFeedSlide({ layout: "livre", ...base, free });
+          if (wantsImage) {
+            const style: ImageStyle = options.estilo?.dados.imagem?.estilo ?? "auto";
+            const scenes = prompt.split("||").map((p) => p.trim()).filter((p) => p.length >= 5);
+            // Os espaços de foto são preenchidos em ordem (imagens e grades), e o fundo de foto por último.
+            const slotZones: { zone: TextZone; aspect?: string }[] = free.elements.flatMap((e) =>
+              e.kind === "imagem"
+                ? [{ zone: "nenhuma" as TextZone }]
+                : e.kind === "grade"
+                  ? Array.from({ length: gridSlots(e.grid) }, () => ({ zone: (e.dim ? "inferior" : "nenhuma") as TextZone, aspect: e.grid === "2h" ? "3:2" : undefined }))
+                  : [],
+            );
+            if (free.bg === "foto") slotZones.push({ zone: textZoneOfFree(free) });
+            slotZones.forEach((slot, c) =>
+              jobs.push({ id: slide.id, prompt: scenes[c] ?? scenes[0] ?? prompt, face: c === 0 && Boolean(it.rosto), zone: slot.zone, style, aspect: slot.aspect }),
+            );
+          }
+          return slide;
+        }
+      }
       if (options.style === "revista") {
         const chosen = it.modelo && presetById(it.modelo).id === it.modelo ? it.modelo : fallbackModel(it);
         const id = keepInStyle(chosen, k, list.length, options.estilo?.dados.modelos);
@@ -344,6 +391,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       legenda,
       pecaId: null,
       titulo: null,
+      estilo: options.estilo ? { id: options.estilo.id, nome: options.estilo.nome } : null,
       style: look ? { ...d.style, ...(look.palette ? { palette: look.palette } : {}), ...(look.titleFont ? { titleFont: look.titleFont } : {}) } : d.style,
     }));
     setActiveIndex(0);
@@ -550,10 +598,45 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     );
   };
 
-  const applyAiStyle = (result: AiReferenceResult) => {
-    updateStyle({ ...result.style, customLayout: result.customLayout });
-    updateActive({ layout: "referencia", icon: active.icon ?? result.icon });
-    showInfo(`Layout "${result.name}" criado e aplicado no slide atual. Ele fica disponível como "Da referência" para os outros slides.`);
+  /**
+   * Telas copiadas da referência (Livre, editáveis). Com carrossel aberto, cada tela ganha o desenho da
+   * posição dela (capa, interna, fechamento) mantendo texto e fotos; sem carrossel, entram as próprias
+   * telas da referência com os textos dela, para editar e salvar como estilo.
+   */
+  const applyAiLayouts = (result: AiReferenceLayouts) => {
+    const { layouts } = result;
+    const fresh = (tpl: FreeSlide): FreeSlide => ({ ...tpl, elements: tpl.elements.map((e) => ({ ...e, id: newElementId() })) });
+    setDraft((d) => {
+      let next: FeedEditorSlide[];
+      if (!draftHasContent) {
+        next = [layouts.capa, ...layouts.internos, layouts.final]
+          .filter((tpl): tpl is FreeSlide => Boolean(tpl))
+          .map((tpl) => {
+            const t = freeTexts(tpl);
+            return newFeedSlide({ layout: "livre", title: t.title, body: t.body, free: fresh(tpl) });
+          });
+      } else {
+        next = d.slides.map((sl, k) => {
+          const tpl = pickTemplate(layouts, k, d.slides.length, k - 1);
+          if (!tpl || sl.free?.pan) return sl;
+          const texts = sl.layout === "livre" && sl.free ? freeTexts(sl.free) : { title: sl.title, body: sl.body, tag: "" };
+          const photos = freePhotos(sl.layout === "livre" ? sl.free : null, sl.image);
+          let out: FeedEditorSlide = {
+            ...sl,
+            layout: "livre",
+            image: null,
+            free: fillTemplate(tpl, { title: texts.title || sl.title, body: texts.body || sl.body, tag: texts.tag, hasImage: photos.length > 0 }),
+          };
+          for (const photo of photos) out = placeImage(out, photo);
+          return out;
+        });
+      }
+      return { ...d, slides: next.length ? next : d.slides, style: { ...d.style, palette: result.palette, titleFont: result.titleFont } };
+    });
+    setSelectedElement(null);
+    showInfo(
+      `Estilo "${result.name}" copiado como telas Livre: ajuste o que quiser e guarde em Mais → Salvar como estilo.`,
+    );
   };
 
   const preview = (
@@ -662,6 +745,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       ? [
           { label: "Abrir peça ou template…", onClick: pieces.openBrowser },
           { label: "Salvar como template", hint: "Para reaproveitar o design com outros textos", onClick: () => pieces.save(true) },
+          ...(mode !== "feed" ? [] : [{ label: "Salvar como estilo…", hint: "Capa, internas e fechamento para o Gerar carrossel", onClick: () => setSaveStyleOpen(true) }]),
         ]
       : []),
     ...(isStory ? [{ label: "Importar do Post de Feed", onClick: importFromFeed }] : []),
@@ -730,6 +814,22 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         </div>
       </div>
       {pieces.dialog}
+      {saveStyleOpen && (
+        <SaveStyleDialog
+          slides={slides}
+          palette={style.palette}
+          titleFont={style.titleFont}
+          cliente={draft.cliente ?? null}
+          current={draft.estilo ?? null}
+          onClose={() => setSaveStyleOpen(false)}
+          onSaved={(estilo) => {
+            setSaveStyleOpen(false);
+            setDraft((d) => ({ ...d, estilo: { id: estilo.id, nome: estilo.nome } }));
+            setSavedEstilo((v) => ({ id: estilo.id, version: (v?.version ?? 0) + 1 }));
+            showInfo(`Estilo "${estilo.nome}" salvo. Ele já aparece em Conteúdo → Gerar carrossel → Estilo de referência.`);
+          }}
+        />
+      )}
       {showAll && (
         <AllSlidesView
           htmls={allHtmls}
@@ -789,6 +889,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
                 initialPautaId={linkParams?.pauta ?? null}
                 legenda={draft.legenda ?? null}
                 onGenerated={applyGenerated}
+                preferEstilo={savedEstilo}
                 onError={showError}
                 onInfo={showInfo}
               />
@@ -833,7 +934,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
               size={style.size}
               customLayout={style.customLayout}
               onInspire={applyInspiration}
-              onAiStyle={applyAiStyle}
+              onAiLayouts={applyAiLayouts}
               onRemoveCustomLayout={() => updateStyle({ customLayout: null })}
               onError={showError}
             />
