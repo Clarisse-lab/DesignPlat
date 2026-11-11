@@ -231,7 +231,13 @@ export function useSavedPieces({
           ? `Salvo às ${autoStatus.at}`
           : null;
 
-  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro", flush };
+  /** Salva agora (se houver mudança) e devolve o id da peça, ou null se não deu para salvar. */
+  const ensureSaved = async (): Promise<string | null> => {
+    await flush();
+    return latest.current.pecaId ?? createdId.current;
+  };
+
+  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro", flush, ensureSaved };
 }
 
 function PiecesDialog({
