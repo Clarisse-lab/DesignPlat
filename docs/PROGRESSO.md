@@ -78,6 +78,12 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Capa da Colagem: título bem maior (até 136 px, encolhe para caber), linha de apoio em **faixa sólida** (destaque novo: cor de destaque escurecida até o branco ficar legível) e **Mancha de tinta** (elemento novo do Livre, forma orgânica com borda irregular) atrás da figura recortada.
   - **Ver todas as telas** no topo do preview: grade com o carrossel inteiro (3, 4 ou 5 por linha), com o mesmo HTML do PNG; clicar numa tela abre ela no editor.
 
+- **Estilo Foto documental (Fellipe Barcelos)** (11/11/2026). Análise em `claude/estilos-fellipe-barcelos.md` (projeto do Claude): 5 linguagens; a documental tem os posts com mais salvamentos (90 e 120).
+  - Fonte **Marcador** (Permanent Marker, Apache 2.0, em WOFF).
+  - Imagem e grade com **Escurecer a foto** (`dim`); a grade de fotos passa a ser preenchida posição por posição pelo gerador.
+  - Modelos **Documental: capa / duas fotos / fechamento da marca**. Na tela de duas fotos, a IA descreve duas cenas separadas por `||` e o gerador pede uma imagem 3:2 para cada metade.
+  - Estilo **Foto documental** gravado em `design_estilos` como padrão do Fellipe (fotos no estilo Foto natural, cena documental brasileira, voz do "irmão", fechamento da Mentoria Na Bala).
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).

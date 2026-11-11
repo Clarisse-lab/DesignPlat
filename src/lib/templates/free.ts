@@ -196,6 +196,8 @@ export interface FreeElement {
   radius?: number;
   /** Imagem como recorte (colagem): inteira, sem moldura, com o fundo claro da imagem sumindo no papel. */
   cutout?: boolean;
+  /** Escurece a foto (imagem ou grade) em %, para o texto branco por cima ler bem. */
+  dim?: number;
   /** Print de conversa: estilo, nome do contato (sem ele, o nome do cliente) e horário. */
   chat?: FreeChatStyle;
   contact?: string;
@@ -463,8 +465,9 @@ export function renderFreeSlide(params: {
           // "quase branco" do fundo da imagem a branco puro (senão sobra um retângulo um pouco mais escuro).
           return `<div class="el" style="${box}height:${h}%"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:contain;object-position:center bottom;display:block;mix-blend-mode:multiply;filter:brightness(1.1) contrast(1.12)"/></div>`;
         }
+        const dimLayer = el.dim ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${clamp(el.dim, 0, 90, 0) / 100})"></div>` : "";
         return src
-          ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+          ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${dimLayer}</div>`
           : `<div class="el img-empty" style="${box}height:${h}%;border-radius:${radius}px">Imagem</div>`;
       }
       case "grade": {
@@ -476,7 +479,7 @@ export function renderFreeSlide(params: {
         const cells = Array.from({ length: slots }, (_, i) => {
           const src = safeImageSrc(el.images?.[i]);
           return src
-            ? `<div style="border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/></div>`
+            ? `<div style="border-radius:${radius}px;overflow:hidden;position:relative"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${el.dim ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${clamp(el.dim, 0, 90, 0) / 100})"></div>` : ""}</div>`
             : `<div class="img-empty" style="border-radius:${radius}px;position:static">Foto ${i + 1}</div>`;
         }).join("");
         return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
@@ -791,6 +794,32 @@ export const FREE_PRESETS: FreePreset[] = [
       ],
     }),
   },
+  // ---------- Foto documental (fotos reais do cotidiano, escurecidas, frase branca) ----------
+  {
+    id: "doc-capa",
+    label: "Documental: capa",
+    category: "capa",
+    photo: true,
+    build: ({ title, body, hasImage }) => ({
+      ...photoBg(hasImage, "forte"),
+      elements: [
+        el("texto", { x: 10, y: 33, w: 80, size: 30, align: "center", upper: true, text: ph(body, "Crenças procrastinadoras ×") }),
+        el("titulo", {
+          x: 6,
+          y: 39,
+          w: 88,
+          // Marcador: ~0,62 em por caractere, caixa alta; até perto do rodapé.
+          size: fitFontSize(ph(title, "Crenças na bala"), 124, 88, 34, 0.66, 1.05),
+          family: "marcador",
+          align: "center",
+          highlight: "cor",
+          text: ph(title, "Crenças na bala"),
+          shadow: true,
+        }),
+        el("texto", { x: 15, y: 94, w: 70, size: 20, align: "center", color: "branco", text: "{usuario}" }),
+      ],
+    }),
+  },
   {
     id: "capa-conversa",
     label: "Print de conversa",
@@ -976,6 +1005,43 @@ export const FREE_PRESETS: FreePreset[] = [
         }),
         el("imagem", { x: 56, y: 46, w: 40, h: 44, cutout: true }),
         handleFooter(),
+      ],
+    }),
+  },
+  {
+    id: "doc-dividida",
+    label: "Documental: duas fotos",
+    category: "interno",
+    // Duas fotos empilhadas, cada uma com uma frase: em cima o título, embaixo o texto.
+    build: ({ title, body }) => ({
+      bg: "fundo",
+      overlay: "nenhuma",
+      elements: [
+        el("grade", { x: 0, y: 0, w: 100, h: 100, grid: "2h", gap: 0, radius: 0, dim: 42 }),
+        el("titulo", {
+          x: 9,
+          y: 33,
+          w: 82,
+          size: fitFontSize(ph(title, "“Eu nunca consigo terminar nada.”"), 46, 82, 15, 0.52, 1.18),
+          family: "sans",
+          align: "center",
+          color: "branco",
+          highlight: "negrito",
+          text: ph(title, "“Eu nunca consigo terminar nada.”"),
+          shadow: true,
+        }),
+        el("texto", {
+          x: 9,
+          y: 81,
+          w: 82,
+          size: fitFontSize(ph(body, "“Eu sou capaz de concluir o que começo, mesmo em pequenos passos.”"), 46, 82, 12, 0.52, 1.18),
+          family: "sans",
+          align: "center",
+          color: "branco",
+          text: ph(body, "“Eu sou capaz de concluir o que começo, mesmo em pequenos passos.”"),
+          shadow: true,
+        }),
+        el("texto", { x: 15, y: 95.5, w: 70, size: 18, align: "center", color: "branco", text: "{usuario}" }),
       ],
     }),
   },
@@ -1173,6 +1239,29 @@ export const FREE_PRESETS: FreePreset[] = [
         }),
         el("texto", { x: 9, y: 56, w: 74, size: 36, family: "maquina", text: ph(body, "Se você quer uma comunicação mais clara e coerente, comente CONSULTORIA.") }),
         handleFooter(),
+      ],
+    }),
+  },
+  {
+    id: "doc-final",
+    label: "Documental: fechamento da marca",
+    category: "final",
+    build: ({ title, body }) => ({
+      bg: "grao",
+      overlay: "nenhuma",
+      elements: [
+        el("titulo", {
+          x: 9,
+          y: 26,
+          w: 82,
+          size: fitFontSize(ph(title, "Na **Mentoria Na Bala**, você tem acompanhamento e um ambiente com pessoas que também decidiram crescer."), 78, 82, 34, 0.42, 1.08),
+          family: "display",
+          highlight: "cor",
+          text: ph(title, "Na **Mentoria Na Bala**, você tem acompanhamento e um ambiente com pessoas que também decidiram crescer."),
+        }),
+        el("texto", { x: 9, y: 66, w: 82, size: 36, align: "center", text: ph(body, "Quer viver na bala?") }),
+        el("etiqueta", { x: 9, y: 73, w: 82, size: 30, align: "center", fill: "destaque", text: ph("", "Clique no link da bio.") }),
+        el("texto", { x: 15, y: 94, w: 70, size: 20, align: "center", text: "{usuario}" }),
       ],
     }),
   },

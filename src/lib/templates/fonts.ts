@@ -31,6 +31,9 @@ export const FONT_FILES = [
   // Cutive (OFL, Google Fonts): máquina de escrever proporcional. Em WOFF (o ambiente que gerou não tinha woff2).
   { file: "cutive-latin-400-normal.woff", family: "Cutive", weight: 400, range: LATIN_RANGE },
   { file: "cutive-latin-ext-400-normal.woff", family: "Cutive", weight: 400, range: LATIN_EXT_RANGE },
+  // Permanent Marker (Apache 2.0, Google Fonts): letra de marcador grossa.
+  { file: "permanent-marker-latin-400-normal.woff", family: "Permanent Marker", weight: 400, range: LATIN_RANGE },
+  { file: "permanent-marker-latin-ext-400-normal.woff", family: "Permanent Marker", weight: 400, range: LATIN_EXT_RANGE },
 ] as const;
 
 /** Formato do @font-face pela extensão do arquivo. */
@@ -52,6 +55,7 @@ export const TITLE_FONTS = {
   display: { label: "Impacto", stack: '"Bebas Neue", Impact, sans-serif', weight: 400, scale: 1.3, uppercase: true, tracking: "0.01em" },
   geometric: { label: "Geométrica", stack: '"Montserrat", Arial, sans-serif', weight: 800, scale: 0.92, uppercase: false, tracking: "-0.02em" },
   hand: { label: "Manuscrita", stack: '"Caveat", cursive', weight: 700, scale: 1.3, uppercase: false, tracking: "0" },
+  marcador: { label: "Marcador", stack: '"Permanent Marker", "Caveat", cursive', weight: 400, scale: 1, uppercase: true, tracking: "0.01em" },
   maquina: { label: "Máquina de escrever", stack: '"Cutive", "Courier New", serif', weight: 400, scale: 0.9, uppercase: false, tracking: "-0.01em" },
 } as const;
 

@@ -43,12 +43,15 @@ const MODEL_GUIDE: Record<string, string> = {
   "capa-notificacoes": "capa com notificações na tela bloqueada (uma por linha no texto) e título embaixo; bom para prova social ou urgência",
   "colagem-capa": "capa de colagem em papel amassado: título forte com caneta marca-texto, linha de apoio (etiqueta) e um recorte retrô P&B (objeto-metáfora ou figura anônima)",
   "colagem-item": "tela de colagem: título em máquina de escrever com caneta marca-texto (numerado em listas), texto curto e um recorte retrô P&B que é a metáfora da tela",
+  "doc-capa": "capa com uma foto documental inteira, escurecida, e título em letra de marcador; etiqueta vira a linha pequena acima do título",
+  "doc-dividida": "tela com duas fotos documentais empilhadas, cada uma com uma frase: o título vai na foto de cima e o texto na de baixo (comparação, antes/depois, ordem curta + ação)",
+  "doc-final": "fechamento da marca em fundo escuro: frase de venda no título (palavras da marca em **asteriscos**), pergunta curta no texto e o botão na etiqueta",
   "colagem-final": "fechamento de colagem em papel no tom do destaque: frase forte e chamada para comentar",
   "interno-conversa": "tela com print de conversa (mensagens no texto, uma por linha; 'Eu:' para a resposta); só para depoimento ou diálogo real da copy",
 };
 const MODEL_IDS = FREE_PRESETS.map((p) => p.id) as [string, ...string[]];
 const PHOTO_MODELS = new Set(FREE_PRESETS.filter((p) => p.photo).map((p) => p.id));
-const IMAGE_SLOT_MODELS = new Set(["colagem-capa", "colagem-item", "capa-tiras", "capa-3-tiras", "capa-tweet", "capa-manchete", "interno-cartao-foto", "interno-tweet", "interno-antes-depois", "interno-citacao-foto", "foto-com-texto"]);
+const IMAGE_SLOT_MODELS = new Set(["doc-dividida", "colagem-capa", "colagem-item", "capa-tiras", "capa-3-tiras", "capa-tweet", "capa-manchete", "interno-cartao-foto", "interno-tweet", "interno-antes-depois", "interno-citacao-foto", "foto-com-texto"]);
 export const modelUsesImage = (id: string) => PHOTO_MODELS.has(id) || IMAGE_SLOT_MODELS.has(id);
 
 export const studioCarouselSchema = z.object({
