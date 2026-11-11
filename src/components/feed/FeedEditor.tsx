@@ -12,7 +12,7 @@ interface ImageJob {
   /** Proporção pedida ao Gemini (ex.: "3:2" para a metade de cima ou de baixo da tela). */
   aspect?: string;
 }
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
 import { ReviewDialog } from "./ReviewDialog";
 import { ApprovalDialog, StatusChip, useApprovals } from "./ApprovalDialog";
@@ -118,13 +118,18 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [savedEstilo, setSavedEstilo] = useState<{ id: string; version: number } | null>(null);
   const [section, setSection] = useState<SidebarSection | null>("conteudo");
   // Link do Escritório: /feed?cliente=<slug>&pauta=<id> já escolhe o cliente e a pauta.
-  const [linkParams, setLinkParams] = useState<{ cliente: string | null; pauta: number | null } | null>(null);
+  const [linkParams, setLinkParams] = useState<{ cliente: string | null; pauta: number | null; peca: string | null } | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pauta = Number(params.get("pauta"));
     // Os parâmetros da URL só existem no navegador: leitura única ao montar.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLinkParams({ cliente: params.get("cliente"), pauta: Number.isInteger(pauta) && pauta > 0 ? pauta : null });
+    const peca = params.get("peca");
+    setLinkParams({
+      cliente: params.get("cliente"),
+      pauta: Number.isInteger(pauta) && pauta > 0 ? pauta : null,
+      peca: peca && /^[0-9a-f-]{36}$/.test(peca) ? peca : null,
+    });
   }, []);
 
   const safeIndex = Math.min(activeIndex, slides.length - 1);
@@ -766,6 +771,15 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     onSynced: (key) => setDraft((d) => (d.syncKey === key ? d : { ...d, syncKey: key })),
   });
   const approvals = useApprovals(studioEnabled ? (draft.pecaId ?? null) : null);
+  // Link do aviso no Escritório (/feed?peca=<id>): abre a peça uma vez, depois que o rascunho carregou.
+  const openedLink = useRef(false);
+  useEffect(() => {
+    const id = linkParams?.peca;
+    if (!id || openedLink.current || !studioEnabled || !draftChecked || draft.pecaId === id) return;
+    openedLink.current = true;
+    void pieces.openById(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkParams?.peca, studioEnabled, draftChecked]);
 
   // Ao abrir a página: se o rascunho do navegador aponta para uma peça mas tem mudanças que nunca
   // foram salvas nela (ex.: rascunho antigo, de antes do salvamento automático), ele vira peça nova.

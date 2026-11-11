@@ -8,7 +8,8 @@ import type { FeedRenderRequest } from "../feed/schema";
 import { renderPagesToPng } from "../render/html-to-image";
 import { renderHtmlToMp4 } from "../render/html-to-video";
 import { hasMotion, motionDuration, type FreeSlide } from "../templates/free";
-import { rest, signObjects, uploadObject } from "./supabase";
+import { driveConfigured, uploadPost } from "./drive";
+import { downloadObject, rest, signObjects, uploadObject } from "./supabase";
 
 export type AprovacaoStatus = "pendente" | "aprovado" | "ajustes";
 
@@ -29,7 +30,10 @@ export interface AprovacaoRow {
   respondido_por: string | null;
   respondido_em: string | null;
   criado_por: string | null;
+  criado_por_email: string | null;
   criado_em: string;
+  drive_url: string | null;
+  drive_erro: string | null;
 }
 
 export interface Comentario {
@@ -40,7 +44,7 @@ export interface Comentario {
   criado_em: string;
 }
 
-const COLS = "id,token,peca_id,cliente_slug,titulo,legenda,telas,status,respondido_por,respondido_em,criado_por,criado_em";
+const COLS = "id,token,peca_id,cliente_slug,titulo,legenda,telas,status,respondido_por,respondido_em,criado_por,criado_por_email,criado_em,drive_url,drive_erro";
 const pad = (i: number) => String(i + 1).padStart(2, "0");
 const animated = (slide: { layout: string; free?: unknown }) => slide.layout === "livre" && hasMotion(slide.free as FreeSlide | null);
 
@@ -52,6 +56,7 @@ export async function createAprovacao(input: {
   peca_id: string | null;
   cliente_slug: string | null;
   criado_por: string | null;
+  criado_por_email: string | null;
 }): Promise<AprovacaoRow> {
   const id = crypto.randomUUID();
   const token = randomBytes(18).toString("base64url");
@@ -86,6 +91,7 @@ export async function createAprovacao(input: {
       legenda: input.legenda,
       telas,
       criado_por: input.criado_por,
+      criado_por_email: input.criado_por_email,
     }),
   });
   return rows[0];
@@ -126,4 +132,61 @@ export async function setStatus(aprovacaoId: string, status: AprovacaoStatus, au
 
 export async function listByPeca(pecaId: string): Promise<AprovacaoRow[]> {
   return rest(`design_aprovacoes?peca_id=eq.${pecaId}&select=${COLS}&order=criado_em.desc&limit=10`);
+}
+
+/** Endereço público do site (atrás do proxy do Railway, o request.url é interno). */
+export function publicOrigin(request: Request): string {
+  const env = (process.env.DESIGN_PUBLIC_URL ?? "").trim().replace(/\/+$/, "");
+  if (env) return env;
+  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : new URL(request.url).origin;
+}
+
+/** Aviso para a equipe (o Escritório mostra no sino). Sem e-mail de quem criou: vai para todos. */
+export async function addAviso(a: { para_email: string | null; tipo: string; titulo: string; texto?: string | null; link?: string | null; cliente_slug?: string | null }): Promise<void> {
+  await rest("avisos", {
+    method: "POST",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ origem: "design", texto: null, link: null, cliente_slug: null, ...a }),
+  });
+}
+
+/**
+ * Peça aprovada → pasta do cliente no Drive (telas + legenda.txt). Guarda o link ou o erro na
+ * aprovação para a equipe ver (e poder tentar de novo).
+ */
+export async function sendToDrive(row: AprovacaoRow): Promise<string> {
+  try {
+    if (!driveConfigured()) throw new Error("Google Drive não configurado (GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET no Railway).");
+    if (!row.cliente_slug) throw new Error("A peça não tem cliente: não sei em que pasta salvar.");
+    const pastas = await rest<{ pasta_id: string }[]>(`design_drive_pastas?cliente_slug=eq.${row.cliente_slug}&select=pasta_id`);
+    if (!pastas[0]) throw new Error("Este cliente ainda não tem pasta do Drive definida (página Drive da plataforma).");
+    const arquivos = [];
+    for (const [i, t] of row.telas.entries()) {
+      const { bytes } = await downloadObject(t.path);
+      arquivos.push({ name: `tela-${pad(i)}.${t.tipo}`, mimeType: t.tipo === "mp4" ? "video/mp4" : "image/png", bytes });
+    }
+    if (row.legenda?.trim()) arquivos.push({ name: "legenda.txt", mimeType: "text/plain", bytes: Buffer.from(row.legenda, "utf8") });
+    const url = await uploadPost({ pastaCliente: pastas[0].pasta_id, titulo: row.titulo, quando: new Date(), arquivos });
+    await rest(`design_aprovacoes?id=eq.${row.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ drive_url: url, drive_erro: null, drive_em: new Date().toISOString() }),
+    });
+    return url;
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    await rest(`design_aprovacoes?id=eq.${row.id}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ drive_erro: msg.slice(0, 300) }),
+    }).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function loadById(id: string): Promise<AprovacaoRow | null> {
+  const rows = await rest<AprovacaoRow[]>(`design_aprovacoes?id=eq.${id}&select=${COLS}`);
+  return rows[0] ?? null;
 }

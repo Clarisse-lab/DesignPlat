@@ -13,6 +13,8 @@ export interface Aprovacao {
   criado_por: string | null;
   criado_em: string;
   telas: { path: string; tipo: "png" | "mp4" }[];
+  drive_url: string | null;
+  drive_erro: string | null;
   comentarios: { id: string; tela: number | null; autor: string; texto: string; criado_em: string }[];
 }
 
@@ -181,6 +183,41 @@ export function ApprovalDialog({
                   ))}
               </div>
             )}
+          </div>
+        )}
+
+        {latest?.status === "aprovado" && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-canvas px-3 py-2 text-[12.5px]">
+            {latest.drive_url ? (
+              <a href={latest.drive_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-medium text-accent underline">
+                <ExternalLink className="h-3.5 w-3.5" /> Salvo no Drive do cliente
+              </a>
+            ) : latest.drive_erro ? (
+              <span className="text-danger">Não foi para o Drive: {latest.drive_erro}</span>
+            ) : (
+              <span className="text-ink-soft">Enviando para o Drive do cliente…</span>
+            )}
+            {!latest.drive_url && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true);
+                  setError("");
+                  const response = await fetch(`/api/estudio/aprovacoes/${latest.id}/drive`, { method: "POST" });
+                  const data = await response.json().catch(() => ({}));
+                  if (!response.ok) setError(data.error ?? "Falha ao enviar ao Drive.");
+                  await reload();
+                  setBusy(false);
+                }}
+                className="font-medium text-ink-soft underline hover:text-ink"
+              >
+                Enviar de novo
+              </button>
+            )}
+            <a href="/drive" className="text-ink-faint underline hover:text-ink">
+              pastas do Drive
+            </a>
           </div>
         )}
 
