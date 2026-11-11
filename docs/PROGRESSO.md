@@ -74,6 +74,10 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - Modelos **Colagem: capa / item / fechamento**; os títulos encolhem sozinhos para caber (`fitFontSize`).
   - Primeiro estilo: **Colagem editorial**, padrão da Sabrina. Próximos: Cultura pop escuro, Texto nativo vinho, Meme comparativo; Tweet ligado ao kit.
 
+- **Capa da colagem com mais peso e "Ver todas as telas"** (11/11/2026):
+  - Capa da Colagem: título bem maior (até 136 px, encolhe para caber), linha de apoio em **faixa sólida** (destaque novo: cor de destaque escurecida até o branco ficar legível) e **Mancha de tinta** (elemento novo do Livre, forma orgânica com borda irregular) atrás da figura recortada.
+  - **Ver todas as telas** no topo do preview: grade com o carrossel inteiro (3, 4 ou 5 por linha), com o mesmo HTML do PNG; clicar numa tela abre ela no editor.
+
 ## Plano do Estúdio (estilo MyPostFlow), decidido em 04/11/2026
 1. Base: login, cliente e kit, Gemini (feito).
 2. Salvar peças e templates no Supabase (feito em 04/11/2026: tabela `design_pecas`, imagens no bucket privado `design`, botões Abrir, Salvar e Salvar como template no Post de Feed, Story e Apresentação).

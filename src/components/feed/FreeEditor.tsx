@@ -41,10 +41,10 @@ import { ICON_IDS, ICONS, type IconId } from "@/lib/templates/icons";
 import type { FeedBrand, FeedPalette } from "@/lib/templates/feed";
 
 const TEXT_KINDS = new Set(["titulo", "texto", "etiqueta", "arraste"]);
-const SIZED_KINDS = new Set(["imagem", "cartao", "grade", "conversa"]);
+const SIZED_KINDS = new Set(["imagem", "cartao", "grade", "conversa", "mancha"]);
 /** Sem alinhamento nem cor de texto próprios (o print segue o estilo dele). */
 const CHAT_KINDS = new Set(["conversa"]);
-const NO_TEXT_KINDS = new Set(["imagem", "cartao", "grade"]);
+const NO_TEXT_KINDS = new Set(["imagem", "cartao", "grade", "mancha"]);
 
 export const EMPTY_FREE: FreeSlide = { bg: "fundo", overlay: "nenhuma", elements: [] };
 
@@ -463,7 +463,7 @@ export function FreeEditor({
                 </select>
               </Field>
             )}
-            {(selected.kind === "etiqueta" || selected.kind === "cartao" || selected.kind === "icone" || (selected.kind === "perfil" && selected.variant === "chip")) && (
+            {(selected.kind === "etiqueta" || selected.kind === "cartao" || selected.kind === "icone" || selected.kind === "mancha" || (selected.kind === "perfil" && selected.variant === "chip")) && (
               <Field label="Fundo">
                 <select value={selected.fill ?? (selected.kind === "cartao" ? "branco" : "destaque")} onChange={(e) => update(selected.id, { fill: e.target.value as FreeElement["fill"] })} className={inputClass}>
                   {FREE_COLORS.map((c) => (
@@ -549,7 +549,7 @@ export function FreeEditor({
             {SIZED_KINDS.has(selected.kind) && (
               <Slider label="Altura" value={selected.h ?? 20} min={2} max={120} step={0.5} suffix="%" onChange={(h) => update(selected.id, { h })} />
             )}
-            {SIZED_KINDS.has(selected.kind) && selected.chat !== "notificacoes" && (
+            {SIZED_KINDS.has(selected.kind) && selected.chat !== "notificacoes" && selected.kind !== "mancha" && (
               <Slider label="Arredondado" value={selected.radius ?? 24} min={0} max={120} suffix="px" onChange={(radius) => update(selected.id, { radius })} />
             )}
           </div>

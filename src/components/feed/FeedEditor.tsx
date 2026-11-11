@@ -28,6 +28,7 @@ import {
   type MenuItem,
   type NoticeMessage,
 } from "@/components/editor/ui";
+import { AllSlidesView } from "@/components/editor/AllSlidesView";
 import { ClientPanel, useStudioClients, type StudioClient } from "@/components/editor/ClientPanel";
 import { useSavedPieces, type OpenedPiece } from "@/components/editor/SavedPieces";
 import { downloadFile, downloadRender } from "@/lib/client/api";
@@ -123,6 +124,18 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         sectionNumber: sectionNumberAt(slides, safeIndex),
       }),
     [active, brand, style, safeIndex, slides],
+  );
+
+  // "Ver todas as telas": o HTML de cada tela só é montado com a grade aberta.
+  const [showAll, setShowAll] = useState(false);
+  const allHtmls = useMemo(
+    () =>
+      showAll
+        ? slides.map((slide, i) =>
+            renderFeedSlide({ slide, brand, style, index: i, total: slides.length, fontCss: browserFontCss, sectionNumber: sectionNumberAt(slides, i) }),
+          )
+        : [],
+    [showAll, slides, brand, style],
   );
 
   const showError = (text: string) => setMessage({ kind: "error", text });
@@ -493,6 +506,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       index={safeIndex}
       total={slides.length}
       onNavigate={setActiveIndex}
+      onShowAll={() => setShowAll(true)}
       maxWidth={isStory ? 340 : isPresentation ? 760 : 400}
       overlay={isStory && showGuides ? <StoryGuides showStickerSlot={active.layout === "sticker"} /> : undefined}
       interactiveOverlay={
@@ -636,6 +650,20 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         </div>
       </div>
       {pieces.dialog}
+      {showAll && (
+        <AllSlidesView
+          htmls={allHtmls}
+          width={width}
+          height={height}
+          activeIndex={safeIndex}
+          onPick={(i) => {
+            setActiveIndex(i);
+            setSelectedElement(null);
+            setShowAll(false);
+          }}
+          onClose={() => setShowAll(false)}
+        />
+      )}
 
       <Notice message={message} onClose={() => setMessage(null)} />
 
