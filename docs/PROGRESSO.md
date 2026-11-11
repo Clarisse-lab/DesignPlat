@@ -160,3 +160,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - O cliente abre **/aprovar/<token>** sem login: vê as telas, comenta em cada uma (com o nome dele) e clica em **Aprovar** ou **Pedir ajustes** (com o motivo).
 - No editor, o botão vira o status do último link (Aguardando · n coment. / Aprovado / Ajustes) e é atualizado a cada 90 s; na janela, os comentários aparecem por tela, com atalho para a tela.
 - Tabelas `design_aprovacoes` e `design_aprovacao_comentarios` (RLS, só service role); arquivos em `design/aprovacoes/<id>/`. O link fica ligado à peça salva (a peça é salva na hora de gerar).
+
+## Desempenho (PR #35)
+- Página **/desempenho** (menu do topo), por cliente, com as métricas do Instagram já coletadas (vw_ig_posts_desempenho), últimos 120 dias. Nota = salvamentos + compartilhamentos por mil de alcance.
+- Mostra: formatos (carrossel × Reels × foto), **estilos feitos aqui** (nota e diferença para a mediana do cliente), capa animada × parada, os 12 melhores carrosséis (com link) e as peças publicadas.
+- Peça ↔ post: `design_pecas.post_media_id` (+ `post_vinculo` auto/manual). Ligação automática ao abrir a página quando a legenda publicada bate com a da peça (≥ 60% das palavras, publicado até 60 dias depois); ligar/desligar à mão na própria página.
