@@ -2,7 +2,7 @@
 
 // Login da equipe com o Google (Supabase Auth, o mesmo do Escritório).
 // Depois de entrar, todo fetch para /api/ deste site leva o token automaticamente.
-// A página interna /interno/* (usada pelo próprio servidor) não passa por aqui.
+// A página interna /interno/* (usada pelo próprio servidor) e o link de aprovação /aprovar/* não passam por aqui.
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -65,7 +65,8 @@ function patchFetch() {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const internal = pathname?.startsWith("/interno");
+  // /interno: usada pelo servidor; /aprovar: link de aprovação aberto pelo cliente (sem login).
+  const internal = pathname?.startsWith("/interno") || pathname?.startsWith("/aprovar");
   const [state, setState] = useState<GateState>({ kind: "loading" });
   const client = useRef<SupabaseClient | null>(null);
 

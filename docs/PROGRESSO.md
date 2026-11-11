@@ -154,3 +154,9 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Confere sem montar: fundo de foto ou espaço de foto vazio, grade incompleta, ** sem fechar, texto de exemplo, @ diferente do cliente, legenda (2200 caracteres, 30 hashtags, chamada para ação no fim).
 - **Português com IA** (centavos, uso_ia tipo "revisao"): só erros, com "Aplicar correção" que troca o trecho na tela ou na legenda.
 - Cada elemento do Livre sai com data-eid/data-kind no HTML para a revisão achar o que está errado; clicar no item leva até a tela e seleciona o elemento.
+
+## Aprovação do cliente por link (PR #34)
+- Botão **Enviar para aprovação** no topo do editor (Feed e Story): gera um link com as telas da versão atual (PNG; telas animadas em MP4) e a legenda. Copiar, mandar por WhatsApp ou abrir.
+- O cliente abre **/aprovar/<token>** sem login: vê as telas, comenta em cada uma (com o nome dele) e clica em **Aprovar** ou **Pedir ajustes** (com o motivo).
+- No editor, o botão vira o status do último link (Aguardando · n coment. / Aprovado / Ajustes) e é atualizado a cada 90 s; na janela, os comentários aparecem por tela, com atalho para a tela.
+- Tabelas `design_aprovacoes` e `design_aprovacao_comentarios` (RLS, só service role); arquivos em `design/aprovacoes/<id>/`. O link fica ligado à peça salva (a peça é salva na hora de gerar).

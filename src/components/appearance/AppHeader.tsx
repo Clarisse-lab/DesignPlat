@@ -14,18 +14,20 @@ const links = [
 
 export function AppHeader() {
   const pathname = usePathname();
+  // Link de aprovação: o cliente vê só a marca, sem o menu das ferramentas da equipe.
+  const isClient = pathname?.startsWith("/aprovar");
   return (
     <header className="mantora-header">
       <Link href="/" className="mantora-brand" aria-label="Design Mantora — início">
         <span>mantora<sup>®</sup></span><small>design</small>
       </Link>
-      <nav className="mantora-nav" aria-label="Ferramentas de criação">
+      {!isClient && <nav className="mantora-nav" aria-label="Ferramentas de criação">
         {links.map(([href, label]) => (
           <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}>
             {label}
           </Link>
         ))}
-      </nav>
+      </nav>}
       <ThemeToggle />
     </header>
   );

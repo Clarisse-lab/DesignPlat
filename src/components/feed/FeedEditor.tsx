@@ -15,6 +15,7 @@ interface ImageJob {
 import { useEffect, useMemo, useState } from "react";
 import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
 import { ReviewDialog } from "./ReviewDialog";
+import { ApprovalDialog, StatusChip, useApprovals } from "./ApprovalDialog";
 import { useUndoHistory } from "@/components/editor/useUndoHistory";
 import {
   Field,
@@ -572,14 +573,17 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     return true;
   };
 
+  const renderPayload = () => ({
+    brand,
+    style,
+    slides: slides.map(({ layout, title, body, image, icon, notes, free }) => ({ layout, title, body, image, icon, notes: notes || null, free: free ?? null })),
+  });
+  const [approvalOpen, setApprovalOpen] = useState(false);
+
   const doDownload = async (target: DownloadTarget) => {
     setDownloading(target);
     setMessage(null);
-    const payload = {
-      brand,
-      style,
-      slides: slides.map(({ layout, title, body, image, icon, notes, free }) => ({ layout, title, body, image, icon, notes: notes || null, free: free ?? null })),
-    };
+    const payload = renderPayload();
     try {
       if (target === "pdf" || target === "pptx") {
         await downloadFile(`/api/presentation/export?format=${target}`, payload, `apresentacao.${target}`);
@@ -761,6 +765,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     syncedKey: draft.syncKey ?? null,
     onSynced: (key) => setDraft((d) => (d.syncKey === key ? d : { ...d, syncKey: key })),
   });
+  const approvals = useApprovals(studioEnabled ? (draft.pecaId ?? null) : null);
 
   // Ao abrir a página: se o rascunho do navegador aponta para uma peça mas tem mudanças que nunca
   // foram salvas nela (ex.: rascunho antigo, de antes do salvamento automático), ele vira peça nova.
@@ -824,6 +829,16 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {studioEnabled && !isPresentation && (
+            <button
+              type="button"
+              onClick={() => setApprovalOpen(true)}
+              title="Link para o cliente ver, comentar e aprovar"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-ink-soft hover:text-ink"
+            >
+              {approvals.list[0] ? <StatusChip a={approvals.list[0]} /> : "Enviar para aprovação"}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setReview({ mode: "revisar" })}
@@ -875,6 +890,24 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         </div>
       </div>
       {pieces.dialog}
+      {approvalOpen && (
+        <ApprovalDialog
+          approvals={approvals.list}
+          reload={approvals.reload}
+          ensureSaved={pieces.ensureSaved}
+          buildRequest={() => ({
+            render: renderPayload(),
+            titulo: (draft.titulo || slides[0]?.title || config.title).replace(/\*\*/g, "").slice(0, 150) || "Post",
+            legenda: mode === "feed" ? (draft.legenda ?? null) : null,
+            cliente_slug: draft.cliente?.slug ?? null,
+          })}
+          onGoTo={(tela) => {
+            setApprovalOpen(false);
+            setActiveIndex(tela);
+          }}
+          onClose={() => setApprovalOpen(false)}
+        />
+      )}
       {review && (
         <ReviewDialog
           mode={review.mode}
