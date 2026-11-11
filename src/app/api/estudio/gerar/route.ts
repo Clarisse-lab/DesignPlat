@@ -8,6 +8,7 @@ import { GenerationError } from "@/lib/ai/claude";
 import { generateStudioCarousel } from "@/lib/ai/carousel-from-copy";
 import { isResponse, requireMember } from "@/lib/server/auth";
 import { loadEstilo } from "@/lib/server/estilos";
+import { FREE_PRESETS } from "@/lib/templates/free";
 import { rest } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -47,6 +48,14 @@ export async function POST(request: Request) {
 
   const estilo = estiloId ? await loadEstilo(estiloId).catch(() => null) : null;
   if (estiloId && !estilo) return NextResponse.json({ error: "Estilo não encontrado." }, { status: 404 });
+  // Estilo cujos modelos não existem nesta versão (ex.: a versão nova ainda não terminou de publicar):
+  // melhor avisar do que gerar com modelos quaisquer e cobrar por isso.
+  if (estilo && !estilo.dados.modelos.some((m: string) => FREE_PRESETS.some((p) => p.id === m))) {
+    return NextResponse.json(
+      { error: `Os modelos do estilo "${estilo.nome}" ainda não existem nesta versão da plataforma. Espere a publicação terminar (alguns minutos) e recarregue a página.` },
+      { status: 409 },
+    );
+  }
 
   let pauta: PautaRow | null = null;
   if (pautaId) {

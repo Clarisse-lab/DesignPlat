@@ -119,3 +119,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 - Geração com IA usando a chave real (até agora só foi testada contra uma API simulada): Carrossel Tweet e "Copiar estilo com IA".
 - Busca de fotos com a chave real do Pixabay (a rede da sessão de desenvolvimento bloqueia o Pixabay; conferir em produção).
+
+## Estilo de referência garantido (PR #28)
+- Com estilo escolhido, a IA só vê no catálogo os modelos do estilo.
+- Se ainda assim vier um modelo de fora, a tela é trocada pelo modelo do estilo da mesma posição (capa, interna, fechamento).
+- Se os modelos do estilo não existem na versão publicada (deploy ainda em andamento), a geração para com aviso em vez de gerar e cobrar com modelos quaisquer.
