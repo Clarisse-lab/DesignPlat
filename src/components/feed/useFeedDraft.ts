@@ -16,6 +16,8 @@ export interface FeedDraft {
    * com ela, ele tem mudanças que nunca foram salvas na peça: vira peça nova em vez de gravar por cima.
    */
   syncKey?: string | null;
+  /** Estilo de referência com que o carrossel foi gerado (para "Salvar como estilo" poder substituí-lo). */
+  estilo?: { id: string; nome: string } | null;
   /** Legenda do post (gerada junto com o carrossel). */
   legenda?: string | null;
   brand: FeedBrand;

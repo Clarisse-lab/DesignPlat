@@ -8,13 +8,22 @@ import { inferLayout, type InferredLayout } from "@/lib/reference/layout";
 import { readTextLines } from "@/lib/reference/ocr";
 import { extractPalette, type ExtractedPalette } from "@/lib/reference/palette";
 import { FEED_LAYOUT_LABELS, type CustomLayout, type FeedStyle } from "@/lib/templates/feed";
+import type { FreeSlide } from "@/lib/templates/free";
 
-export interface AiReferenceResult {
+/** Resposta de /api/feed/reference-layouts: telas Livre copiadas da referência. */
+export interface AiReferenceLayouts {
   name: string;
-  style: Pick<FeedStyle, "palette" | "titleFont" | "align" | "verticalAlign" | "decor">;
-  customLayout: CustomLayout;
-  icon: string | null;
+  palette: FeedStyle["palette"];
+  titleFont: FeedStyle["titleFont"];
+  layouts: { capa: FreeSlide | null; internos: FreeSlide[]; final: FreeSlide | null };
 }
+
+type Role = "capa" | "interno" | "final";
+const ROLES: { id: Role; label: string; hint: string }[] = [
+  { id: "capa", label: "Capa", hint: "1ª tela" },
+  { id: "interno", label: "Tela interna", hint: "uma do meio" },
+  { id: "final", label: "Fechamento", hint: "última tela" },
+];
 
 const OCR_STATUS: Record<string, string> = {
   "loading tesseract core": "Baixando o leitor de texto",
@@ -28,33 +37,41 @@ export function ReferencePanel({
   size,
   customLayout,
   onInspire,
-  onAiStyle,
+  onAiLayouts,
   onRemoveCustomLayout,
   onError,
 }: {
   size: FeedStyle["size"];
   customLayout: CustomLayout | null;
   onInspire: (result: { palette: ExtractedPalette; layout: InferredLayout | null }) => void;
-  onAiStyle: (result: AiReferenceResult) => void;
+  onAiLayouts: (result: AiReferenceLayouts) => void;
   onRemoveCustomLayout: () => void;
   onError: (message: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [target, setTarget] = useState<Role>("capa");
+  const [files, setFiles] = useState<Partial<Record<Role, File>>>({});
+  const [previews, setPreviews] = useState<Partial<Record<Role, string>>>({});
   const [busy, setBusy] = useState<"inspire" | "ai" | null>(null);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    // A URL do arquivo só existe depois de escolhido; é liberada ao trocar de imagem.
+    const urls: Partial<Record<Role, string>> = {};
+    for (const role of Object.keys(files) as Role[]) {
+      const f = files[role];
+      if (f) urls[role] = URL.createObjectURL(f);
+    }
+    // As URLs dos arquivos só existem depois de escolhidos; são liberadas ao trocar.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPreviewUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    setPreviews(urls);
+    return () => Object.values(urls).forEach((u) => u && URL.revokeObjectURL(u));
+  }, [files]);
+
+  const chosen = ROLES.filter((r) => files[r.id]);
+  const first = chosen[0] ? files[chosen[0].id] : undefined;
 
   const inspire = async () => {
+    const file = files.capa ?? first;
     if (!file) return;
     setBusy("inspire");
     setStatus("Analisando as cores");
@@ -77,19 +94,21 @@ export function ReferencePanel({
   };
 
   const copyWithAi = async () => {
-    if (!file) return;
+    if (!chosen.length) return;
     setBusy("ai");
-    setStatus("A IA está estudando a referência (pode levar até 1 minuto)");
+    setStatus(`A IA está estudando ${chosen.length > 1 ? `as ${chosen.length} telas` : "a referência"} (pode levar até 2 minutos)`);
     try {
-      const image = await imageFileToDataUrl(file, { maxSide: 1568, quality: 0.9 });
-      const response = await fetch("/api/feed/reference-style", {
+      const images = await Promise.all(
+        chosen.map(async (r) => ({ role: r.id, image: await imageFileToDataUrl(files[r.id]!, { maxSide: 1568, quality: 0.9 }) })),
+      );
+      const response = await fetch("/api/feed/reference-layouts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image, size }),
+        body: JSON.stringify({ images, size }),
       });
       const data = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof data?.error === "string" ? data.error : "Erro ao copiar o estilo.");
-      onAiStyle(data as AiReferenceResult);
+      onAiLayouts(data as AiReferenceLayouts);
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao copiar o estilo.");
     } finally {
@@ -99,7 +118,7 @@ export function ReferencePanel({
   };
 
   return (
-    <Panel title="Imagem de referência">
+    <Panel title="Telas de referência">
       <div className="space-y-3">
         <input
           ref={inputRef}
@@ -108,44 +127,54 @@ export function ReferencePanel({
           className="hidden"
           onChange={(e) => {
             const picked = e.target.files?.[0];
-            if (picked) setFile(picked);
+            if (picked) setFiles((f) => ({ ...f, [target]: picked }));
             e.target.value = "";
           }}
         />
-        {file && previewUrl ? (
-          <div className="flex items-center gap-3 rounded-xl border border-line p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="Referência" className="h-16 w-14 rounded-md object-cover" />
-            <span className="flex-1 truncate text-[12.5px] text-ink-soft">{file.name}</span>
-            <button
-              type="button"
-              onClick={() => {
-                setFile(null);
-                setPreviewUrl(null);
-              }}
-              disabled={busy !== null}
-              aria-label="Remover referência"
-              className="rounded-md p-1 text-ink-faint hover:text-danger"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            className="flex w-full flex-col items-center gap-1.5 rounded-xl border border-dashed border-line-strong px-3 py-5 text-[12.5px] text-ink-soft hover:text-ink"
-          >
-            <ImagePlus className="h-5 w-5" />
-            Enviar um post que você quer usar de inspiração
-          </button>
-        )}
+        <div className="grid grid-cols-3 gap-2">
+          {ROLES.map((r) => {
+            const url = previews[r.id];
+            return (
+              <div key={r.id} className="space-y-1 text-center">
+                {url ? (
+                  <div className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={r.label} className="aspect-[4/5] w-full rounded-lg border border-line object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setFiles((f) => ({ ...f, [r.id]: undefined }))}
+                      disabled={busy !== null}
+                      aria-label={`Remover ${r.label}`}
+                      className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-white hover:bg-black/80"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTarget(r.id);
+                      inputRef.current?.click();
+                    }}
+                    disabled={busy !== null}
+                    className="flex aspect-[4/5] w-full flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line-strong text-ink-soft hover:text-ink"
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    <span className="text-[10.5px] leading-tight">{r.hint}</span>
+                  </button>
+                )}
+                <span className="block text-[11.5px] font-medium text-ink-soft">{r.label}</span>
+              </div>
+            );
+          })}
+        </div>
 
         <div className="grid gap-2">
           <button
             type="button"
             onClick={inspire}
-            disabled={!file || busy !== null}
+            disabled={!first || busy !== null}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-line px-3 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong disabled:opacity-50"
           >
             {busy === "inspire" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Palette className="h-4 w-4" />}
@@ -154,7 +183,7 @@ export function ReferencePanel({
           <button
             type="button"
             onClick={copyWithAi}
-            disabled={!file || busy !== null}
+            disabled={!chosen.length || busy !== null}
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-3 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-accent/90 disabled:opacity-50"
           >
             {busy === "ai" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -163,8 +192,9 @@ export function ReferencePanel({
         </div>
         {status && <p className="text-[12px] text-ink-soft">{status}</p>}
         <p className="text-[11.5px] leading-relaxed text-ink-faint">
-          <strong>Inspirar</strong> copia as cores e a posição dos textos e escolhe o layout mais parecido. <strong>Copiar com IA</strong>{" "}
-          recria a composição inteira (formas, fonte, blocos) como um layout novo; custa centavos por análise e precisa da chave da Anthropic.
+          Envie a capa, uma tela interna e o fechamento do carrossel de referência (pode ser só uma delas). <strong>Copiar com IA</strong> recria cada
+          uma como tela Livre, que você edita à vontade e depois guarda em <strong>Mais → Salvar como estilo</strong>. Custa centavos por análise.{" "}
+          <strong>Inspirar</strong> só copia as cores e a posição dos textos da capa.
         </p>
 
         {customLayout && (

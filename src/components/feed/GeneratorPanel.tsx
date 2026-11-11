@@ -27,6 +27,8 @@ export interface GeneratedSlide {
   imagem?: string;
   /** A foto mostra o próprio cliente. */
   rosto?: boolean;
+  /** Estilo com telas próprias: qual tela interna usar. */
+  variante?: number;
 }
 
 export type GeneratorStyle = "revista" | "classico";
@@ -50,6 +52,7 @@ export function GeneratorPanel({
   onGenerated,
   onError,
   onInfo,
+  preferEstilo,
 }: {
   clienteSlug: string | null;
   nome: string;
@@ -58,6 +61,8 @@ export function GeneratorPanel({
   initialPautaId: number | null;
   legenda: string | null;
   onGenerated: (slides: GeneratedSlide[], legenda: string, options: GeneratorOptions) => void;
+  /** Estilo recém-salvo: recarrega a lista e já deixa escolhido. */
+  preferEstilo?: { id: string; version: number } | null;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
 }) {
@@ -86,13 +91,15 @@ export function GeneratorPanel({
         if (cancelled) return;
         const list: Estilo[] = data.estilos ?? [];
         setEstilos(list);
-        setEstiloId(list.find((e) => e.padrao && e.cliente_slug === clienteSlug)?.id ?? "");
+        const prefer = preferEstilo && list.some((e) => e.id === preferEstilo.id) ? preferEstilo.id : null;
+        setEstiloId(prefer ?? list.find((e) => e.padrao && e.cliente_slug === clienteSlug)?.id ?? "");
       })
       .catch(() => !cancelled && setEstilos([]));
     return () => {
       cancelled = true;
     };
-  }, [clienteSlug]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSlug, preferEstilo?.version]);
 
   useEffect(() => {
     if (!clienteSlug) return;

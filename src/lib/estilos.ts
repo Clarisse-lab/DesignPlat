@@ -4,13 +4,26 @@
 
 import { z } from "zod";
 import { IMAGE_STYLES } from "./ai/image-direction";
+import { freeSlideSchema } from "./feed/schema";
 import { TITLE_FONT_IDS, type TitleFontId } from "./templates/fonts";
 
 const hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
+/** Telas próprias do estilo (salvas a partir de um carrossel editado): capa, internas e fechamento. */
+export const estiloLayoutsSchema = z.object({
+  capa: freeSlideSchema.nullish(),
+  internos: z.array(freeSlideSchema).max(4).default([]),
+  final: freeSlideSchema.nullish(),
+});
+export type EstiloLayouts = z.infer<typeof estiloLayoutsSchema>;
+
+export const hasLayouts = (l: EstiloLayouts | null | undefined): l is EstiloLayouts => Boolean(l && (l.capa || l.internos.length || l.final));
+
 export const estiloDadosSchema = z.object({
-  /** Modelos do Livre que o estilo usa (a IA escolhe só entre eles). */
-  modelos: z.array(z.string().max(60)).min(1).max(30),
+  /** Modelos prontos do Livre que o estilo usa (a IA escolhe só entre eles). Vazio quando o estilo tem telas próprias. */
+  modelos: z.array(z.string().max(60)).max(30).default([]),
+  /** Telas próprias: quando existem, mandam no lugar dos modelos. */
+  layouts: estiloLayoutsSchema.optional(),
   /** Cores e fonte de título que o estilo aplica no carrossel. */
   feed: z
     .object({
@@ -28,7 +41,7 @@ export const estiloDadosSchema = z.object({
     .optional(),
   /** Tom e regras de texto (vai para a IA que escreve as telas). */
   texto: z.string().max(3000).default(""),
-});
+}).refine((d) => d.modelos.length > 0 || hasLayouts(d.layouts), { message: "O estilo precisa de modelos ou de telas próprias." });
 export type EstiloDados = z.infer<typeof estiloDadosSchema>;
 
 export interface Estilo {

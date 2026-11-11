@@ -4,7 +4,8 @@ import "server-only";
 
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
-import { FREE_PRESETS } from "../templates/free";
+import { hasLayouts, type EstiloLayouts } from "../estilos";
+import { FREE_PRESETS, templateInfo, type FreeSlide } from "../templates/free";
 import { anthropic, GenerationError } from "./claude";
 
 export const CAROUSEL_MODEL = process.env.CLAUDE_MODEL_CARROSSEL || "claude-sonnet-5-5";
@@ -65,6 +66,7 @@ export const studioCarouselSchema = z.object({
         texto: z.string().describe("Texto de apoio. Na lista, um item por linha; na citação, o autor"),
         imagem: z.string().describe("Se o modelo usa foto: descrição da cena para gerar com IA, em português, sem nenhum texto na imagem. Vazio se não usa foto"),
         rosto: z.boolean().describe("true se a foto deve mostrar o próprio cliente"),
+        variante: z.number().int().describe("Só quando o estilo tem telas próprias: qual tela interna do estilo usar (0, 1, 2...). Nos outros casos, 0"),
       }),
     )
     .describe("As telas do carrossel, de 3 a 12"),
@@ -106,6 +108,43 @@ DESIGN: para cada tela, escolha um modelo do catálogo abaixo pelo conteúdo, n�
 CATÁLOGO:
 `;
 
+const FINAL_MODEL = FREE_PRESETS.find((p) => p.category === "final")?.id ?? MODEL_IDS[0];
+
+/** Como escrever para uma tela própria do estilo (tamanho do texto e fotos). */
+function describeTemplate(tpl: FreeSlide): string {
+  const info = templateInfo(tpl);
+  const parts: string[] = [];
+  if (info.titleChars) parts.push(`título com cerca de ${info.titleChars} caracteres (no máximo ${Math.round(info.titleChars * 1.4)})`);
+  if (info.blocks.length > 1) {
+    const each = info.blocks.map((b, k) => `bloco ${k + 1} com cerca de ${b.chars} caracteres${b.list ? " (lista: um item por linha, começando com →)" : ""}`);
+    parts.push(`texto de apoio em ${info.blocks.length} blocos separados por uma linha em branco: ${each.join("; ")}`);
+  } else if (info.bodyChars) {
+    const list = info.blocks[0]?.list ? " (lista: um item por linha, começando com →)" : "";
+    parts.push(info.titleChars ? `texto de apoio com cerca de ${info.bodyChars} caracteres (no máximo ${Math.round(info.bodyChars * 1.4)})${list}` : `um texto só (título e texto juntos) com cerca de ${info.bodyChars} caracteres`);
+  }
+  else if (info.titleChars) parts.push("sem texto de apoio (texto vazio)");
+  if (info.hasTag) parts.push("etiqueta curta");
+  if (info.photos >= 2) parts.push(`${info.photos} fotos: em "imagem", ${info.photos} cenas separadas por ' || '`);
+  else if (info.photos === 1) parts.push(`uma foto: descreva a cena em "imagem"`);
+  else parts.push(`sem foto ("imagem" vazio)`);
+  return parts.join("; ");
+}
+
+/** Regras para estilos com telas próprias: o desenho é fixo, a IA só escreve no tamanho certo. */
+function layoutRules(layouts: EstiloLayouts): string {
+  const out = [
+    `\n\nDESIGN: este estilo tem TELAS PRÓPRIAS, desenhadas pela equipe; o desenho é fixo. Em "modelo", use capa-revista na capa, interno-texto nas telas internas e ${FINAL_MODEL} no fechamento (o campo é ignorado). Escreva cada tela no tamanho de texto pedido abaixo; texto maior que isso não cabe no desenho.`,
+  ];
+  if (layouts.capa) out.push(`- Capa: ${describeTemplate(layouts.capa)}.`);
+  if (layouts.internos.length === 1) out.push(`- Telas internas (variante 0): ${describeTemplate(layouts.internos[0])}.`);
+  else if (layouts.internos.length > 1) {
+    out.push(`- Telas internas: em "variante", diga qual desenho usar, conforme o conteúdo da tela; varie entre elas:`);
+    layouts.internos.forEach((tpl: FreeSlide, k: number) => out.push(`  - variante ${k}: ${describeTemplate(tpl)}.`));
+  }
+  if (layouts.final) out.push(`- Fechamento: ${describeTemplate(layouts.final)}.`);
+  return out.join("\n");
+}
+
 /** Regras do estilo de referência: vêm depois do catálogo e mandam nele. */
 function estiloRules(estilo: { nome: string; modelos: string[]; texto: string; cenaImagem: string }): string {
   const validos = estilo.modelos.filter((m) => MODEL_IDS.includes(m));
@@ -128,7 +167,7 @@ export async function generateStudioCarousel(input: {
   /** Modelos escolhidos no painel (ex.: "capa: capa-manchete; internas: interno-cartao"). */
   prefer?: string | null;
   /** Estilo de referência: restringe os modelos e orienta texto e imagens. */
-  estilo?: { nome: string; modelos: string[]; texto: string; cenaImagem: string } | null;
+  estilo?: { nome: string; modelos: string[]; texto: string; cenaImagem: string; layouts?: EstiloLayouts | null } | null;
 }): Promise<{ carousel: StudioCarousel; costUsd: number; inputTokens: number; outputTokens: number; model: string }> {
   const source = input.pauta
     ? [
@@ -155,8 +194,7 @@ export async function generateStudioCarousel(input: {
     fallbacks: "default",
     system:
       SYSTEM +
-      DESIGN_RULES +
-      catalog(input.estilo?.modelos) +
+      (input.estilo && hasLayouts(input.estilo.layouts) ? layoutRules(input.estilo.layouts) : DESIGN_RULES + catalog(input.estilo?.modelos)) +
       (input.estilo ? estiloRules(input.estilo) : input.prefer ? `\n\nPREFERÊNCIA DA EQUIPE: ${input.prefer}` : ""),
     messages: [{ role: "user", content: prompt }],
   });
