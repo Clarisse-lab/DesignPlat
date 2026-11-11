@@ -13,7 +13,8 @@ interface ImageJob {
   aspect?: string;
 }
 import { useEffect, useMemo, useState } from "react";
-import { Download, MoreHorizontal, Save, Shuffle, Wand2 } from "lucide-react";
+import { Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
+import { useUndoHistory } from "@/components/editor/useUndoHistory";
 import {
   Field,
   ImagePicker,
@@ -142,6 +143,23 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     [showAll, slides, brand, style],
   );
 
+  // Desfazer/refazer: slides, estilo e marca (o resto do rascunho, como peça e cliente, fica fora).
+  const styleKey = JSON.stringify(draft.style);
+  const undoValue = useMemo(
+    () => ({ slides: draft.slides, brand: draft.brand, style: draft.style }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [draft.slides, draft.brand, styleKey],
+  );
+  const history = useUndoHistory(
+    undoValue,
+    (a, b) => a.slides === b.slides && a.brand === b.brand && JSON.stringify(a.style) === JSON.stringify(b.style),
+    (v) => {
+      setDraft((d) => ({ ...d, slides: v.slides, brand: v.brand, style: v.style }));
+      setSelectedElement(null);
+    },
+    draftChecked,
+  );
+
   const showError = (text: string) => setMessage({ kind: "error", text });
   const showInfo = (text: string) => setMessage({ kind: "info", text });
   const updateBrand = (patch: Partial<FeedBrand>) => setDraft((d) => ({ ...d, brand: { ...d.brand, ...patch } }));
@@ -162,6 +180,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const switching = Boolean(previous && previous.slug !== client.slug && draftHasContent);
     if (switching) {
       await pieces.flush();
+      history.reset();
       reset();
       setActiveIndex(0);
       setSelectedElement(null);
@@ -251,6 +270,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         void sendThumbnail(data.imagem_id, blob);
         const image = await imageFileToDataUrl(new File([blob], "ia.png", { type: blob.type }), { maxSide: 1600 });
         spent += Number(data.custo_usd) || 0;
+        history.silent(); // a imagem chegando sozinha não vira passo de desfazer
         setDraft((d) => ({ ...d, slides: d.slides.map((sl) => (sl.id === job.id ? placeImage(sl, image) : sl)) }));
         done++;
       }
@@ -317,6 +337,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     // Carrossel novo vira peça nova: o anterior continua salvo (não é sobrescrito).
     // O estilo de referência traz cores e fonte de título; logo, nome e @ continuam os do kit do cliente.
     const look = options.style === "revista" ? options.estilo?.dados.feed : undefined;
+    history.reset(); // carrossel novo = histórico novo (o anterior ficou salvo como peça)
     setDraft((d) => ({
       ...d,
       slides: built,
@@ -391,6 +412,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     }
     if (!window.confirm("Abrir no lugar da peça atual? A atual fica salva em Mais → Abrir peça.")) return false;
     const dados = piece.dados;
+    history.reset();
     const cliente = piece.cliente_slug ? (clients?.find((c) => c.slug === piece.cliente_slug) ?? { slug: piece.cliente_slug, nome: piece.cliente_slug }) : null;
     setDraft({
       ...dados,
@@ -503,6 +525,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       return;
     }
     if (!window.confirm(`Trazer os ${feed.slides.length} slide(s), a marca e o estilo do Post de Feed? Os stories atuais serão substituídos.`)) return;
+    history.reset();
     setDraft({
       brand: feed.brand,
       style: { ...feed.style, size: config.sizes[0], customLayout: null },
@@ -665,6 +688,28 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex overflow-hidden rounded-lg border border-line bg-surface">
+            <button
+              type="button"
+              onClick={history.undo}
+              disabled={!history.canUndo}
+              title="Desfazer (Ctrl+Z)"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium text-ink-soft hover:text-ink disabled:opacity-40"
+            >
+              <Undo2 className="h-4 w-4" />
+              Desfazer
+            </button>
+            <button
+              type="button"
+              onClick={history.redo}
+              disabled={!history.canRedo}
+              title="Refazer (Ctrl+Shift+Z)"
+              aria-label="Refazer"
+              className="inline-flex items-center border-l border-line px-2.5 py-2 text-ink-soft hover:text-ink disabled:opacity-40"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
+          </div>
           <MenuButton icon={MoreHorizontal} label="Mais" items={moreItems} />
           {slides.some((sl) => sl.layout === "livre") && (
             <ToolbarButton icon={Shuffle} disabled={generatingImages} onClick={shuffleDesign}>
