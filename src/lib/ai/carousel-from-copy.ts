@@ -90,8 +90,10 @@ Regras:
 - Nada de emojis nem travessões (—) no texto das telas.
 - A legenda: gancho nos primeiros 125 caracteres, 2 ou 3 parágrafos curtos, CTA no fim e de 3 a 8 hashtags. Se a copy trouxer a legenda pronta, use a dela.`;
 
-function catalog(): string {
-  return FREE_PRESETS.map((p) => `- ${p.id} (${p.category}): ${MODEL_GUIDE[p.id] ?? p.label}`).join("\n");
+/** Catálogo de modelos. Com estilo, só os modelos dele aparecem (a IA nem vê os outros). */
+function catalog(only?: string[]): string {
+  const list = only?.length ? FREE_PRESETS.filter((p) => only.includes(p.id)) : FREE_PRESETS;
+  return (list.length ? list : FREE_PRESETS).map((p) => `- ${p.id} (${p.category}): ${MODEL_GUIDE[p.id] ?? p.label}`).join("\n");
 }
 
 const DESIGN_RULES = `
@@ -154,7 +156,7 @@ export async function generateStudioCarousel(input: {
     system:
       SYSTEM +
       DESIGN_RULES +
-      catalog() +
+      catalog(input.estilo?.modelos) +
       (input.estilo ? estiloRules(input.estilo) : input.prefer ? `\n\nPREFERÊNCIA DA EQUIPE: ${input.prefer}` : ""),
     messages: [{ role: "user", content: prompt }],
   });

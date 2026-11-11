@@ -263,6 +263,18 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     }
   };
 
+  /**
+   * Com estilo, a tela tem de usar um modelo dele. Se a IA escolheu outro, troca pelo modelo do estilo
+   * da mesma posição (capa na 1ª tela, fechamento na última, interno no meio).
+   */
+  const keepInStyle = (id: string, k: number, total: number, modelos: string[] | undefined): string => {
+    if (!modelos?.length || modelos.includes(id)) return id;
+    const valid = modelos.filter((m) => presetById(m).id === m);
+    if (!valid.length) return id;
+    const want = k === 0 ? "capa" : k === total - 1 ? "final" : "interno";
+    return valid.find((m) => presetById(m).category === want) ?? valid.find((m) => presetById(m).category === "interno") ?? valid[0];
+  };
+
   /** Monta os slides a partir das telas geradas, com os modelos escolhidos pela IA (revista) ou os layouts clássicos. */
   const applyGenerated = async (items: GeneratedSlide[], legenda: string, options: GeneratorOptions) => {
     // Sem pergunta: a janela de confirmação chegava depois de 20-40 s de espera e o Chrome a
@@ -275,7 +287,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
       if (options.style === "revista") {
-        const id = it.modelo && presetById(it.modelo).id === it.modelo ? it.modelo : fallbackModel(it);
+        const chosen = it.modelo && presetById(it.modelo).id === it.modelo ? it.modelo : fallbackModel(it);
+        const id = keepInStyle(chosen, k, list.length, options.estilo?.dados.modelos);
         const prompt = (it.imagem ?? "").trim();
         const wantsImage = prompt.length >= 5 && presetWantsImage(id) && (options.images === "todas" || (options.images === "capa" && k === 0));
         const body = it.tipo === "capa" && !CHAT_PRESETS.has(id) ? it.etiqueta : it.texto;
