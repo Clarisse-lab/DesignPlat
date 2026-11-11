@@ -223,6 +223,8 @@ export function renderFeedSlide(params: {
   fontCss: string;
   /** Número exibido no layout Seção (ver sectionNumberAt). */
   sectionNumber?: number;
+  /** Telas Livre com animação: CSS das animações (prévia animada e vídeo). */
+  animate?: boolean;
 }): string {
   const { slide, brand, index, total, fontCss } = params;
   const style = resolveFeedStyle(params.style);
@@ -264,7 +266,7 @@ export function renderFeedSlide(params: {
 
   if (layout === "livre") {
     const free: FreeSlide = slide.free ?? { bg: "fundo", overlay: "nenhuma", elements: [] };
-    return renderFreeSlide({ free, image: slide.image, brand, palette: style.palette, titleFont: style.titleFont, width, height, index, total, fontCss });
+    return renderFreeSlide({ free, image: slide.image, brand, palette: style.palette, titleFont: style.titleFont, width, height, index, total, fontCss, animate: params.animate });
   }
 
   if (layout === "referencia" && style.customLayout) {

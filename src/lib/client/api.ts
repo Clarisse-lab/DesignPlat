@@ -22,10 +22,10 @@ export async function generateCarousel(input: GenerateRequest): Promise<Generate
 export async function downloadRender(
   endpoint: string,
   input: unknown,
-  options: { index?: number; zipName: string },
+  options: { index?: number; zipName: string; video?: boolean },
 ): Promise<void> {
-  const { index, zipName } = options;
-  const query = index === undefined ? "" : `?index=${index}`;
+  const { index, zipName, video } = options;
+  const query = index === undefined ? "" : `?index=${index}${video ? "&video=1" : ""}`;
   const response = await fetch(`${endpoint}${query}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -33,7 +33,7 @@ export async function downloadRender(
   });
   if (!response.ok) throw new Error(await errorMessage(response, "Erro ao gerar as imagens."));
 
-  const filename = index === undefined ? zipName : `slide-${String(index + 1).padStart(2, "0")}.png`;
+  const filename = index === undefined ? zipName : `slide-${String(index + 1).padStart(2, "0")}.${video ? "mp4" : "png"}`;
   saveBlob(await response.blob(), filename);
 }
 

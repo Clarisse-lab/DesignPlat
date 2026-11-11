@@ -140,3 +140,10 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Estilos com telas próprias (`dados.layouts` em design_estilos): no Gerar carrossel, a IA escreve cada tela no tamanho do texto do modelo (blocos, listas, número de fotos) e escolhe qual interna usar (`variante`); o editor monta as telas a partir dos modelos e gera as fotos nos espaços de foto.
 - **Copiar de uma referência**: agora recebe capa, tela interna e fechamento (uma, duas ou as três) e a IA recria cada uma como tela Livre editável (antes era um HTML fixo de uma tela só). Com carrossel aberto, cada tela ganha o desenho da posição dela, mantendo texto e fotos.
 - Cartão fino (divisória) sem sombra e com altura mínima de 0,1%.
+
+## Capa animada / telas em vídeo (PR #32)
+- Telas Livre podem ter animação: aba **Animação** no editor, com animações prontas (Suave, Palavra por palavra, Impacto), zoom lento na foto, duração do vídeo (3 a 15 s) e a entrada de cada elemento (aparecer, subir, crescer, palavra por palavra, subir e pintar o destaque) com atraso.
+- A prévia mostra a animação (botão "Ver de novo na prévia").
+- Baixar: "Vídeo deste slide (MP4)" e, no .zip, as telas animadas vão em MP4 (as outras em PNG). O servidor congela o relógio das animações e fotografa quadro a quadro (30 fps); o ffmpeg monta o H.264. Dockerfile ganhou o ffmpeg.
+- Gerar carrossel: opção "Capa animada" (aplica Impacto na capa).
+- Estilos salvos guardam a animação das telas.
