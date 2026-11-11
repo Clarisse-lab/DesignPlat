@@ -33,6 +33,7 @@ export async function POST(request: Request) {
       peca_id: peca_id ?? null,
       cliente_slug: cliente_slug ?? null,
       criado_por: member.nome || member.email || null,
+      criado_por_email: member.email || null,
     });
     return NextResponse.json({ aprovacao: row });
   } catch (error) {

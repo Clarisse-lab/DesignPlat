@@ -231,13 +231,32 @@ export function useSavedPieces({
           ? `Salvo às ${autoStatus.at}`
           : null;
 
+  /** Abre uma peça pelo id (link do aviso no Escritório: /feed?peca=<id>). */
+  const openById = async (id: string): Promise<void> => {
+    try {
+      const response = await fetch(`/api/estudio/pecas/${id}`);
+      const row = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(row?.error ?? "Erro ao abrir a peça.");
+      const opened = onOpen({
+        id: row.template ? null : row.id,
+        titulo: row.template || row.rascunho ? "" : row.titulo,
+        cliente_slug: row.cliente_slug ?? null,
+        dados: row.dados,
+        template: Boolean(row.template),
+      });
+      if (opened !== false) justOpened.current = true;
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "Erro ao abrir a peça.");
+    }
+  };
+
   /** Salva agora (se houver mudança) e devolve o id da peça, ou null se não deu para salvar. */
   const ensureSaved = async (): Promise<string | null> => {
     await flush();
     return latest.current.pecaId ?? createdId.current;
   };
 
-  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro", flush, ensureSaved };
+  return { busy, save, openBrowser: () => setBrowsing(true), dialog, saved: Boolean(pecaId ?? createdId.current), autoLabel, autoError: autoStatus?.kind === "erro", flush, ensureSaved, openById };
 }
 
 function PiecesDialog({

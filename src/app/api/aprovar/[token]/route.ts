@@ -3,7 +3,7 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { addComentario, loadByToken, loadComentarios, setStatus, signedTelas } from "@/lib/server/aprovacoes";
+import { addAviso, addComentario, loadByToken, loadComentarios, publicOrigin, sendToDrive, setStatus, signedTelas } from "@/lib/server/aprovacoes";
 import { rest } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -56,7 +56,21 @@ export async function POST(request: Request, { params }: Params) {
   if (existentes.length >= 200) return NextResponse.json({ error: "Limite de comentários deste link atingido." }, { status: 429 });
   try {
     if (texto) await addComentario(row.id, { tela: tela ?? null, autor, texto });
-    if (acao !== "comentar") await setStatus(row.id, acao === "aprovar" ? "aprovado" : "ajustes", autor);
+    if (acao !== "comentar") {
+      await setStatus(row.id, acao === "aprovar" ? "aprovado" : "ajustes", autor);
+      const cliente = await clienteNome(row.cliente_slug);
+      const link = row.peca_id ? `${publicOrigin(request)}/feed?peca=${row.peca_id}` : `${publicOrigin(request)}/aprovar/${row.token}`;
+      await addAviso({
+        para_email: row.criado_por_email,
+        tipo: acao === "aprovar" ? "aprovacao_aprovada" : "aprovacao_ajustes",
+        titulo: `${cliente ?? "Cliente"} ${acao === "aprovar" ? "aprovou" : "pediu ajustes em"} "${row.titulo}"`,
+        texto: acao === "ajustes" ? `${autor}: ${texto}` : `Aprovado por ${autor}.`,
+        link,
+        cliente_slug: row.cliente_slug,
+      }).catch((error) => console.error("[aprovar] aviso:", error));
+      // Aprovado: sobe as telas para a pasta do cliente no Drive (em segundo plano; o erro fica na aprovação).
+      if (acao === "aprovar") void sendToDrive(row).catch((error) => console.error("[aprovar] drive:", error));
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[aprovar] salvar:", error);

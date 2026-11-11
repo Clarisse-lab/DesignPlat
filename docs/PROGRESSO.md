@@ -165,3 +165,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Página **/desempenho** (menu do topo), por cliente, com as métricas do Instagram já coletadas (vw_ig_posts_desempenho), últimos 120 dias. Nota = salvamentos + compartilhamentos por mil de alcance.
 - Mostra: formatos (carrossel × Reels × foto), **estilos feitos aqui** (nota e diferença para a mediana do cliente), capa animada × parada, os 12 melhores carrosséis (com link) e as peças publicadas.
 - Peça ↔ post: `design_pecas.post_media_id` (+ `post_vinculo` auto/manual). Ligação automática ao abrir a página quando a legenda publicada bate com a da peça (≥ 60% das palavras, publicado até 60 dias depois); ligar/desligar à mão na própria página.
+
+## Aprovado → Drive do cliente + avisos no Escritório (PR #36)
+- Quando o cliente **aprova** pelo link, as telas (PNG/MP4) e a `legenda.txt` sobem sozinhas para a pasta do cliente no Drive: `<cliente>/05 - Designer/<ano>/<MM_Mês>/<dd-mm - título>/` (cria o que faltar). Na janela de aprovação: link "Salvo no Drive do cliente", ou o erro com "Enviar de novo".
+- Página **/drive**: conectar o Google Drive (OAuth com a conta dona das pastas; refresh token em `design_integracoes`) e a pasta de cada cliente (`design_drive_pastas`, já preenchida com as 15 pastas de "01 | CLIENTES ATIVOS"). Variáveis no Railway: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (redirecionamento `https://designmantora.up.railway.app/api/drive/callback`).
+- Aprovar ou pedir ajustes cria um registro em `avisos` (para quem criou o link; sem e-mail, para todos), que o Escritório mostra no sino, com link `/feed?peca=<id>` que abre a peça.
