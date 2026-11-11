@@ -13,7 +13,8 @@ interface ImageJob {
   aspect?: string;
 }
 import { useEffect, useMemo, useState } from "react";
-import { Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
+import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
+import { ReviewDialog } from "./ReviewDialog";
 import { useUndoHistory } from "@/components/editor/useUndoHistory";
 import {
   Field,
@@ -539,7 +540,39 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     showInfo(`${created.length} slide(s) criados. Ajuste o layout de cada um se quiser.`);
   };
 
-  const handleDownload = async (target: DownloadTarget) => {
+  /** Revisão aberta: pelo botão Revisar ou antes de baixar (aí guarda o que ia baixar). */
+  const [review, setReview] = useState<{ mode: "revisar" } | { mode: "baixar"; target: DownloadTarget } | null>(null);
+  const handleDownload = (target: DownloadTarget) => {
+    if (target === "pdf" || target === "pptx") void doDownload(target);
+    else setReview({ mode: "baixar", target });
+  };
+
+  /** Correção de português: troca o trecho na tela (1…) ou na legenda (0). */
+  const updateSlide = (k: number, patch: Partial<FeedEditorSlide>) =>
+    setDraft((d) => ({ ...d, slides: d.slides.map((sl, i) => (i === k ? { ...sl, ...patch } : sl)) }));
+  const applyFix = (fix: { tela: number; trecho: string; sugestao: string }): boolean => {
+    if (!fix.trecho) return false;
+    if (fix.tela === 0) {
+      if (!(draft.legenda ?? "").includes(fix.trecho)) return false;
+      setDraft((d) => ({ ...d, legenda: (d.legenda ?? "").replace(fix.trecho, fix.sugestao) }));
+      return true;
+    }
+    const k = fix.tela - 1;
+    const sl = slides[k];
+    if (!sl) return false;
+    if (sl.layout === "livre" && sl.free) {
+      const el = sl.free.elements.find((e) => (e.text ?? "").includes(fix.trecho));
+      if (!el) return false;
+      updateSlide(k, { free: { ...sl.free, elements: sl.free.elements.map((e) => (e.id === el.id ? { ...e, text: (e.text ?? "").replace(fix.trecho, fix.sugestao) } : e)) } });
+      return true;
+    }
+    if (sl.title.includes(fix.trecho)) updateSlide(k, { title: sl.title.replace(fix.trecho, fix.sugestao) });
+    else if (sl.body.includes(fix.trecho)) updateSlide(k, { body: sl.body.replace(fix.trecho, fix.sugestao) });
+    else return false;
+    return true;
+  };
+
+  const doDownload = async (target: DownloadTarget) => {
     setDownloading(target);
     setMessage(null);
     const payload = {
@@ -791,6 +824,15 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setReview({ mode: "revisar" })}
+            title="Confere texto fora da tela, letra pequena, contraste, fotos, @ e legenda"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-medium text-ink-soft hover:text-ink"
+          >
+            <ClipboardCheck className="h-4 w-4" />
+            Revisar
+          </button>
           <div className="inline-flex overflow-hidden rounded-lg border border-line bg-surface">
             <button
               type="button"
@@ -833,6 +875,28 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         </div>
       </div>
       {pieces.dialog}
+      {review && (
+        <ReviewDialog
+          mode={review.mode}
+          slides={slides}
+          brand={brand}
+          style={style}
+          legenda={mode === "feed" ? (draft.legenda ?? null) : null}
+          clienteSlug={draft.cliente?.slug ?? null}
+          onGoTo={(tela, elementId) => {
+            setReview(null);
+            setActiveIndex(tela);
+            setSelectedElement(elementId ?? null);
+          }}
+          onApplyFix={applyFix}
+          onProceed={() => {
+            const target = review.mode === "baixar" ? review.target : null;
+            setReview(null);
+            if (target) void doDownload(target);
+          }}
+          onClose={() => setReview(null)}
+        />
+      )}
       {saveStyleOpen && (
         <SaveStyleDialog
           slides={slides}

@@ -10,7 +10,7 @@ import { anthropic, GenerationError } from "./claude";
 
 export const CAROUSEL_MODEL = process.env.CLAUDE_MODEL_CARROSSEL || "claude-sonnet-5-5";
 /** US$ por milhão de tokens [entrada, saída], os mesmos do Escritório. */
-const PRICES: Record<string, [number, number]> = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10] };
+export const PRICES: Record<string, [number, number]> = { "claude-opus-5-5": [4, 20], "claude-sonnet-5-5": [2, 10] };
 
 /** Quando usar cada modelo do Livre (o assistente escolhe por aqui). */
 const MODEL_GUIDE: Record<string, string> = {
