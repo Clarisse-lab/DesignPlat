@@ -7,7 +7,7 @@ import { TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "./fonts";
 import { ICON_IDS, iconSvg, type IconId } from "./icons";
 import { contrastRatio, contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc } from "./utils";
 
-export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao", "icone", "conversa"] as const;
+export const FREE_ELEMENT_KINDS = ["titulo", "texto", "etiqueta", "perfil", "arraste", "numeracao", "imagem", "grade", "cartao", "icone", "conversa", "mancha"] as const;
 export type FreeElementKind = (typeof FREE_ELEMENT_KINDS)[number];
 
 export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
@@ -22,6 +22,7 @@ export const FREE_ELEMENT_LABELS: Record<FreeElementKind, string> = {
   cartao: "Cartão ou faixa",
   icone: "Ícone",
   conversa: "Print de conversa",
+  mancha: "Mancha de tinta",
 };
 
 /**
@@ -87,13 +88,14 @@ export type FreeColor = (typeof FREE_COLORS)[number];
 export const FREE_COLOR_LABELS: Record<FreeColor, string> = { texto: "Texto", fundo: "Fundo", destaque: "Destaque", branco: "Branco", preto: "Preto" };
 
 /** Como as palavras entre **asteriscos** aparecem. */
-export const FREE_HIGHLIGHTS = ["cor", "marca", "negrito", "caneta"] as const;
+export const FREE_HIGHLIGHTS = ["cor", "marca", "negrito", "caneta", "faixa"] as const;
 export type FreeHighlight = (typeof FREE_HIGHLIGHTS)[number];
 export const FREE_HIGHLIGHT_LABELS: Record<FreeHighlight, string> = {
   cor: "Na cor de destaque",
   marca: "Marca-texto",
   negrito: "Só negrito",
   caneta: "Caneta marca-texto (faixa clara atrás)",
+  faixa: "Faixa sólida (texto branco)",
 };
 
 export const FREE_BACKGROUNDS = ["fundo", "destaque", "foto", "papel", "papel-destaque", "grao"] as const;
@@ -364,6 +366,9 @@ export function renderFreeSlide(params: {
       : free.bg === "papel-destaque"
         ? text
         : accent;
+  /** Faixa sólida: o destaque escurecido até o texto branco ficar legível em cima dele. */
+  let bandColor = accent.length === 7 ? accent : "#4F46E5";
+  for (let t = 0.95; contrastRatio(bandColor, "#FFFFFF") < 3.2 && t > 0.5; t -= 0.05) bandColor = mixHex(accent.length === 7 ? accent : "#4F46E5", "#000000", t);
   /** Caneta marca-texto: faixa clara da cor de destaque atrás das palavras (o texto continua na cor dele). */
   const penColor = free.bg === "grao" ? mixHex(accent.length === 7 ? accent : "#4F46E5", "#000000", 0.75) : mixHex(accent.length === 7 ? accent : "#4F46E5", "#FFFFFF", 0.62);
   const glass = photo ? "rgba(255,255,255,.16)" : `color-mix(in srgb,${autoText} 12%,transparent)`;
@@ -387,7 +392,15 @@ export function renderFreeSlide(params: {
     const color = colorOf(el.color, autoText);
     const box = `left:${x}%;top:${y}%;width:${w}%;text-align:${align};`;
     const highlight =
-      el.highlight === "marca" ? " hl-marca" : el.highlight === "negrito" ? " hl-negrito" : el.highlight === "caneta" ? " hl-caneta" : " hl-cor";
+      el.highlight === "marca"
+        ? " hl-marca"
+        : el.highlight === "negrito"
+          ? " hl-negrito"
+          : el.highlight === "caneta"
+            ? " hl-caneta"
+            : el.highlight === "faixa"
+              ? " hl-faixa"
+              : " hl-cor";
     const upper = el.upper ? "text-transform:uppercase;" : "";
     const family =
       el.family && el.family !== "corpo" && TITLE_FONTS[el.family]
@@ -468,6 +481,13 @@ export function renderFreeSlide(params: {
         }).join("");
         return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
       }
+      case "mancha": {
+        // Mancha de tinta: forma orgânica com a borda "comida" por ruído (como tinta em papel).
+        const fill = colorOf(el.fill as FreeColor | undefined, accent);
+        const seed = [...el.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 997, 7);
+        const fid = `m${seed}${Math.round(x * 10)}${Math.round(y * 10)}`;
+        return `<div class="el" style="${box}height:${h}%"><svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" style="display:block;overflow:visible"><filter id="${fid}" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.045" numOctaves="3" seed="${seed}"/><feDisplacementMap in="SourceGraphic" scale="7"/></filter><path d="M18,34 C22,10 52,2 74,10 C94,18 100,46 90,68 C80,90 50,100 26,92 C6,85 2,62 10,48 C13,42 16,40 18,34Z" fill="${fill}" filter="url(#${fid})"/></svg></div>`;
+      }
       case "conversa":
         return renderChat(el, { box, h, size, brandName: brand.name.trim(), logo: logoSrc, accent, ink: autoText, fillTokens });
       case "cartao": {
@@ -492,6 +512,7 @@ body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif
 strong{font-weight:700}
 .hl-cor strong{color:${hlColor}}
 .hl-negrito strong{font-weight:800}
+.hl-faixa strong{font-weight:inherit;background:${bandColor};color:#FFFFFF;padding:.04em .2em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .hl-caneta strong{font-weight:inherit;background:linear-gradient(transparent 18%,${penColor} 18%,${penColor} 92%,transparent 92%);padding:0 .12em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .hl-marca strong{background:${hlColor};color:${contrastText(hlColor)};padding:0 .14em;-webkit-box-decoration-break:clone;box-decoration-break:clone}
 .tag{display:inline-block;padding:.45em 1.1em;border-radius:999px;font-weight:700;letter-spacing:.04em;line-height:1.2}
@@ -534,6 +555,7 @@ export function newFreeElement(kind: FreeElementKind, over: Partial<FreeElement>
     grade: { x: 0, y: 0, w: 100, h: 62, grid: "2v", images: [], gap: 10, radius: 0 },
     cartao: { x: 6, y: 10, w: 88, h: 74, fill: "branco", radius: 40 },
     icone: { x: 8, y: 20, w: 12, size: 72, icon: "brilho" },
+    mancha: { x: 10, y: 50, w: 60, h: 36, fill: "destaque" },
     conversa: { x: 8, y: 22, w: 84, h: 62, size: 32, chat: "escuro", text: "Oi! Posso te fazer uma pergunta?\nEu: Claro, pode mandar!" },
   };
   return { id: newElementId(), kind, ...base[kind], ...over } as FreeElement;
@@ -746,23 +768,26 @@ export const FREE_PRESETS: FreePreset[] = [
     id: "colagem-capa",
     label: "Colagem: capa",
     category: "capa",
+    // Mais peso que as telas internas: título enorme, linha de apoio em faixa sólida e mancha de tinta
+    // atrás da figura recortada (como a capa "7 coisas xexelentas" da Sabrina).
     build: ({ title, body }) => ({
       bg: "papel",
       overlay: "nenhuma",
       elements: [
-        el("imagem", { x: 26, y: 42, w: 74, h: 50, cutout: true }),
+        el("mancha", { x: -8, y: 58, w: 74, h: 46, fill: "destaque" }),
+        el("imagem", { x: 22, y: 42, w: 80, h: 58, cutout: true }),
         el("titulo", {
-          x: 7,
-          y: 6,
-          w: 86,
-          // Montserrat 800: ~0,62 em por caractere; espaço até a linha de apoio (y 34).
-          size: fitFontSize(ph(title, "**7 coisas** que travam o seu marketing"), 100, 86, 26, 0.62, 1.08),
+          x: 6,
+          y: 5,
+          w: 88,
+          // Montserrat 800: ~0,62 em por caractere; espaço até a linha de apoio.
+          size: fitFontSize(ph(title, "**7 coisas** que travam o seu marketing"), 136, 88, 29, 0.62, 1.02),
           family: "geometric",
           highlight: "caneta",
           text: ph(title, "**7 coisas** que travam o seu marketing"),
         }),
-        el("texto", { x: 7, y: 34, w: 66, size: 44, family: "maquina", highlight: "caneta", text: penAll(ph(body, "e o que fazer no lugar")) }),
-        handleFooter(),
+        el("texto", { x: 6, y: 36, w: 84, size: 52, family: "maquina", highlight: "faixa", text: penAll(ph(body, "que você não deveria reproduzir")) }),
+        el("texto", { x: 15, y: 95, w: 70, size: 20, align: "center", color: "branco", text: "{usuario}", shadow: true }),
       ],
     }),
   },

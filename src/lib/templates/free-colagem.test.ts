@@ -44,3 +44,16 @@ describe("Colagem editorial", () => {
     expect(render(free)).toContain("color:#F5F5F4");
   });
 });
+
+describe("Capa da colagem com mais peso", () => {
+  it("tem mancha de tinta, título maior que o do item e linha de apoio em faixa", () => {
+    const capa = buildPreset("colagem-capa", { title: "**7 coisas** do marketing", body: "que você não deveria reproduzir", hasImage: true });
+    const item = buildPreset("colagem-item", { title: "1. Item", body: "Texto", hasImage: true });
+    expect(capa.elements[0].kind).toBe("mancha");
+    const size = (f: typeof capa) => f.elements.find((e) => e.kind === "titulo")?.size ?? 0;
+    expect(size(capa)).toBeGreaterThan(size(item) * 1.5);
+    const html = render(capa);
+    expect(html).toContain("hl-faixa");
+    expect(html).toContain("feDisplacementMap");
+  });
+});

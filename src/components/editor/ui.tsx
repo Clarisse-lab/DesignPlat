@@ -312,6 +312,7 @@ export function PreviewPane({
   controls,
   maxWidth = 400,
   interactiveOverlay,
+  onShowAll,
 }: {
   html: string;
   width: number;
@@ -326,13 +327,20 @@ export function PreviewPane({
   /** Camada clicável por cima do preview (ex.: alças do layout Livre). */
   interactiveOverlay?: React.ReactNode;
   maxWidth?: number;
+  /** Abre a grade com todas as telas (só quando há mais de uma). */
+  onShowAll?: () => void;
 }) {
   return (
     <div className="xl:sticky xl:top-6">
       <div className="mx-auto" style={{ maxWidth }}>
         <div className="mb-2 flex items-center justify-between">
           <span className="text-[12px] font-bold uppercase tracking-wider text-ink-faint">Preview</span>
-          <span className="text-[12px] text-ink-faint">
+          <span className="flex items-center gap-3 text-[12px] text-ink-faint">
+            {onShowAll && total > 1 && (
+              <button type="button" onClick={onShowAll} className="font-medium text-accent hover:underline">
+                Ver todas as telas
+              </button>
+            )}
             {width}×{height}
           </span>
         </div>
