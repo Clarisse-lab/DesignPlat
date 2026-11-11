@@ -538,7 +538,8 @@ export function renderFreeSlide(params: {
     const delay = clamp(el.delay, 0, 12, 0);
     const rich = formatRichText(fillTokens(el.text ?? ""));
     const content = anim === "palavras" && (el.kind === "titulo" || el.kind === "texto") ? wrapWords(rich, delay) : rich;
-    const html = renderElement();
+    // data-eid/data-kind: a revisão automática acha cada elemento na tela renderizada.
+    const html = renderElement().replace('<div class="el', `<div data-eid="${escapeHtml(el.id)}" data-kind="${el.kind}" class="el`);
     if (!anim || anim === "palavras") return html;
     // Entrada do elemento inteiro; em "marca", o destaque das palavras é pintado depois que ele entra.
     const name = anim === "aparecer" ? "a-fade" : anim === "escala" ? "a-pop" : "a-up";

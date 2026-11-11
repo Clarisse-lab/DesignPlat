@@ -147,3 +147,10 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Baixar: "Vídeo deste slide (MP4)" e, no .zip, as telas animadas vão em MP4 (as outras em PNG). O servidor congela o relógio das animações e fotografa quadro a quadro (30 fps); o ffmpeg monta o H.264. Dockerfile ganhou o ffmpeg.
 - Gerar carrossel: opção "Capa animada" (aplica Impacto na capa).
 - Estilos salvos guardam a animação das telas.
+
+## Revisão automática (PR #33)
+- Botão **Revisar** no topo do editor e revisão antes de baixar (PNG, .zip, MP4): com erro, mostra a lista e deixa "Baixar assim mesmo"; sem erro, baixa direto.
+- Confere na tela montada (iframe escondido): texto passando da borda, palavra estourando a caixa, letra de leitura menor que 24 px, pouco contraste sobre fundo liso ou pílula, textos se sobrepondo; nos layouts clássicos, conteúdo maior que a tela.
+- Confere sem montar: fundo de foto ou espaço de foto vazio, grade incompleta, ** sem fechar, texto de exemplo, @ diferente do cliente, legenda (2200 caracteres, 30 hashtags, chamada para ação no fim).
+- **Português com IA** (centavos, uso_ia tipo "revisao"): só erros, com "Aplicar correção" que troca o trecho na tela ou na legenda.
+- Cada elemento do Livre sai com data-eid/data-kind no HTML para a revisão achar o que está errado; clicar no item leva até a tela e seleciona o elemento.
