@@ -59,6 +59,7 @@ export const freeSlideSchema = z.object({
         verified: z.boolean().optional(),
         icon: z.enum(ICON_IDS as [IconId, ...IconId[]]).optional(),
         cutout: z.boolean().optional(),
+        dim: z.number().min(0).max(90).optional(),
         chat: z.enum(FREE_CHAT_STYLES).optional(),
         contact: z.string().max(60).optional(),
         time: z.string().max(5).optional(),

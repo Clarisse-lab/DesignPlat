@@ -402,6 +402,9 @@ export function FreeEditor({
                 checked={Boolean(selected.cutout)}
                 onChange={(cutout) => update(selected.id, { cutout })}
               />
+              {!selected.cutout && (
+                <Slider label="Escurecer a foto" value={selected.dim ?? 0} min={0} max={80} suffix="%" onChange={(dim) => update(selected.id, { dim })} />
+              )}
             </div>
           )}
 
@@ -432,6 +435,7 @@ export function FreeEditor({
                 />
               ))}
               <Slider label="Espaço entre as fotos" value={selected.gap ?? 12} min={0} max={60} suffix="px" onChange={(gap) => update(selected.id, { gap })} />
+              <Slider label="Escurecer as fotos" value={selected.dim ?? 0} min={0} max={80} suffix="%" onChange={(dim) => update(selected.id, { dim })} />
             </div>
           )}
 

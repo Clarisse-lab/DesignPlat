@@ -9,6 +9,8 @@ interface ImageJob {
   face: boolean;
   zone: TextZone;
   style: ImageStyle;
+  /** Proporção pedida ao Gemini (ex.: "3:2" para a metade de cima ou de baixo da tela). */
+  aspect?: string;
 }
 import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Save, Shuffle, Wand2 } from "lucide-react";
@@ -58,6 +60,8 @@ import {
   rebuildWithPreset,
   SEMANTIC_PRESETS,
   CHAT_PRESETS,
+  gridSlots,
+  type FreeElement,
   type FreeSlide,
 } from "@/lib/templates/free";
 import { sendThumbnail } from "@/lib/client/generated-images";
@@ -199,11 +203,19 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const placeImage = (slide: FeedEditorSlide, image: string): FeedEditorSlide => {
     const free = slide.free;
     if (!free) return { ...slide, image };
-    const slot = free.elements.findIndex((e) => (e.kind === "imagem" && !e.image) || (e.kind === "grade" && !(e.images ?? []).some(Boolean)));
+    // Primeiro espaço vazio: uma imagem sem foto ou a próxima posição livre de uma grade.
+    const emptyCell = (e: FreeElement) => Array.from({ length: gridSlots(e.grid) }, (_, i) => i).find((i) => !e.images?.[i]);
+    const slot = free.elements.findIndex((e) => (e.kind === "imagem" && !e.image) || (e.kind === "grade" && emptyCell(e) !== undefined));
     if (slot >= 0) {
-      const elements = free.elements.map((e, k) =>
-        k !== slot ? e : e.kind === "imagem" ? { ...e, image } : { ...e, images: [image, ...(e.images ?? []).slice(1)] },
-      );
+      const elements = free.elements.map((e, k) => {
+        if (k !== slot) return e;
+        if (e.kind === "imagem") return { ...e, image };
+        const cell = emptyCell(e) ?? 0;
+        const images = [...(e.images ?? [])];
+        while (images.length <= cell) images.push(null);
+        images[cell] = image;
+        return { ...e, images };
+      });
       return { ...slide, free: { ...free, elements } };
     }
     return { ...slide, image, free: { ...free, bg: "foto", overlay: free.overlay === "nenhuma" ? "base" : free.overlay } };
@@ -230,6 +242,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             paleta: [style.palette.background, style.palette.text, style.palette.accent],
             zona: job.zone,
             estilo: job.style,
+            proporcao: job.aspect,
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -273,7 +286,16 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         // Recorte de colagem pede a imagem no estilo "recorte retrô" (fundo branco que some no papel).
         const cutout = free.elements.some((e) => e.kind === "imagem" && e.cutout);
         const style: ImageStyle = cutout ? "recorte" : (options.estilo?.dados.imagem?.estilo ?? "auto");
-        if (wantsImage) jobs.push({ id: slide.id, prompt, face: !cutout && Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free), style });
+        // Grade de fotos com frase por cima (ex.: duas fotos empilhadas): uma cena por foto, separadas por "||".
+        const grid = free.elements.find((e) => e.kind === "grade");
+        if (wantsImage && grid && grid.dim) {
+          const cells = gridSlots(grid.grid);
+          const scenes = prompt.split("||").map((p) => p.trim()).filter((p) => p.length >= 5);
+          for (let c = 0; c < cells; c++) {
+            const scene = scenes[c] ?? scenes[0] ?? prompt;
+            jobs.push({ id: slide.id, prompt: scene, face: false, zone: "inferior", style, aspect: grid.grid === "2h" ? "3:2" : undefined });
+          }
+        } else if (wantsImage) jobs.push({ id: slide.id, prompt, face: !cutout && Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free), style });
         return slide;
       }
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
