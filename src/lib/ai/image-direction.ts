@@ -85,12 +85,13 @@ export function textZoneOfFree(free: Pick<FreeSlide, "elements"> | null | undefi
 
 // ---------- Estilos ----------
 
-export const IMAGE_STYLES = ["auto", "natural", "editorial", "produto", "conceito", "recorte"] as const;
+export const IMAGE_STYLES = ["auto", "natural", "rua", "editorial", "produto", "conceito", "recorte"] as const;
 export type ImageStyle = (typeof IMAGE_STYLES)[number];
 
 export const IMAGE_STYLE_LABELS: Record<ImageStyle, { label: string; hint: string }> = {
   auto: { label: "Automático", hint: "Segue só a descrição" },
   natural: { label: "Foto natural", hint: "Cara de foto de celular, do dia a dia" },
+  rua: { label: "Cotidiano brasileiro", hint: "Gente comum no corre, foto de celular, Brasil de verdade" },
   editorial: { label: "Editorial", hint: "Foto de revista, luz pensada" },
   produto: { label: "Produto / objeto", hint: "Objeto em destaque, still" },
   conceito: { label: "Conceito", hint: "Metáfora visual da ideia" },
@@ -101,6 +102,12 @@ const STYLE_PROMPTS: Record<ImageStyle, string> = {
   auto: "",
   natural:
     "STYLE: candid smartphone photo of real everyday life. Natural everyday tones, subtle phone-camera grain, slightly imperfect unposed framing, lived-in real details. It must NOT look like a studio ad or a generic stock photo.",
+  rua:
+    "STYLE: candid smartphone snapshot taken in Brazil, documenting the ordinary routine of working-class Brazilians 'no corre'. " +
+    "Ordinary anonymous Brazilian people of varied, mostly brown and Black, skin tones, in simple everyday clothes (t-shirt, shorts, flip-flops, cap, work uniform or apron). " +
+    "Real Brazilian places that fit the scene: popular neighborhoods and city centers, unfinished houses with exposed brick, tiled kitchens and simple sinks, plastic chairs, crowded buses and bus stops, mercadinho, padaria, open street markets, Portuguese-stone sidewalks. " +
+    "Ordinary light as it really is (plain daylight, overcast sky, shade, fluorescent indoor light), true-to-life colors, flat realistic exposure, phone-camera sharpness and slight grain, imperfect unposed framing, as if a friend took it. " +
+    "NOT cinematic: no golden-hour glow, no moody color grading, no film look, no shallow-depth portrait bokeh, no American suburban houses or lawns, no stock-photo models.",
   editorial:
     "STYLE: premium editorial magazine photograph. Intentional lighting, refined color grading, shallow depth of field, strong focal point, generous negative space.",
   produto:
@@ -208,11 +215,19 @@ export function buildImageInstructions(input: ImageDirectionInput): string {
   // Recorte vai num espaço de imagem, isolado: sem área de texto e sem luz/fundo sorteados.
   const cutout = input.style === "recorte";
   const zone = wide || cutout ? null : ZONE_PROMPTS[input.textZone ?? "inferior"];
+  // Cotidiano brasileiro: a luz e o fundo são os da cena real; do sorteio só vale o enquadramento
+  // (luz dourada, contraluz ou estúdio deixavam a foto com cara de cinema).
+  const variation = input.variation ?? [];
+  const look = cutout
+    ? ""
+    : input.style === "rua"
+      ? (variation[1] ?? "").replace(" with shallow depth of field", "")
+      : variation.filter(Boolean).join("; ");
   return [
     cutout ? BASE_RULES.replace("The background must have real texture, depth or atmosphere: never a flat, empty, uniform color.", "") : BASE_RULES,
     zone ? `TEXT AREA: ${zone}` : "",
     STYLE_PROMPTS[input.style ?? "auto"],
-    input.variation?.length && !cutout ? `LOOK (unless the user's description says otherwise): ${input.variation.filter(Boolean).join("; ")}.` : "",
+    look ? `LOOK (unless the user's description says otherwise): ${look}.` : "",
     input.hasFaces ? FACE_RULE : "",
     input.hasReferences ? "Use the other reference image(s) only as visual style/composition inspiration." : "",
     input.paletteHint ? `Brand colors to echo subtly in props, clothing or light (never as a flat fill): ${input.paletteHint}.` : "",
