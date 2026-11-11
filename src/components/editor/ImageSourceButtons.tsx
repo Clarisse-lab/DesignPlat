@@ -7,6 +7,7 @@ import { useRef, useState } from "react";
 import { Images, ImagePlus, Sparkles, X } from "lucide-react";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { ClientPhotosDialog } from "./ClientPhotos";
+import type { ImageStyle } from "@/lib/ai/image-direction";
 import { ImageAiDialog, type ImageAiContext } from "./ImageAiDialog";
 
 export type ImageAiBase = Omit<ImageAiContext, "currentImage">;
@@ -19,12 +20,15 @@ export function ImageSourceButtons({
   onError,
   imageAi,
   label,
+  aiStyle,
 }: {
   value: string | null | undefined;
   onChange: (dataUrl: string | null) => void;
   onError: (message: string) => void;
   imageAi: ImageAiBase | null;
   label?: string;
+  /** Estilo que o Gerar com IA já abre marcado (ex.: "recorte" para recorte de colagem). */
+  aiStyle?: ImageStyle;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dialog, setDialog] = useState<"ia" | "cliente" | null>(null);
@@ -78,7 +82,7 @@ export function ImageSourceButtons({
       {dialog === "ia" && imageAi && (
         <ImageAiDialog
           // Imagem de elemento (foto, tira, grade): o texto fica fora dela.
-          context={{ ...imageAi, currentImage: value ?? null, textZone: "nenhuma" }}
+          context={{ ...imageAi, currentImage: value ?? null, textZone: "nenhuma", defaultStyle: aiStyle }}
           onClose={() => setDialog(null)}
           onUse={(image) => {
             onChange(image);

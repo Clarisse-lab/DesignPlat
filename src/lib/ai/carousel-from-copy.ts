@@ -41,11 +41,14 @@ const MODEL_GUIDE: Record<string, string> = {
   "final-comente": "fechamento pedindo um comentário com palavra-chave (ex.: comente QUERO)",
   "capa-conversa": "capa com print de conversa (mensagens no texto, uma por linha; 'Eu:' para a resposta); só para depoimento ou mensagem real que a copy traz",
   "capa-notificacoes": "capa com notificações na tela bloqueada (uma por linha no texto) e título embaixo; bom para prova social ou urgência",
+  "colagem-capa": "capa de colagem em papel amassado: título forte com caneta marca-texto, linha de apoio (etiqueta) e um recorte retrô P&B (objeto-metáfora ou figura anônima)",
+  "colagem-item": "tela de colagem: título em máquina de escrever com caneta marca-texto (numerado em listas), texto curto e um recorte retrô P&B que é a metáfora da tela",
+  "colagem-final": "fechamento de colagem em papel no tom do destaque: frase forte e chamada para comentar",
   "interno-conversa": "tela com print de conversa (mensagens no texto, uma por linha; 'Eu:' para a resposta); só para depoimento ou diálogo real da copy",
 };
 const MODEL_IDS = FREE_PRESETS.map((p) => p.id) as [string, ...string[]];
 const PHOTO_MODELS = new Set(FREE_PRESETS.filter((p) => p.photo).map((p) => p.id));
-const IMAGE_SLOT_MODELS = new Set(["capa-tiras", "capa-3-tiras", "capa-tweet", "capa-manchete", "interno-cartao-foto", "interno-tweet", "interno-antes-depois", "interno-citacao-foto", "foto-com-texto"]);
+const IMAGE_SLOT_MODELS = new Set(["colagem-capa", "colagem-item", "capa-tiras", "capa-3-tiras", "capa-tweet", "capa-manchete", "interno-cartao-foto", "interno-tweet", "interno-antes-depois", "interno-citacao-foto", "foto-com-texto"]);
 export const modelUsesImage = (id: string) => PHOTO_MODELS.has(id) || IMAGE_SLOT_MODELS.has(id);
 
 export const studioCarouselSchema = z.object({
@@ -98,6 +101,19 @@ DESIGN: para cada tela, escolha um modelo do catálogo abaixo pelo conteúdo, n�
 CATÁLOGO:
 `;
 
+/** Regras do estilo de referência: vêm depois do catálogo e mandam nele. */
+function estiloRules(estilo: { nome: string; modelos: string[]; texto: string; cenaImagem: string }): string {
+  const validos = estilo.modelos.filter((m) => MODEL_IDS.includes(m));
+  return [
+    `\n\nESTILO DE REFERÊNCIA: "${estilo.nome}". Ele manda sobre as regras de design acima.`,
+    validos.length ? `- Use SOMENTE estes modelos: ${validos.join(", ")}. Capa, telas internas e fechamento saem só dessa lista.` : "",
+    estilo.texto ? `- Texto: ${estilo.texto}` : "",
+    estilo.cenaImagem ? `- Imagens: ${estilo.cenaImagem}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export async function generateStudioCarousel(input: {
   nome: string;
   handle: string;
@@ -106,6 +122,8 @@ export async function generateStudioCarousel(input: {
   tema?: string | null;
   /** Modelos escolhidos no painel (ex.: "capa: capa-manchete; internas: interno-cartao"). */
   prefer?: string | null;
+  /** Estilo de referência: restringe os modelos e orienta texto e imagens. */
+  estilo?: { nome: string; modelos: string[]; texto: string; cenaImagem: string } | null;
 }): Promise<{ carousel: StudioCarousel; costUsd: number; inputTokens: number; outputTokens: number; model: string }> {
   const source = input.pauta
     ? [
@@ -130,7 +148,11 @@ export async function generateStudioCarousel(input: {
     output_config: { effort: "medium", format: betaZodOutputFormat(studioCarouselSchema) },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
-    system: SYSTEM + DESIGN_RULES + catalog() + (input.prefer ? `\n\nPREFERÊNCIA DA EQUIPE: ${input.prefer}` : ""),
+    system:
+      SYSTEM +
+      DESIGN_RULES +
+      catalog() +
+      (input.estilo ? estiloRules(input.estilo) : input.prefer ? `\n\nPREFERÊNCIA DA EQUIPE: ${input.prefer}` : ""),
     messages: [{ role: "user", content: prompt }],
   });
   if (response.stop_reason === "refusal") throw new GenerationError("A IA recusou este conteúdo. Tente reformular.");

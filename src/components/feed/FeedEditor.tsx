@@ -1,6 +1,15 @@
 "use client";
 
-import { textZoneOfFree, type TextZone } from "@/lib/ai/image-direction";
+import { textZoneOfFree, type ImageStyle, type TextZone } from "@/lib/ai/image-direction";
+
+/** Uma imagem que o Estúdio automático vai gerar para um slide. */
+interface ImageJob {
+  id: string;
+  prompt: string;
+  face: boolean;
+  zone: TextZone;
+  style: ImageStyle;
+}
 import { useEffect, useMemo, useState } from "react";
 import { Download, MoreHorizontal, Save, Shuffle, Wand2 } from "lucide-react";
 import {
@@ -190,7 +199,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const [generatingImages, setGeneratingImages] = useState(false);
 
   /** Gera com o Gemini as fotos descritas pela IA, uma por vez, e coloca cada uma no seu slide. */
-  const generateImages = async (jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[]) => {
+  const generateImages = async (jobs: ImageJob[]) => {
     setGeneratingImages(true);
     let done = 0;
     let spent = 0;
@@ -207,6 +216,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             rostos: job.face && brand.logo ? [brand.logo] : [],
             paleta: [style.palette.background, style.palette.text, style.palette.accent],
             zona: job.zone,
+            estilo: job.style,
           }),
         });
         const data = await response.json().catch(() => ({}));
@@ -235,7 +245,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const hadContent = draftHasContent;
     const saved = await pieces.flush();
     const list = items.slice(0, MAX_FEED_SLIDES);
-    const jobs: { id: string; prompt: string; face: boolean; zone: TextZone }[] = [];
+    const jobs: ImageJob[] = [];
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
       if (options.style === "revista") {
@@ -247,14 +257,26 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         const slide = newFeedSlide({ layout: "livre", ...base, free: withTag(free, it.tipo === "capa" ? "" : it.etiqueta) });
         // Foto de fundo: a IA deixa livre a área do texto. Foto num espaço de imagem: sem zona.
         const slotImage = free.elements.some((e) => e.kind === "imagem" || e.kind === "grade");
-        if (wantsImage) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free) });
+        // Recorte de colagem pede a imagem no estilo "recorte retrô" (fundo branco que some no papel).
+        const cutout = free.elements.some((e) => e.kind === "imagem" && e.cutout);
+        const style: ImageStyle = cutout ? "recorte" : (options.estilo?.dados.imagem?.estilo ?? "auto");
+        if (wantsImage) jobs.push({ id: slide.id, prompt, face: !cutout && Boolean(it.rosto), zone: slotImage ? "nenhuma" : textZoneOfFree(free), style });
         return slide;
       }
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
       return newFeedSlide({ layout, ...base });
     });
     // Carrossel novo vira peça nova: o anterior continua salvo (não é sobrescrito).
-    setDraft((d) => ({ ...d, slides: built, legenda, pecaId: null, titulo: null }));
+    // O estilo de referência traz cores e fonte de título; logo, nome e @ continuam os do kit do cliente.
+    const look = options.style === "revista" ? options.estilo?.dados.feed : undefined;
+    setDraft((d) => ({
+      ...d,
+      slides: built,
+      legenda,
+      pecaId: null,
+      titulo: null,
+      style: look ? { ...d.style, ...(look.palette ? { palette: look.palette } : {}), ...(look.titleFont ? { titleFont: look.titleFont } : {}) } : d.style,
+    }));
     setActiveIndex(0);
     setSelectedElement(null);
     if (hadContent) {

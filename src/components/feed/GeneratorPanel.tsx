@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Loader2, Sparkles } from "lucide-react";
 import { inputClass, Panel, Segmented } from "@/components/editor/ui";
+import type { Estilo } from "@/lib/estilos";
 import { FREE_PRESETS } from "@/lib/templates/free";
 
 interface PautaResumo {
@@ -33,6 +34,8 @@ export type GeneratorImages = "nenhuma" | "capa" | "todas";
 export interface GeneratorOptions {
   style: GeneratorStyle;
   images: GeneratorImages;
+  /** Estilo de referência usado (cores, fonte e estilo das imagens vêm dele). */
+  estilo?: Estilo | null;
 }
 
 const CAPAS = FREE_PRESETS.filter((p) => p.category === "capa");
@@ -68,6 +71,26 @@ export function GeneratorPanel({
   const [interno, setInterno] = useState("");
   const [images, setImages] = useState<GeneratorImages>("nenhuma");
   const [busy, setBusy] = useState(false);
+  const [estilos, setEstilos] = useState<Estilo[]>([]);
+  /** "" = sem estilo (a IA escolhe entre todos os modelos). */
+  const [estiloId, setEstiloId] = useState("");
+
+  // Estilos do cliente e da agência; o padrão do cliente já vem marcado.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/estudio/estilos${clienteSlug ? `?cliente=${encodeURIComponent(clienteSlug)}` : ""}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const list: Estilo[] = data.estilos ?? [];
+        setEstilos(list);
+        setEstiloId(list.find((e) => e.padrao && e.cliente_slug === clienteSlug)?.id ?? "");
+      })
+      .catch(() => !cancelled && setEstilos([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [clienteSlug]);
 
   useEffect(() => {
     if (!clienteSlug) return;
@@ -103,14 +126,15 @@ export function GeneratorPanel({
           handle,
           clienteSlug,
           slides: count,
-          capa: style === "revista" && capa ? capa : null,
-          interno: style === "revista" && interno ? interno : null,
+          capa: style === "revista" && capa && !estiloId ? capa : null,
+          interno: style === "revista" && interno && !estiloId ? interno : null,
+          estiloId: style === "revista" && estiloId ? estiloId : null,
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar.");
       onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).`);
-      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma" });
+      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma", estilo: data.estilo ?? null });
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao gerar.");
     } finally {
@@ -174,6 +198,24 @@ export function GeneratorPanel({
         </div>
         {style === "revista" && (
           <div className="space-y-2">
+            {estilos.length > 0 && (
+              <select value={estiloId} onChange={(e) => setEstiloId(e.target.value)} className={inputClass} aria-label="Estilo visual">
+                <option value="">Estilo visual: nenhum (a IA escolhe os modelos)</option>
+                {estilos.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    Estilo: {e.nome}
+                    {e.padrao && e.cliente_slug ? " (padrão do cliente)" : e.cliente_slug ? "" : " (da agência)"}
+                  </option>
+                ))}
+              </select>
+            )}
+            {estiloId && (
+              <p className="text-[11.5px] leading-relaxed text-ink-faint">
+                {estilos.find((e) => e.id === estiloId)?.descricao ?? "O estilo escolhe os modelos, as cores e o jeito das imagens."}
+              </p>
+            )}
+            {!estiloId && (
+              <>
             <select value={capa} onChange={(e) => setCapa(e.target.value)} className={inputClass} aria-label="Modelo da capa">
               <option value="">Capa: a IA escolhe</option>
               {CAPAS.map((p) => (
@@ -190,6 +232,8 @@ export function GeneratorPanel({
                 </option>
               ))}
             </select>
+              </>
+            )}
             <select value={images} onChange={(e) => setImages(e.target.value as GeneratorImages)} className={inputClass} aria-label="Imagens com IA">
               <option value="nenhuma">Imagens com IA: não gerar</option>
               <option value="capa">Imagens com IA: só a capa</option>
@@ -211,7 +255,7 @@ export function GeneratorPanel({
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           {busy ? "Montando as telas…" : "Gerar carrossel"}
         </button>
-        <p className="text-[11.5px] leading-relaxed text-ink-faint">Segue a divisão de telas da copy quando ela já vem dividida. Substitui os slides atuais.</p>
+        <p className="text-[11.5px] leading-relaxed text-ink-faint">Segue a divisão de telas da copy quando ela já vem dividida. O carrossel atual fica salvo em Abrir peça.</p>
         {legenda && (
           <div className="space-y-1.5 rounded-lg bg-canvas p-2.5">
             <div className="flex items-center justify-between">

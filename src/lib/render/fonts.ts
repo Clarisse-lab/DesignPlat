@@ -1,7 +1,7 @@
 import "server-only";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fontFaceCss } from "../templates/fonts";
+import { fontFaceCss, fontFormat } from "../templates/fonts";
 
 let cached: string | null = null;
 
@@ -10,7 +10,7 @@ export function inlineFontCss(): string {
   if (!cached) {
     const dir = path.join(process.cwd(), "public", "fonts");
     cached = fontFaceCss(
-      (file) => `data:font/woff2;base64,${readFileSync(path.join(dir, file)).toString("base64")}`,
+      (file) => `data:font/${fontFormat(file)};base64,${readFileSync(path.join(dir, file)).toString("base64")}`,
     );
   }
   return cached;

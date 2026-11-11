@@ -7,6 +7,7 @@ import { z } from "zod";
 import { GenerationError } from "@/lib/ai/claude";
 import { generateStudioCarousel } from "@/lib/ai/carousel-from-copy";
 import { isResponse, requireMember } from "@/lib/server/auth";
+import { loadEstilo } from "@/lib/server/estilos";
 import { rest } from "@/lib/server/supabase";
 
 export const runtime = "nodejs";
@@ -22,6 +23,8 @@ const schema = z
     slides: z.number().int().min(3).max(12).nullish(),
     capa: z.string().max(40).nullish(),
     interno: z.string().max(40).nullish(),
+    /** Estilo de referência (design_estilos). Com ele, capa e interno são ignorados. */
+    estiloId: z.string().uuid().nullish(),
   })
   .refine((v) => v.pautaId || (v.tema && v.tema.length >= 5), { message: "Escolha uma pauta ou escreva o tema." });
 
@@ -40,7 +43,10 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Pedido inválido." }, { status: 400 });
-  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno } = parsed.data;
+  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno, estiloId } = parsed.data;
+
+  const estilo = estiloId ? await loadEstilo(estiloId).catch(() => null) : null;
+  if (estiloId && !estilo) return NextResponse.json({ error: "Estilo não encontrado." }, { status: 404 });
 
   let pauta: PautaRow | null = null;
   if (pautaId) {
@@ -58,6 +64,7 @@ export async function POST(request: Request) {
       pauta: pauta ? { titulo: pauta.titulo, formato: pauta.formato, angulo: pauta.angulo, copy: pauta.copy! } : null,
       tema: tema ?? null,
       prefer: [capa ? `use ${capa} na capa` : "", interno ? `use ${interno} em todas as telas internas que não forem lista, dado ou citação` : ""].filter(Boolean).join("; ") || null,
+      estilo: estilo ? { nome: estilo.nome, modelos: estilo.dados.modelos, texto: estilo.dados.texto, cenaImagem: estilo.dados.imagem?.cena ?? "" } : null,
     });
     await rest("uso_ia", {
       method: "POST",
@@ -72,7 +79,7 @@ export async function POST(request: Request) {
         custo_usd: result.costUsd.toFixed(4),
       }),
     }).catch((error) => console.error("[estudio/gerar] não registrou o custo:", error));
-    return NextResponse.json({ ...result.carousel, custo_usd: Math.round(result.costUsd * 1000) / 1000 });
+    return NextResponse.json({ ...result.carousel, estilo, custo_usd: Math.round(result.costUsd * 1000) / 1000 });
   } catch (error) {
     if (error instanceof GenerationError) return NextResponse.json({ error: error.message }, { status: 422 });
     if (error instanceof Anthropic.APIError) {

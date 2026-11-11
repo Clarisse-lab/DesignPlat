@@ -28,7 +28,13 @@ export const FONT_FILES = [
   { file: "poppins-latin-700-normal.woff2", family: "Poppins", weight: 700, range: LATIN_RANGE },
   { file: "poppins-latin-ext-400-normal.woff2", family: "Poppins", weight: 400, range: LATIN_EXT_RANGE },
   { file: "poppins-latin-ext-700-normal.woff2", family: "Poppins", weight: 700, range: LATIN_EXT_RANGE },
+  // Cutive (OFL, Google Fonts): máquina de escrever proporcional. Em WOFF (o ambiente que gerou não tinha woff2).
+  { file: "cutive-latin-400-normal.woff", family: "Cutive", weight: 400, range: LATIN_RANGE },
+  { file: "cutive-latin-ext-400-normal.woff", family: "Cutive", weight: 400, range: LATIN_EXT_RANGE },
 ] as const;
+
+/** Formato do @font-face pela extensão do arquivo. */
+export const fontFormat = (file: string) => (file.endsWith(".woff2") ? "woff2" : file.endsWith(".woff") ? "woff" : "opentype");
 
 /** Fontes do Carrossel Tweet (nome, perfil e texto). A Poppins é mais larga, por isso sai um pouco menor. */
 export const TWEET_FONTS = {
@@ -46,6 +52,7 @@ export const TITLE_FONTS = {
   display: { label: "Impacto", stack: '"Bebas Neue", Impact, sans-serif', weight: 400, scale: 1.3, uppercase: true, tracking: "0.01em" },
   geometric: { label: "Geométrica", stack: '"Montserrat", Arial, sans-serif', weight: 800, scale: 0.92, uppercase: false, tracking: "-0.02em" },
   hand: { label: "Manuscrita", stack: '"Caveat", cursive', weight: 700, scale: 1.3, uppercase: false, tracking: "0" },
+  maquina: { label: "Máquina de escrever", stack: '"Cutive", "Courier New", serif', weight: 400, scale: 0.9, uppercase: false, tracking: "-0.01em" },
 } as const;
 
 export type TitleFontId = keyof typeof TITLE_FONTS;
@@ -55,7 +62,7 @@ export function fontFaceCss(resolveUrl: (file: string) => string): string {
   return FONT_FILES.map(
     (f) =>
       `@font-face{font-family:"${f.family}";font-style:normal;font-weight:${f.weight};font-display:block;` +
-      `src:url("${resolveUrl(f.file)}") format("woff2");unicode-range:${f.range};}`,
+      `src:url("${resolveUrl(f.file)}") format("${fontFormat(f.file)}");unicode-range:${f.range};}`,
   ).join("\n");
 }
 

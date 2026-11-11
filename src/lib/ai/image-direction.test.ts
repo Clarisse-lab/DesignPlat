@@ -61,3 +61,13 @@ describe("overlayForZone", () => {
     expect(overlayForZone("nenhuma", "nenhuma")).toBeNull();
   });
 });
+
+describe("recorte", () => {
+  it("pede fundo branco liso, sem zona nem variação", () => {
+    const text = buildImageInstructions({ prompt: "uma ampulheta", aspectRatio: "4:5", hasFaces: false, hasReferences: false, editing: false, style: "recorte", variation: ["x"] });
+    expect(text).toContain("PURE WHITE");
+    expect(text).not.toContain("TEXT AREA");
+    expect(text).not.toContain("LOOK");
+    expect(text).not.toContain("never a flat");
+  });
+});
