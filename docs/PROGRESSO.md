@@ -129,3 +129,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Novo estilo de imagem `rua`: foto de celular do dia a dia do brasileiro comum (bairro popular, ônibus, pia de louça, mercadinho), luz real, sem cara de cinema nem casa americana.
 - Nesse estilo, do sorteio de variação só vale o enquadramento (luz dourada/estúdio/contraluz ficam de fora).
 - O estilo "Foto documental" do Fellipe passa a usar `rua` (troca feita no banco depois do deploy).
+
+## Desfazer e gerador mais simples (PR #30)
+- Botões **Desfazer** e **Refazer** no topo do editor (atalhos Ctrl+Z e Ctrl+Shift+Z / Ctrl+Y). Valem para telas, estilo e marca; mudanças seguidas (arrastar, digitar) contam como um passo. Imagens da IA chegando sozinhas não viram passo; gerar carrossel, abrir peça e trocar de cliente começam um histórico novo.
+- Gerador: saiu o seletor "Estilo revista / Layouts clássicos" (sempre revista). Os layouts clássicos continuam no seletor "Layout" de cada tela.
+- O seletor de estilo agora se chama "Estilo de referência".

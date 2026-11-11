@@ -66,7 +66,9 @@ export function GeneratorPanel({
   const [pautaId, setPautaId] = useState<number | null>(initialPautaId);
   const [tema, setTema] = useState("");
   const [count, setCount] = useState<number | null>(null);
-  const [style, setStyle] = useState<GeneratorStyle>("revista");
+  // Sempre estilo revista (telas Livre, com modelos, imagens e estilo de referência). Os layouts
+  // clássicos continuam no seletor "Layout" de cada tela; só saíram da geração.
+  const style: GeneratorStyle = "revista";
   const [capa, setCapa] = useState("");
   const [interno, setInterno] = useState("");
   const [images, setImages] = useState<GeneratorImages>("nenhuma");
@@ -182,32 +184,29 @@ export function GeneratorPanel({
             className={`${inputClass} resize-y`}
           />
         )}
-        <div className="grid grid-cols-2 gap-2">
-          <select value={count ?? ""} onChange={(e) => setCount(e.target.value ? Number(e.target.value) : null)} className={inputClass} aria-label="Número de telas">
-            <option value="">Telas: automático</option>
-            {[4, 5, 6, 7, 8, 9, 10].map((n) => (
-              <option key={n} value={n}>
-                {n} telas
-              </option>
-            ))}
-          </select>
-          <select value={style} onChange={(e) => setStyle(e.target.value as GeneratorStyle)} className={inputClass} aria-label="Estilo">
-            <option value="revista">Estilo revista (Livre)</option>
-            <option value="classico">Layouts clássicos</option>
-          </select>
-        </div>
+        <select value={count ?? ""} onChange={(e) => setCount(e.target.value ? Number(e.target.value) : null)} className={inputClass} aria-label="Número de telas">
+          <option value="">Telas: automático</option>
+          {[4, 5, 6, 7, 8, 9, 10].map((n) => (
+            <option key={n} value={n}>
+              {n} telas
+            </option>
+          ))}
+        </select>
         {style === "revista" && (
           <div className="space-y-2">
             {estilos.length > 0 && (
-              <select value={estiloId} onChange={(e) => setEstiloId(e.target.value)} className={inputClass} aria-label="Estilo visual">
-                <option value="">Estilo visual: nenhum (a IA escolhe os modelos)</option>
+              <label className="block space-y-1">
+                <span className="text-[12px] font-medium text-ink-soft">Estilo de referência</span>
+              <select value={estiloId} onChange={(e) => setEstiloId(e.target.value)} className={inputClass} aria-label="Estilo de referência">
+                <option value="">Nenhum (a IA escolhe os modelos)</option>
                 {estilos.map((e) => (
                   <option key={e.id} value={e.id}>
-                    Estilo: {e.nome}
+                    {e.nome}
                     {e.padrao && e.cliente_slug ? " (padrão do cliente)" : e.cliente_slug ? "" : " (da agência)"}
                   </option>
                 ))}
               </select>
+              </label>
             )}
             {estiloId && (
               <p className="text-[11.5px] leading-relaxed text-ink-faint">
