@@ -124,3 +124,8 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Com estilo escolhido, a IA só vê no catálogo os modelos do estilo.
 - Se ainda assim vier um modelo de fora, a tela é trocada pelo modelo do estilo da mesma posição (capa, interna, fechamento).
 - Se os modelos do estilo não existem na versão publicada (deploy ainda em andamento), a geração para com aviso em vez de gerar e cobrar com modelos quaisquer.
+
+## Fotos "Cotidiano brasileiro" (PR #29)
+- Novo estilo de imagem `rua`: foto de celular do dia a dia do brasileiro comum (bairro popular, ônibus, pia de louça, mercadinho), luz real, sem cara de cinema nem casa americana.
+- Nesse estilo, do sorteio de variação só vale o enquadramento (luz dourada/estúdio/contraluz ficam de fora).
+- O estilo "Foto documental" do Fellipe passa a usar `rua` (troca feita no banco depois do deploy).

@@ -71,3 +71,22 @@ describe("recorte", () => {
     expect(text).not.toContain("never a flat");
   });
 });
+
+describe("cotidiano brasileiro", () => {
+  it("pede Brasil de verdade e só usa o enquadramento sorteado", () => {
+    const text = buildImageInstructions({
+      prompt: "pia cheia de louça",
+      aspectRatio: "3:2",
+      hasFaces: false,
+      hasReferences: false,
+      editing: false,
+      style: "rua",
+      variation: ["warm golden-hour light with long soft shadows", "close-up detail shot with shallow depth of field", "blurred city background"],
+    });
+    expect(text).toContain("Brazil");
+    expect(text).toContain("NOT cinematic");
+    expect(text).toContain("LOOK (unless the user's description says otherwise): close-up detail shot.");
+    expect(text).not.toContain("golden-hour light with long");
+    expect(text).not.toContain("blurred city");
+  });
+});
