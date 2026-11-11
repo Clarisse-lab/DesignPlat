@@ -10,6 +10,7 @@ const links = [
   ["/feed", "Post de Feed"],
   ["/story", "Story"],
   ["/apresentacao", "Apresentação"],
+  ["/desempenho", "Desempenho"],
 ];
 
 export function AppHeader() {
