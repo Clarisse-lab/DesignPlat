@@ -62,6 +62,8 @@ import {
   SEMANTIC_PRESETS,
   CHAT_PRESETS,
   gridSlots,
+  hasMotion,
+  applyMotionPreset,
   fillTemplate,
   freePhotos,
   freeTexts,
@@ -79,7 +81,7 @@ import { isFeedDraft, newFeedSlide, useFeedDraft, type FeedEditorSlide } from ".
 const ALIGN_LABELS = { left: "à esquerda", center: "centralizado" } as const;
 const VERTICAL_LABELS = { top: "no topo", center: "no meio", bottom: "na base" } as const;
 
-type DownloadTarget = "one" | "all" | "pdf" | "pptx";
+type DownloadTarget = "one" | "all" | "pdf" | "pptx" | "video";
 type SidebarSection = "marca" | "conteudo" | "estilo" | "referencia";
 
 /** Editor com a identidade da marca: Post de Feed, Story ou Apresentação (mesmo template, tamanhos e layouts diferentes). */
@@ -127,6 +129,8 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   const active = slides[safeIndex];
   const { width, height } = CANVAS_SIZES[style.size];
 
+  /** Muda para tocar a animação da tela de novo na prévia. */
+  const [replay, setReplay] = useState(0);
   const previewHtml = useMemo(
     () =>
       renderFeedSlide({
@@ -137,8 +141,9 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         total: slides.length,
         fontCss: browserFontCss,
         sectionNumber: sectionNumberAt(slides, safeIndex),
-      }),
-    [active, brand, style, safeIndex, slides],
+        animate: active.layout === "livre" && hasMotion(active.free),
+      }) + (replay ? `<!--r${replay}-->` : ""),
+    [active, brand, style, safeIndex, slides, replay],
   );
 
   // "Ver todas as telas": o HTML de cada tela só é montado com a grade aberta.
@@ -381,6 +386,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       const layout = it.tipo === "capa" || it.tipo === "cta" ? "destaque" : it.tipo;
       return newFeedSlide({ layout, ...base });
     });
+    // Capa animada: "Impacto" (título sobe e o destaque é pintado, zoom lento na foto). Telas de estilo
+    // salvo que já têm animação ficam como estão.
+    if (options.capaAnimada && built[0]?.free && !hasMotion(built[0].free)) {
+      built[0] = { ...built[0], free: applyMotionPreset(built[0].free, "impacto") };
+    }
     // Carrossel novo vira peça nova: o anterior continua salvo (não é sobrescrito).
     // O estilo de referência traz cores e fonte de título; logo, nome e @ continuam os do kit do cliente.
     const look = options.style === "revista" ? options.estilo?.dados.feed : undefined;
@@ -541,7 +551,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       if (target === "pdf" || target === "pptx") {
         await downloadFile(`/api/presentation/export?format=${target}`, payload, `apresentacao.${target}`);
       } else {
-        await downloadRender("/api/feed/render", payload, { index: target === "one" ? safeIndex : undefined, zipName: config.zipName });
+        await downloadRender("/api/feed/render", payload, {
+          index: target === "one" || target === "video" ? safeIndex : undefined,
+          zipName: config.zipName,
+          video: target === "video",
+        });
       }
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erro ao exportar.");
@@ -737,8 +751,13 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         { label: "Só este slide (PNG)", onClick: () => handleDownload("one") },
       ]
     : [
-        { label: "Todos os slides (.zip)", onClick: () => handleDownload("all") },
+        {
+          label: "Todos os slides (.zip)",
+          hint: slides.some((sl) => sl.layout === "livre" && hasMotion(sl.free)) ? "Telas animadas vão em vídeo (MP4)" : undefined,
+          onClick: () => handleDownload("all"),
+        },
         { label: "Só este slide (PNG)", onClick: () => handleDownload("one") },
+        ...(active.layout === "livre" && hasMotion(active.free) ? [{ label: "Vídeo deste slide (MP4)", hint: "Leva uns 15 a 30 segundos", onClick: () => handleDownload("video") }] : []),
       ];
   const moreItems: MenuItem[] = [
     ...(studioEnabled
@@ -971,6 +990,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
             onSelectElement={setSelectedElement}
             onSpread={spreadPhoto}
             onApplyAll={slides.length > 2 ? applyPresetToAll : undefined}
+            onReplay={() => setReplay((n) => n + 1)}
             preview={{ brand, palette: style.palette, titleFont: style.titleFont, width, height }}
             imageAi={
               studioEnabled

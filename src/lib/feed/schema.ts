@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { POST_CANVAS_SIZES } from "../formats";
 import { FEED_DECORS, FEED_LAYOUTS } from "../templates/feed";
-import { FREE_BACKGROUNDS, FREE_CHAT_STYLES, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_GRIDS, FREE_HIGHLIGHTS, FREE_OVERLAYS, FREE_PROFILE_VARIANTS } from "../templates/free";
+import { FREE_ANIMS, FREE_BACKGROUNDS, FREE_CHAT_STYLES, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_GRIDS, FREE_HIGHLIGHTS, FREE_OVERLAYS, FREE_PROFILE_VARIANTS } from "../templates/free";
 import { ICON_IDS, type IconId } from "../templates/icons";
 import { TITLE_FONT_IDS, type TitleFontId } from "../templates/fonts";
 
@@ -30,6 +30,7 @@ export const freeSlideSchema = z.object({
   progress: z.boolean().optional(),
   pan: z.object({ total: z.number().int().min(2).max(10), part: z.number().int().min(0).max(9) }).nullish(),
   preset: z.string().max(40).nullish(),
+  motion: z.object({ photo: z.boolean().optional(), duration: z.number().min(3).max(15).optional() }).nullish(),
   elements: z
     .array(
       z.object({
@@ -63,6 +64,8 @@ export const freeSlideSchema = z.object({
         chat: z.enum(FREE_CHAT_STYLES).optional(),
         contact: z.string().max(60).optional(),
         time: z.string().max(5).optional(),
+        anim: z.enum(FREE_ANIMS).optional(),
+        delay: z.number().min(0).max(12).optional(),
       }),
     )
     .max(40),

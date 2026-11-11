@@ -159,8 +159,36 @@ export const FREE_OVERLAY_LABELS: Record<(typeof FREE_OVERLAYS)[number], string>
   total: "Escurecer tudo",
 };
 
+// ---------- Animação (vídeo MP4 da tela) ----------
+
+/** Entrada de cada elemento no vídeo. */
+export const FREE_ANIMS = ["nenhuma", "aparecer", "subir", "escala", "palavras", "marca"] as const;
+export type FreeAnim = (typeof FREE_ANIMS)[number];
+export const FREE_ANIM_LABELS: Record<FreeAnim, string> = {
+  nenhuma: "Sem animação",
+  aparecer: "Aparecer",
+  subir: "Subir",
+  escala: "Crescer",
+  palavras: "Palavra por palavra",
+  marca: "Subir e pintar o destaque",
+};
+
+/** Animação da tela: zoom lento na foto e duração do vídeo. */
+export interface FreeMotion {
+  photo?: boolean;
+  /** Duração do vídeo em segundos (3 a 15). */
+  duration?: number;
+}
+
+export const MOTION_DEFAULT_DURATION = 6;
+const WORD_STEP = 0.11;
+const ANIM_TIME = 0.7;
+
 export interface FreeElement {
   id: string;
+  /** Entrada no vídeo e atraso (s). */
+  anim?: FreeAnim;
+  delay?: number;
   kind: FreeElementKind;
   /** Posição e largura em % do canvas. */
   x: number;
@@ -213,8 +241,92 @@ export interface FreeSlide {
   preset?: string | null;
   /** Carrossel infinito: a foto de fundo ocupa `total` slides lado a lado e este mostra o pedaço `part`. */
   pan?: { total: number; part: number } | null;
+  /** Animação da tela (vira vídeo MP4 ao baixar). */
+  motion?: FreeMotion | null;
   elements: FreeElement[];
 }
+
+/** A tela tem animação (sai em vídeo)? */
+export const hasMotion = (free: FreeSlide | null | undefined): boolean =>
+  Boolean(free && (free.motion?.photo || free.elements.some((e) => e.anim && e.anim !== "nenhuma")));
+
+/** Animações prontas para a tela inteira (um clique). */
+export const FREE_MOTION_PRESETS = ["nenhuma", "suave", "palavras", "impacto"] as const;
+export type FreeMotionPreset = (typeof FREE_MOTION_PRESETS)[number];
+export const FREE_MOTION_PRESET_LABELS: Record<FreeMotionPreset, string> = {
+  nenhuma: "Sem animação",
+  suave: "Suave",
+  palavras: "Palavra por palavra",
+  impacto: "Impacto",
+};
+
+/** Fundo da composição (fotos, formas): fica parado; quem entra são os textos e selos. */
+const STATIC_KINDS: FreeElementKind[] = ["imagem", "grade", "mancha", "cartao", "conversa"];
+const LATE_KINDS: FreeElementKind[] = ["perfil", "numeracao", "arraste"];
+
+/**
+ * Aplica uma animação pronta: "suave" (tudo aparece em sequência), "palavras" (título palavra por
+ * palavra), "impacto" (título sobe e o destaque é pintado). Todas com zoom lento na foto.
+ */
+export function applyMotionPreset(free: FreeSlide, preset: FreeMotionPreset): FreeSlide {
+  const clear = free.elements.map(({ anim: _a, delay: _d, ...e }) => e as FreeElement);
+  if (preset === "nenhuma") return { ...free, elements: clear, motion: null };
+  const title = mainTitle({ ...free, elements: clear });
+  const titleAnim: FreeAnim = preset === "palavras" ? "palavras" : preset === "impacto" ? ((title?.text ?? "").includes("**") ? "marca" : "subir") : "aparecer";
+  const rest = clear
+    .filter((e) => e !== title && !STATIC_KINDS.includes(e.kind))
+    .sort((a, b) => Number(LATE_KINDS.includes(a.kind)) - Number(LATE_KINDS.includes(b.kind)) || a.y - b.y);
+  // O que fica acima do título (etiqueta, linha de apoio da capa) abre o vídeo; depois o título; depois o resto.
+  const above = title ? rest.filter((e) => e.y < title.y && !LATE_KINDS.includes(e.kind)) : [];
+  const below = rest.filter((e) => !above.includes(e));
+  const step = preset === "suave" ? 0.2 : 0.16;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const plan = new Map<string, { anim: FreeAnim; delay: number }>();
+  above.forEach((e, k) => plan.set(e.id, { anim: preset === "impacto" && e.kind === "etiqueta" ? "escala" : preset === "impacto" ? "subir" : "aparecer", delay: round(0.1 + k * step) }));
+  const titleStart = above.length ? round(0.1 + above.length * step + 0.15) : 0.3;
+  const titleEnd = title ? titleStart + (titleAnim === "palavras" ? countWords(title.text) * WORD_STEP + 0.4 : ANIM_TIME) : titleStart;
+  if (title) plan.set(title.id, { anim: titleAnim, delay: titleStart });
+  below.forEach((e, k) => plan.set(e.id, { anim: preset === "impacto" ? "subir" : "aparecer", delay: round(titleEnd + 0.1 + k * step) }));
+  return {
+    ...free,
+    motion: { photo: true, duration: free.motion?.duration ?? MOTION_DEFAULT_DURATION },
+    elements: clear.map((e) => (plan.has(e.id) ? { ...e, ...plan.get(e.id) } : e)),
+  };
+}
+
+/** Duração do vídeo da tela, em segundos. */
+export const motionDuration = (free: FreeSlide | null | undefined): number =>
+  Math.min(15, Math.max(3, Math.round(free?.motion?.duration ?? MOTION_DEFAULT_DURATION)));
+
+/** CSS das animações (só na prévia animada e no vídeo). */
+function motionCss(free: FreeSlide, c: { hlColor: string; bandColor: string; penColor: string }): string {
+  const dur = motionDuration(free);
+  const zoom = free.motion?.photo && !free.pan ? `.photo,.pimg{animation:a-zoom ${dur}s linear both;transform-origin:50% 45%}` : "";
+  return `@keyframes a-fade{from{opacity:0}to{opacity:1}}
+@keyframes a-up{from{opacity:0;transform:translateY(42px)}to{opacity:1;transform:none}}
+@keyframes a-pop{from{opacity:0;transform:scale(.82)}to{opacity:1;transform:none}}
+@keyframes a-word{from{opacity:0;transform:translateY(.3em)}to{opacity:1;transform:none}}
+@keyframes a-sweep{from{background-size:0% 100%}to{background-size:100% 100%}}
+@keyframes a-color{from{color:var(--c0)}}
+@keyframes a-zoom{from{transform:scale(1)}to{transform:scale(1.09)}}
+.aw{display:inline-block;animation:a-word .5s cubic-bezier(.2,.7,.2,1) both}
+.mk.hl-marca strong{background:linear-gradient(${c.hlColor},${c.hlColor}) no-repeat 0 0/100% 100%}
+.mk.hl-faixa strong{background:linear-gradient(${c.bandColor},${c.bandColor}) no-repeat 0 0/100% 100%}
+.mk.hl-caneta strong{background-repeat:no-repeat;background-size:100% 100%}
+.mk.hl-marca strong,.mk.hl-faixa strong,.mk.hl-caneta strong{animation:a-sweep .65s cubic-bezier(.3,.6,.3,1) var(--md) both}
+.mk.hl-cor strong{animation:a-color .6s ease var(--md) both}
+${zoom}`;
+}
+
+/** Envolve cada palavra (fora das tags) num span que entra em sequência. */
+function wrapWords(html: string, delay: number): string {
+  let k = 0;
+  return html.replace(/(<[^>]+>)|([^<\s]+)/g, (m, tag: string | undefined) =>
+    tag ? m : `<span class="aw" style="animation-delay:${(delay + k++ * WORD_STEP).toFixed(2)}s">${m}</span>`,
+  );
+}
+
+const countWords = (text: string | undefined) => (text ?? "").replace(/\*\*/g, "").split(/\s+/).filter(Boolean).length;
 
 const clamp = (n: number | undefined, min: number, max: number, fallback: number) =>
   Number.isFinite(n) ? Math.min(max, Math.max(min, n as number)) : fallback;
@@ -336,8 +448,11 @@ export function renderFreeSlide(params: {
   index: number;
   total: number;
   fontCss: string;
+  /** Com animação (prévia animada e vídeo). Sem ela, a tela sai no estado final (PNG). */
+  animate?: boolean;
 }): string {
   const { free, brand, width, height, index, total, fontCss } = params;
+  const animate = Boolean(params.animate) && hasMotion(free);
   const bg = safeColor(params.palette.background, "#FFFFFF");
   const text = safeColor(params.palette.text, "#16161A");
   const accent = safeColor(params.palette.accent, "#4F46E5");
@@ -419,8 +534,18 @@ export function renderFreeSlide(params: {
       (el.italic ? "font-style:italic;" : "") +
       (el.shadow ? "text-shadow:0 4px 24px rgba(0,0,0,.55);" : "")
     ).replace(/"/g, "'"); // vai dentro de style="...": aspas duplas na pilha de fontes cortariam o atributo
-    const content = formatRichText(fillTokens(el.text ?? ""));
+    const anim = animate && el.anim && el.anim !== "nenhuma" ? el.anim : null;
+    const delay = clamp(el.delay, 0, 12, 0);
+    const rich = formatRichText(fillTokens(el.text ?? ""));
+    const content = anim === "palavras" && (el.kind === "titulo" || el.kind === "texto") ? wrapWords(rich, delay) : rich;
+    const html = renderElement();
+    if (!anim || anim === "palavras") return html;
+    // Entrada do elemento inteiro; em "marca", o destaque das palavras é pintado depois que ele entra.
+    const name = anim === "aparecer" ? "a-fade" : anim === "escala" ? "a-pop" : "a-up";
+    const animStyle = `animation:${name} ${ANIM_TIME}s cubic-bezier(.2,.7,.2,1) ${delay.toFixed(2)}s both;--md:${(delay + ANIM_TIME * 0.7).toFixed(2)}s;--c0:${color};`;
+    return html.replace('style="', `style="${animStyle}`).replace('class="el', anim === "marca" ? 'class="el mk' : 'class="el');
 
+    function renderElement(): string {
     switch (el.kind) {
       case "titulo":
       case "texto":
@@ -467,7 +592,7 @@ export function renderFreeSlide(params: {
         }
         const dimLayer = el.dim ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${clamp(el.dim, 0, 90, 0) / 100})"></div>` : "";
         return src
-          ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${dimLayer}</div>`
+          ? `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;overflow:hidden"><img class="pimg" src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${dimLayer}</div>`
           : `<div class="el img-empty" style="${box}height:${h}%;border-radius:${radius}px">Imagem</div>`;
       }
       case "grade": {
@@ -479,7 +604,7 @@ export function renderFreeSlide(params: {
         const cells = Array.from({ length: slots }, (_, i) => {
           const src = safeImageSrc(el.images?.[i]);
           return src
-            ? `<div style="border-radius:${radius}px;overflow:hidden;position:relative"><img src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${el.dim ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${clamp(el.dim, 0, 90, 0) / 100})"></div>` : ""}</div>`
+            ? `<div style="border-radius:${radius}px;overflow:hidden;position:relative"><img class="pimg" src="${src}" alt="" style="width:100%;height:100%;object-fit:cover;display:block"/>${el.dim ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,${clamp(el.dim, 0, 90, 0) / 100})"></div>` : ""}</div>`
             : `<div class="img-empty" style="border-radius:${radius}px;position:static">Foto ${i + 1}</div>`;
         }).join("");
         return `<div class="el" style="${box}height:${h}%;display:grid;${template};gap:${gap}px">${cells}</div>`;
@@ -501,6 +626,8 @@ export function renderFreeSlide(params: {
         return `<div class="el" style="${box}height:${h}%;border-radius:${radius}px;background:${fill};${shadow}"></div>`;
       }
     }
+    return "";
+    }
   });
 
   const progress = free.progress && total > 1
@@ -513,6 +640,7 @@ body{background:${pageBg};color:${autoText};font-family:"Inter",Arial,sans-serif
 .photo{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;max-width:none}
 .shade{position:absolute;inset:0;background:${photo ? OVERLAY_CSS[free.overlay] ?? "transparent" : "transparent"}}
 .el{position:absolute;overflow-wrap:break-word}
+${animate ? motionCss(free, { hlColor, bandColor, penColor }) : ""}
 .t-body{font-family:"Inter",Arial,sans-serif;line-height:1.4}
 strong{font-weight:700}
 .hl-cor strong{color:${hlColor}}
@@ -1405,6 +1533,7 @@ export function stripTemplate(free: FreeSlide): FreeSlide {
     progress: free.progress,
     preset: null,
     pan: null,
+    motion: free.motion ?? null,
     elements: free.elements.map((e) => {
       const out: FreeElement = { ...e };
       if (e.kind === "imagem") out.image = null;

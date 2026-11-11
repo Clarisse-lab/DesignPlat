@@ -4,7 +4,7 @@
 // do elemento selecionado. Os elementos também podem ser arrastados na prévia (FreeHandles).
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Play, Plus, Trash2 } from "lucide-react";
 import { ImageAiDialog } from "@/components/editor/ImageAiDialog";
 import { ImageSourceButtons, type ImageAiBase } from "@/components/editor/ImageSourceButtons";
 import { Field, inputClass, MenuButton, Segmented } from "@/components/editor/ui";
@@ -35,6 +35,14 @@ import {
   newFreeElement,
   type FreeElement,
   type FreeSlide,
+  applyMotionPreset,
+  FREE_ANIM_LABELS,
+  FREE_ANIMS,
+  FREE_MOTION_PRESET_LABELS,
+  FREE_MOTION_PRESETS,
+  hasMotion,
+  motionDuration,
+  type FreeAnim,
 } from "@/lib/templates/free";
 import { browserFontCss, TITLE_FONT_IDS, TITLE_FONTS, type TitleFontId } from "@/lib/templates/fonts";
 import { ICON_IDS, ICONS, type IconId } from "@/lib/templates/icons";
@@ -87,6 +95,7 @@ export function FreeEditor({
   onSpread,
   preview,
   onApplyAll,
+  onReplay,
 }: {
   free: FreeSlide;
   /** Título e texto do slide, usados ao aplicar um modelo. */
@@ -110,8 +119,9 @@ export function FreeEditor({
   preview: PreviewContext;
   /** Aplica um modelo em todas as telas da mesma categoria (internas ou fechamento). */
   onApplyAll?: (id: string) => void;
+  onReplay?: () => void;
 }) {
-  const [tab, setTab] = useState<"elementos" | "fundo" | "modelos">(free.elements.length ? "elementos" : "modelos");
+  const [tab, setTab] = useState<"elementos" | "fundo" | "modelos" | "animacao">(free.elements.length ? "elementos" : "modelos");
   // Clicar num elemento na prévia traz para a aba Elementos.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -146,6 +156,7 @@ export function FreeEditor({
             ["elementos", `Elementos · ${free.elements.length}`],
             ["fundo", "Fundo"],
             ["modelos", "Modelos"],
+            ["animacao", hasMotion(free) ? "Animação ●" : "Animação"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -158,6 +169,8 @@ export function FreeEditor({
           </button>
         ))}
       </div>
+
+      {tab === "animacao" && <MotionPanel free={free} onChange={onChange} onReplay={onReplay} />}
 
       {tab === "modelos" && (
         <PresetGallery
@@ -661,6 +674,104 @@ export function FreeHandles({
   );
 }
 
+
+/** Aba Animação: animação pronta da tela, zoom na foto, duração e a entrada de cada elemento. */
+function MotionPanel({ free, onChange, onReplay }: { free: FreeSlide; onChange: (free: FreeSlide) => void; onReplay?: () => void }) {
+  const on = hasMotion(free);
+  const setEl = (id: string, patch: Partial<FreeElement>) => onChange({ ...free, elements: free.elements.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
+  const label = (e: FreeElement) => {
+    const text = (e.text ?? "").replace(/\*\*/g, "").replace(/\{usuario\}/g, "@").trim();
+    return `${FREE_ELEMENT_LABELS[e.kind]}${text ? ` · ${text.slice(0, 28)}` : ""}`;
+  };
+  return (
+    <div className="space-y-3">
+      <div className="space-y-3 rounded-xl border border-line p-3">
+        <p className="text-[12px] leading-relaxed text-ink-soft">
+          Tela com animação sai em <strong>vídeo MP4</strong> ao baixar (as outras continuam em PNG). Ideal para a capa: o Instagram aceita foto e vídeo no
+          mesmo carrossel.
+        </p>
+        <Field label="Animação pronta">
+          <div className="flex flex-wrap gap-1.5">
+            {FREE_MOTION_PRESETS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  onChange(applyMotionPreset(free, id));
+                  onReplay?.();
+                }}
+                className="rounded-full border border-line px-3 py-1.5 text-[12.5px] font-medium text-ink-soft hover:border-line-strong hover:text-ink"
+              >
+                {FREE_MOTION_PRESET_LABELS[id]}
+              </button>
+            ))}
+          </div>
+        </Field>
+        {on && (
+          <>
+            <Check
+              label="Zoom lento na foto"
+              checked={Boolean(free.motion?.photo)}
+              onChange={(photo) => onChange({ ...free, motion: { ...free.motion, photo } })}
+            />
+            <Slider
+              label="Duração do vídeo"
+              value={motionDuration(free)}
+              min={3}
+              max={15}
+              suffix=" s"
+              onChange={(duration) => onChange({ ...free, motion: { ...free.motion, duration } })}
+            />
+            <button
+              type="button"
+              onClick={onReplay}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-[12.5px] font-medium text-ink-soft hover:text-ink"
+            >
+              <Play className="h-3.5 w-3.5" /> Ver de novo na prévia
+            </button>
+          </>
+        )}
+      </div>
+      {free.elements.length > 0 && (
+        <div className="space-y-2 rounded-xl border border-line p-3">
+          <p className="text-[12px] font-medium text-ink-soft">Entrada de cada elemento</p>
+          {free.elements.map((e) => {
+            const anim = e.anim ?? "nenhuma";
+            const options = FREE_ANIMS.filter((a) => (a !== "palavras" && a !== "marca") || e.kind === "titulo" || e.kind === "texto");
+            return (
+              <div key={e.id} className="space-y-1">
+                <span className="block truncate text-[12px] text-ink-faint">{label(e)}</span>
+                <div className="flex items-center gap-2">
+                  <select value={anim} onChange={(ev) => setEl(e.id, { anim: ev.target.value as FreeAnim })} className={`${inputClass} flex-1`}>
+                    {options.map((a) => (
+                      <option key={a} value={a}>
+                        {FREE_ANIM_LABELS[a]}
+                      </option>
+                    ))}
+                  </select>
+                  {anim !== "nenhuma" && (
+                    <label className="flex items-center gap-1 text-[12px] text-ink-soft" title="Atraso (segundos)">
+                      <input
+                        type="number"
+                        min={0}
+                        max={12}
+                        step={0.1}
+                        value={e.delay ?? 0}
+                        onChange={(ev) => setEl(e.id, { delay: Math.min(12, Math.max(0, Number(ev.target.value) || 0)) })}
+                        className={`${inputClass} w-16`}
+                      />
+                      s
+                    </label>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (

@@ -1,9 +1,9 @@
-# Imagem de produção: Next.js + Chromium para renderizar HTML → PNG.
+# Imagem de produção: Next.js + Chromium para renderizar HTML → PNG (e ffmpeg para as telas animadas → MP4).
 FROM node:22-bookworm-slim AS base
 
 # Chromium + fontes (emoji colorido e fallback para caracteres fora do Inter)
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends chromium fonts-noto-color-emoji fonts-noto-core ca-certificates \
+  && apt-get install -y --no-install-recommends chromium ffmpeg fonts-noto-color-emoji fonts-noto-core ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 ENV CHROMIUM_PATH=/usr/bin/chromium \

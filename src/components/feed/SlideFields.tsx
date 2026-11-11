@@ -74,6 +74,7 @@ export function SlideFields({
   onSpread = () => {},
   preview,
   onApplyAll,
+  onReplay,
 }: {
   slide: FeedEditorSlide;
   index: number;
@@ -98,6 +99,8 @@ export function SlideFields({
   preview: PreviewContext;
   /** Aplica um modelo do Livre em todas as telas internas. */
   onApplyAll?: (id: string) => void;
+  /** Toca a animação da tela de novo na prévia. */
+  onReplay?: () => void;
 }) {
   const [searching, setSearching] = useState(false);
   const [showIcons, setShowIcons] = useState(false);
@@ -196,6 +199,7 @@ export function SlideFields({
           onSpread={onSpread}
           preview={preview}
           onApplyAll={onApplyAll}
+          onReplay={onReplay}
         />
       ) : (
         <>

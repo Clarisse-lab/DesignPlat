@@ -38,6 +38,8 @@ export interface GeneratorOptions {
   images: GeneratorImages;
   /** Estilo de referência usado (cores, fonte e estilo das imagens vêm dele). */
   estilo?: Estilo | null;
+  /** Capa já com animação (sai em vídeo MP4). */
+  capaAnimada?: boolean;
 }
 
 const CAPAS = FREE_PRESETS.filter((p) => p.category === "capa");
@@ -77,6 +79,7 @@ export function GeneratorPanel({
   const [capa, setCapa] = useState("");
   const [interno, setInterno] = useState("");
   const [images, setImages] = useState<GeneratorImages>("nenhuma");
+  const [capaAnimada, setCapaAnimada] = useState(false);
   const [busy, setBusy] = useState(false);
   const [estilos, setEstilos] = useState<Estilo[]>([]);
   /** "" = sem estilo (a IA escolhe entre todos os modelos). */
@@ -143,7 +146,7 @@ export function GeneratorPanel({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar.");
       onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).`);
-      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma", estilo: data.estilo ?? null });
+      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma", estilo: data.estilo ?? null, capaAnimada });
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao gerar.");
     } finally {
@@ -240,6 +243,10 @@ export function GeneratorPanel({
             </select>
               </>
             )}
+            <label className="flex items-center gap-2 text-[12.5px] text-ink-soft">
+              <input type="checkbox" checked={capaAnimada} onChange={(e) => setCapaAnimada(e.target.checked)} className="h-4 w-4 accent-accent" />
+              Capa animada (sai em vídeo MP4)
+            </label>
             <select value={images} onChange={(e) => setImages(e.target.value as GeneratorImages)} className={inputClass} aria-label="Imagens com IA">
               <option value="nenhuma">Imagens com IA: não gerar</option>
               <option value="capa">Imagens com IA: só a capa</option>
