@@ -16,7 +16,7 @@ const links = [
 export function AppHeader() {
   const pathname = usePathname();
   // Link de aprovação: o cliente vê só a marca, sem o menu das ferramentas da equipe.
-  const isClient = pathname?.startsWith("/aprovar");
+  const isClient = ["/aprovar", "/privacidade", "/termos"].some((p) => pathname?.startsWith(p));
   return (
     <header className="mantora-header">
       <Link href="/" className="mantora-brand" aria-label="Design Mantora — início">

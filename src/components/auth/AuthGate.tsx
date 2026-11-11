@@ -66,7 +66,7 @@ function patchFetch() {
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   // /interno: usada pelo servidor; /aprovar: link de aprovação aberto pelo cliente (sem login).
-  const internal = pathname?.startsWith("/interno") || pathname?.startsWith("/aprovar");
+  const internal = ["/interno", "/aprovar", "/privacidade", "/termos"].some((p) => pathname?.startsWith(p));
   const [state, setState] = useState<GateState>({ kind: "loading" });
   const client = useRef<SupabaseClient | null>(null);
 
