@@ -675,6 +675,7 @@ function TodosNumeros({ view }: { view: View }) {
   add("CPC", t.cpc, (n) => moeda.format(n));
   add("CPM", t.cpm, (n) => moeda.format(n));
   add("Custo por visualização", t.cpv, (n) => moeda.format(n));
+  add("Conversas iniciadas", t.conversas || null, (n) => inteiro.format(n));
   add("Leads", t.leads || null, (n) => inteiro.format(n));
   add("Custo por lead", t.leads === 0 ? null : t.cpl, (n) => moeda.format(n));
   add("Vendas", t.vendas, (n) => inteiro.format(n));

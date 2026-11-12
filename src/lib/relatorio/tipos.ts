@@ -89,6 +89,8 @@ export interface MetaNumeros {
   faturamento: number;
   /** Visualizações de vídeo (3 segundos ou mais). */
   visualizacoes: number;
+  /** Conversas iniciadas por mensagem (WhatsApp, Direct, Messenger). Opcional nos relatórios antigos. */
+  conversas?: number;
 }
 
 export interface TarefaClickup {
@@ -143,6 +145,8 @@ export interface TrafegoSemana {
   cpm?: number | null;
   /** Custo por visualização (vídeo). */
   cpv?: number | null;
+  /** Conversas iniciadas por mensagem pelos anúncios. */
+  conversas?: number | null;
   observacao?: string | null;
 }
 

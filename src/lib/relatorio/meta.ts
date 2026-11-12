@@ -31,7 +31,7 @@ const COMPRA = ["purchase", "omni_purchase", "offsite_conversion.fb_pixel_purcha
 
 /** Soma as linhas de insights (uma por conta) num só conjunto de números. */
 export function somarInsights(linhas: InsightMeta[]): MetaNumeros {
-  const n: MetaNumeros = { investimento: 0, impressoes: 0, cliques: 0, leads: 0, vendas: 0, faturamento: 0, visualizacoes: 0 };
+  const n: MetaNumeros = { investimento: 0, impressoes: 0, cliques: 0, leads: 0, vendas: 0, faturamento: 0, visualizacoes: 0, conversas: 0 };
   for (const l of linhas) {
     n.investimento += num(l.spend);
     n.impressoes += num(l.impressions);
@@ -40,6 +40,7 @@ export function somarInsights(linhas: InsightMeta[]): MetaNumeros {
     n.vendas += acao(l.actions, COMPRA);
     n.faturamento += acao(l.action_values, COMPRA);
     n.visualizacoes += acao(l.actions, ["video_view"]);
+    n.conversas = (n.conversas ?? 0) + acao(l.actions, ["onsite_conversion.messaging_conversation_started_7d"]);
   }
   n.investimento = Math.round(n.investimento * 100) / 100;
   n.faturamento = Math.round(n.faturamento * 100) / 100;
@@ -62,10 +63,11 @@ export function trafegoDoMeta(n: MetaNumeros): TrafegoSemana {
     leads: n.leads || null,
     vendas: n.vendas || null,
     faturamento: n.faturamento || null,
+    conversas: n.conversas || null,
   };
 }
 
-const CAMPOS: (keyof TrafegoSemana)[] = ["investimento", "leads", "cpl", "vendas", "faturamento", "roas", "impressoes", "cliques", "ctr", "cpc", "cpm", "cpv"];
+const CAMPOS: (keyof TrafegoSemana)[] = ["investimento", "leads", "cpl", "vendas", "faturamento", "roas", "impressoes", "cliques", "ctr", "cpc", "cpm", "cpv", "conversas"];
 const preenchido = (v: unknown) => v !== null && v !== undefined && v !== "";
 
 /**

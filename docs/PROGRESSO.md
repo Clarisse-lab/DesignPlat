@@ -204,5 +204,6 @@ A partir da reunião de 02/10 sobre como a apresentação deve ser.
 - **O que a equipe digita vale mais** que o número do Meta: os campos mostram o valor do Meta em cinza e só o que for digitado substitui (ex.: vendas reais da plataforma). CPL e ROAS se recalculam.
 - Os cards de tráfego mostram a comparação com o período anterior quando o número veio do Meta.
 - Contas de cada cliente: coluna `clientes.meta_contas`, escolhidas na aba Relatórios ("escolher contas", lista do que o token enxerga). Hosaka (2 contas) e Fellipe já vieram do fluxo de boletins do n8n. Migração `20261112150000_clientes_meta_contas.sql` no Escritório (já aplicada).
-- Precisa de `META_ADS_TOKEN` no Railway (`src/lib/server/meta-ads.ts`). Token de usuário expira: quando expirar, a aba avisa e o tráfego volta a ser digitado.
+- O token da Meta fica só no Supabase: o Design Mantora pede os números à função `meta-ads` (mesma chave do coletor), que usa o token dos segredos (`META_ADS_TOKEN` ou `META_ACCESS_TOKEN`). Se o token expirar, a aba avisa e o tráfego volta a ser digitado.
+- Também entram as conversas iniciadas por mensagem (WhatsApp/Direct), em "Todos os números".
 - Lógica pura e testes em `src/lib/relatorio/meta.ts`.

@@ -54,6 +54,7 @@ const CAMPOS_TRAFEGO_EXTRA: [keyof TrafegoSemana, string][] = [
   ["cpc", "CPC (R$)"],
   ["cpm", "CPM (R$)"],
   ["cpv", "Custo por visualização (R$)"],
+  ["conversas", "Conversas iniciadas"],
 ];
 const TODOS_TRAFEGO = [...CAMPOS_TRAFEGO, ...CAMPOS_TRAFEGO_EXTRA];
 const curto = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -728,7 +729,7 @@ function ContasMeta({ cliente, usadas }: { cliente: string; usadas: string[] }) 
   }, [cliente]);
 
   if (!info) return <p className="text-[12px] text-ink-faint">Lendo as contas do Meta…</p>;
-  if (!info.ligado) return <p className="text-[12px] text-ink-soft">Meta Ads não conectado: falta o META_ADS_TOKEN no servidor.</p>;
+  if (!info.ligado) return <p className="text-[12px] text-ink-soft">Meta Ads não conectado: falta o token da Meta nos segredos do Supabase.</p>;
   const nomeDe = (id: string) => info.contas.find((c) => c.id === id)?.nome ?? id;
   const lista = info.contas.filter((c) => !busca || `${c.nome} ${c.id}`.toLowerCase().includes(busca.toLowerCase()));
 

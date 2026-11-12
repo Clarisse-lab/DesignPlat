@@ -5,7 +5,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { isResponse, requireMember } from "@/lib/server/auth";
-import { contasDisponiveis, contasDoCliente, metaLigado, salvarContas } from "@/lib/server/meta-ads";
+import { contasDisponiveis, contasDoCliente, salvarContas } from "@/lib/server/meta-ads";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +17,13 @@ export async function GET(request: Request) {
   if (isResponse(member)) return member;
   const cliente = new URL(request.url).searchParams.get("cliente") ?? "";
   if (!SLUG.test(cliente)) return NextResponse.json({ error: "Cliente inválido." }, { status: 400 });
-  if (!metaLigado()) return NextResponse.json({ ligado: false, contas: [], escolhidas: await contasDoCliente(cliente) });
   try {
     const [contas, escolhidas] = await Promise.all([contasDisponiveis(), contasDoCliente(cliente)]);
     return NextResponse.json({ ligado: true, contas, escolhidas });
   } catch (error) {
-    return NextResponse.json({ ligado: true, contas: [], escolhidas: await contasDoCliente(cliente), error: error instanceof Error ? error.message : "Falha ao ler o Meta." });
+    const msg = error instanceof Error ? error.message : "";
+    const ligado = !/não encontrado/.test(msg);
+    return NextResponse.json({ ligado, contas: [], escolhidas: await contasDoCliente(cliente), error: ligado ? msg || "Falha ao ler o Meta." : undefined });
   }
 }
 
@@ -37,7 +38,7 @@ export async function PUT(request: Request) {
   const parsed = putSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Contas inválidas." }, { status: 400 });
   try {
-    await salvarContas(parsed.data.cliente, [...new Set(parsed.data.contas)]);
+    await salvarContas(parsed.data.cliente, [...new Set<string>(parsed.data.contas as string[])]);
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("[relatorios/meta]", error);

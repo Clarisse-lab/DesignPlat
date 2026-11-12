@@ -25,6 +25,7 @@ describe("Meta Ads", () => {
       vendas: 15,
       faturamento: 7500,
       visualizacoes: 50000,
+      conversas: 0,
     });
   });
 
