@@ -223,3 +223,8 @@ Ideias que vieram do protótipo antigo (Prils) e da reunião de 02/10.
 - **Cores do cliente**: o relatório usa as cores do estilo padrão do cliente no Design Mantora; sem ele, as do kit de marca; ou as escolhidas pela equipe na aba (bloco "Identidade e nicho", coluna `clientes.relatorio_cores`). O tema garante contraste (escurece o fundo, aviva ou clareia o destaque) e deriva os tons claros e os gradientes.
 - Banco: `clientes.nicho_perfis` e `clientes.relatorio_cores` (migração `20261112170000_clientes_nicho_e_cores.sql` no Escritório, já aplicada). Funções `instagram-conta` e `meta-ads` publicadas no Supabase.
 - Limites: o alcance de um mês de 31 dias soma duas janelas (a API aceita até 30 dias). Stories não entram (a API só dá as métricas nas 24 horas em que o story está no ar).
+
+## Desempenho vai para a ficha do cliente no Escritório (12/11/2026)
+- A aba **Desempenho** saiu do menu do Design Mantora e virou a aba "Desempenho" da ficha de cada cliente no Escritório (onde a equipe de conteúdo trabalha).
+- Nova rota de integração `POST /api/v1/desempenho { cliente }` (DESIGN_API_KEY): o mesmo resumo da página (formatos, estilos feitos aqui, capa animada × parada, melhores carrosséis, peças publicadas) e a ligação automática peça ↔ post.
+- A página `/desempenho` continua no ar (sem link no menu) para ligar peças a posts à mão; a ficha do Escritório leva até ela com `?cliente=`.
