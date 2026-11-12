@@ -71,6 +71,8 @@ describe("dados extras", () => {
       { media_id: "1", texto: "Me chama no 11999998888 por favor", curtidas: 1 },
       { media_id: "2", texto: "@amiga olha isso, mudou minha forma de ver o meu negócio", curtidas: 3 },
       { media_id: "3", texto: "Olha isso, mudou minha forma de ver o meu negócio", curtidas: 0 },
+      { media_id: "4" }, // figurinha ou GIF: sem texto
+      { media_id: "4", texto: null, curtidas: null },
     ]);
     expect(c.map((x) => x.texto)).toEqual(["olha isso, mudou minha forma de ver o meu negócio"]);
   });
