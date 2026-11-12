@@ -21,8 +21,11 @@ import {
   somaDias,
   totais,
 } from "../relatorio/calc";
-import type { DadosSemana, PostSemana, RelatorioSemana, TipoPeriodo } from "../relatorio/tipos";
+import { antesDepois, mediana, pendenciasDe } from "../relatorio/extras";
+import { hexValido, temaDaPaleta } from "../relatorio/tema";
+import type { DadosSemana, PostSemana, RelatorioSemana, Tema, TipoPeriodo } from "../relatorio/tipos";
 import { trabalhoDoCliente } from "./clickup";
+import { comentariosDosPosts, contaNoPeriodo, nichoDoCliente, publicoDoCliente } from "./instagram-conta";
 import { trafegoDoCliente } from "./meta-ads";
 import { callFunction, rest, signObjects, uploadObject } from "./supabase";
 
@@ -122,9 +125,9 @@ async function instagram(
   tipo: TipoPeriodo,
   inicio: string,
   fim: string,
-): Promise<{ ig: DadosSemana["instagram"]; marcos: DadosSemana["marcos"] }> {
+): Promise<{ ig: DadosSemana["instagram"]; marcos: DadosSemana["marcos"]; antes_depois: DadosSemana["antes_depois"] }> {
   const contas = await rest<Conta[]>(`ig_contas?cliente_slug=eq.${cliente}&monitorar=is.true&select=ig_user_id,username,seguidores`);
-  if (!contas.length) return { ig: null, marcos: [] };
+  if (!contas.length) return { ig: null, marcos: [], antes_depois: null };
   const ant = periodoAnterior(tipo, inicio);
   const janela = tipo === "mes" ? 120 : 90;
   const [atual, anterior, pontos, base] = await Promise.all([
@@ -133,7 +136,8 @@ async function instagram(
     rest<{ ig_user_id: string; data: string; seguidores: number }[]>(
       `ig_seguidores?ig_user_id=in.${inList(contas.map((c) => c.ig_user_id))}&data=gte.${somaDias(ant.inicio, -10)}&select=ig_user_id,data,seguidores&order=data.asc`,
     ),
-    postsAnteriores(cliente, inicio, janela),
+    // No mês, o histórico todo (para o "antes e depois"); na semana, só a janela do normal.
+    postsAnteriores(cliente, inicio, tipo === "mes" ? 730 : janela),
   ]);
   const serie = pontos.map((p) => ({ conta: p.ig_user_id, data: p.data, seguidores: p.seguidores }));
   const t = totais(atual.lista);
@@ -162,15 +166,12 @@ async function instagram(
     acima,
     abaixo,
   };
-  const m = marcos({
-    tipo,
-    lista: atual.lista,
-    base: base90,
-    historico: h,
-    anteriores: alcancePorPeriodo(tipo, base, inicio, tipo === "mes" ? 3 : 12),
-    novos_seguidores: novos,
-  });
-  return { ig, marcos: m };
+  const anteriores = alcancePorPeriodo(tipo, base, inicio, tipo === "mes" ? 3 : 12);
+  // O alcance típico de um período (mediana dos anteriores), para dizer se este foi bom, normal ou abaixo.
+  ig.alcance_tipico = anteriores.length >= 3 ? mediana(anteriores.map((x) => x.alcance)) : null;
+  const m = marcos({ tipo, lista: atual.lista, base: base90, historico: h, anteriores, novos_seguidores: novos });
+  const ad = tipo === "mes" ? antesDepois(base, atual.lista, nomeDoMes(inicio)) : null;
+  return { ig, marcos: m, antes_depois: ad };
 }
 
 async function leads(cliente: string, tipo: TipoPeriodo, inicio: string, fim: string): Promise<DadosSemana["leads"]> {
@@ -222,8 +223,15 @@ async function guardarImagens(cliente: string, id: string, dados: DadosSemana): 
   if (!ig) return;
   // Capas: melhores, os que funcionaram e os que ficaram abaixo, e os momentos (até 12, o limite da função).
   const ids = [
-    ...new Set([...ig.melhores, ...(dados.marcos ?? []).map((m) => m.media_id).filter((x): x is string => Boolean(x)), ...(ig.acima ?? []).slice(0, 3), ...(ig.abaixo ?? []).slice(0, 3)]),
+    ...new Set([
+      ...ig.melhores,
+      ...(dados.marcos ?? []).map((m) => m.media_id).filter((x): x is string => Boolean(x)),
+      ...(ig.acima ?? []).slice(0, 3),
+      ...(ig.abaixo ?? []).slice(0, 3),
+    ]),
   ].slice(0, 12);
+  // Antes e depois: capas de posts que podem não estar na lista do período (o "antes" é de meses atrás).
+  const extras = [...(dados.antes_depois?.capas_antes ?? []), ...(dados.antes_depois?.capas_depois ?? [])].filter((x) => !ids.includes(x)).slice(0, 6);
   try {
     const r = await callFunction<{ conta: { foto: string | null }; capas: { media_id: string; url: string }[] }>(
       "instagram-midias",
@@ -242,22 +250,81 @@ async function guardarImagens(cliente: string, id: string, dados: DadosSemana): 
       }),
     );
     if (r.conta.foto) dados.foto_perfil = await baixar(r.conta.foto, `relatorios/${id}/perfil.jpg`).catch(() => null);
+    if (extras.length && dados.antes_depois) {
+      const ad = dados.antes_depois;
+      const r2 = await callFunction<{ capas: { media_id: string; url: string }[] }>("instagram-midias", `?cliente=${encodeURIComponent(cliente)}&ids=${extras.join(",")}`);
+      ad.capas = {};
+      for (const id2 of [...ad.capas_antes, ...ad.capas_depois]) {
+        const post = ig.lista.find((p) => p.media_id === id2);
+        if (post?.capa) ad.capas[id2] = post.capa;
+      }
+      await Promise.all(
+        r2.capas.map(async (c) => {
+          const caminho = await baixar(c.url, `relatorios/${id}/${c.media_id}.jpg`).catch(() => null);
+          if (caminho) ad.capas![c.media_id] = caminho;
+        }),
+      );
+    }
   } catch (error) {
     // Sem as imagens o relatório continua (os cartões mostram o formato no lugar da capa).
     console.error("[relatorios] capas:", error);
   }
 }
 
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const nomeDoMes = (inicio: string) => `${MESES[Number(inicio.slice(5, 7)) - 1]} de ${inicio.slice(0, 4)}`;
+
+/** Peças enviadas ao cliente no link de aprovação que ainda não foram respondidas. */
+async function aprovacoesPendentes(cliente: string) {
+  const rows = await rest<{ titulo: string; criado_em: string; token: string }[]>(
+    `design_aprovacoes?cliente_slug=eq.${cliente}&status=eq.pendente&select=titulo,criado_em,token&order=criado_em.asc&limit=20`,
+  ).catch(() => []);
+  return rows.map((r) => ({ titulo: r.titulo, criado_em: r.criado_em, link: `/aprovar/${r.token}` }));
+}
+
 export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string, id: string): Promise<DadosSemana> {
   const fim = fimDoPeriodo(tipo, inicio);
-  const [ig, ld, ap, tr, ma] = await Promise.all([
+  const ant = periodoAnterior(tipo, inicio);
+  // Os 4 períodos anteriores da conta: o primeiro é a comparação direta; os 4 juntos dão o "normal" do cliente.
+  const anteriores = [ant];
+  for (let k = 0; k < 3; k++) anteriores.push(periodoAnterior(tipo, anteriores[anteriores.length - 1].inicio));
+  const [ig, ld, ap, tr, ma, contaAtual, contasAnteriores, publico, aprov, nome] = await Promise.all([
     instagram(cliente, tipo, inicio, fim),
     leads(cliente, tipo, inicio, fim),
     aprovadas(cliente, inicio, fim),
     trabalhoDoCliente(cliente, tipo, inicio, fim),
     trafegoDoCliente(cliente, tipo, inicio, fim),
+    contaNoPeriodo(cliente, inicio, fim),
+    Promise.all(anteriores.map((p) => contaNoPeriodo(cliente, p.inicio, p.fim))),
+    publicoDoCliente(cliente),
+    aprovacoesPendentes(cliente),
+    nomeDoCliente(cliente),
   ]);
-  const dados: DadosSemana = { instagram: ig.ig, marcos: ig.marcos, leads: ld, aprovadas: ap, trabalho: tr, meta_ads: ma, foto_perfil: null };
+  const contaAnterior = contasAnteriores[0];
+  const alcancesAnteriores = contasAnteriores.filter((c): c is NonNullable<typeof c> => Boolean(c)).map((c) => c.alcance);
+  // Comentários dos posts com mais interação do período (até 20 posts) e o nicho, que dependem do Instagram.
+  const comPosts = [...(ig.ig?.lista ?? [])].sort((a, b) => (b.interacoes ?? 0) - (a.interacoes ?? 0)).slice(0, 20);
+  const [comentarios, nicho] = await Promise.all([
+    comentariosDosPosts(comPosts.map((p) => p.media_id)),
+    nichoDoCliente(cliente, ig.ig?.contas[0]),
+  ]);
+  const dados: DadosSemana = {
+    instagram: ig.ig,
+    marcos: ig.marcos,
+    leads: ld,
+    aprovadas: ap,
+    trabalho: tr?.trabalho ?? null,
+    meta_ads: ma,
+    conta_ig: contaAtual
+      ? { atual: contaAtual, anterior: contaAnterior, tipico_alcance: alcancesAnteriores.length >= 3 ? mediana(alcancesAnteriores) : null }
+      : null,
+    publico,
+    comentarios,
+    nicho,
+    pendencias: pendenciasDe(tr?.aguardando ?? [], aprov, nome),
+    antes_depois: ig.antes_depois,
+    foto_perfil: null,
+  };
   await guardarImagens(cliente, id, dados);
   return dados;
 }
@@ -324,11 +391,43 @@ export async function clienteDoToken(token: string): Promise<string | null> {
 
 /** URLs assinadas das imagens guardadas do relatório (capas e foto de perfil). */
 export async function urlsDasImagens(dados: DadosSemana): Promise<Record<string, string>> {
-  const paths = [...(dados.instagram?.lista ?? []).map((p) => p.capa), dados.foto_perfil].filter((p): p is string => Boolean(p));
+  const paths = [...(dados.instagram?.lista ?? []).map((p) => p.capa), dados.foto_perfil, ...Object.values(dados.antes_depois?.capas ?? {})].filter(
+    (p): p is string => Boolean(p),
+  );
   return signObjects(paths, 6 * 3600).catch(() => ({}));
 }
 
 export async function nomeDoCliente(cliente: string): Promise<string> {
   const rows = await rest<{ nome: string }[]>(`clientes?slug=eq.${cliente}&select=nome`).catch(() => []);
   return rows[0]?.nome ?? cliente;
+}
+
+type Paleta = { background?: string; text?: string; accent?: string };
+
+/**
+ * Cores do relatório do cliente: as escolhidas pela equipe; senão, as do estilo padrão do cliente no Design Mantora;
+ * senão, as do kit de marca lido do Instagram. Null: ficam as cores da Mantora.
+ */
+export async function temaDoCliente(cliente: string): Promise<Tema | null> {
+  const [cli, estilos, kits] = await Promise.all([
+    rest<{ relatorio_cores: { escuro?: string; destaque?: string } | null }[]>(`clientes?slug=eq.${cliente}&select=relatorio_cores&limit=1`).catch(() => []),
+    rest<{ dados: { feed?: { palette?: Paleta } } }[]>(`design_estilos?cliente_slug=eq.${cliente}&padrao=is.true&select=dados&limit=1`).catch(() => []),
+    rest<{ estilo: { palette?: Paleta } | null }[]>(`kits_marca?cliente_slug=eq.${cliente}&select=estilo&limit=1`).catch(() => []),
+  ]);
+  const escolhidas = cli[0]?.relatorio_cores;
+  if (hexValido(escolhidas?.escuro) && hexValido(escolhidas?.destaque)) return { escuro: escolhidas.escuro, destaque: escolhidas.destaque, origem: "equipe" };
+  return temaDaPaleta(estilos[0]?.dados?.feed?.palette, "estilo") ?? temaDaPaleta(kits[0]?.estilo?.palette, "kit");
+}
+
+export async function salvarCores(cliente: string, cores: { escuro: string; destaque: string } | null): Promise<void> {
+  await rest(`clientes?slug=eq.${cliente}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ relatorio_cores: cores }) });
+}
+
+export async function nichoPerfis(cliente: string): Promise<string[]> {
+  const rows = await rest<{ nicho_perfis: string[] | null }[]>(`clientes?slug=eq.${cliente}&select=nicho_perfis&limit=1`).catch(() => []);
+  return rows[0]?.nicho_perfis ?? [];
+}
+
+export async function salvarNichoPerfis(cliente: string, perfis: string[]): Promise<void> {
+  await rest(`clientes?slug=eq.${cliente}`, { method: "PATCH", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ nicho_perfis: perfis }) });
 }

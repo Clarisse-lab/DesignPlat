@@ -46,7 +46,12 @@ async function todas(filtro: Record<string, string[]>, desde: number): Promise<T
 }
 
 /** Tarefas do cliente (pastas dele em Clientes Ativos + listas dele em Design e Edição) separadas para o período. */
-export async function trabalhoDoCliente(cliente: string, tipo: TipoPeriodo, inicio: string, fim: string): Promise<TrabalhoPeriodo | null> {
+export async function trabalhoDoCliente(
+  cliente: string,
+  tipo: TipoPeriodo,
+  inicio: string,
+  fim: string,
+): Promise<{ trabalho: TrabalhoPeriodo; aguardando: { nome: string; atualizada: number | null }[] } | null> {
   if (!clickupLigado()) return null;
   const rows = await rest<{ clickup_pastas: string[] | null; clickup_listas: string[] | null }[]>(
     `clientes?slug=eq.${cliente}&select=clickup_pastas,clickup_listas&limit=1`,
@@ -55,8 +60,8 @@ export async function trabalhoDoCliente(cliente: string, tipo: TipoPeriodo, inic
   const listas = rows[0]?.clickup_listas ?? [];
   if (!pastas.length && !listas.length) return null;
   try {
-    // Tarefas mexidas desde 45 dias antes do início (as em andamento e as próximas também costumam ter sido mexidas).
-    const desde = new Date(`${somaDias(inicio, -45)}T03:00:00Z`).getTime();
+    // Tarefas mexidas desde 120 dias antes do início (o que espera material do cliente pode estar parado há tempo).
+    const desde = new Date(`${somaDias(inicio, -120)}T03:00:00Z`).getTime();
     const partes = await Promise.all([
       pastas.length ? todas({ project_ids: pastas }, desde) : [],
       listas.length ? todas({ list_ids: listas }, desde) : [],
@@ -69,7 +74,13 @@ export async function trabalhoDoCliente(cliente: string, tipo: TipoPeriodo, inic
       prazo: t.due_date ? Number(t.due_date) : null,
       atualizada: Number(t.date_updated ?? 0),
     }));
-    return { ...separarTarefas(brutas, tipo, inicio, fim), em: new Date().toISOString() };
+    // O que depende do cliente: status "aguardando material" (ou "aguardando cliente"), ainda aberto.
+    const vistos = new Set<string>();
+    const aguardando = brutas
+      .filter((t) => !t.fechada && /aguardando/i.test(t.status))
+      .filter((t) => (vistos.has(t.nome) ? false : (vistos.add(t.nome), true)))
+      .map((t) => ({ nome: t.nome, atualizada: t.atualizada || null }));
+    return { trabalho: { ...separarTarefas(brutas, tipo, inicio, fim), em: new Date().toISOString() }, aguardando };
   } catch (error) {
     // Sem o ClickUp o relatório continua; a equipe vê o aviso na aba Relatórios.
     console.error("[relatorios] clickup:", error);

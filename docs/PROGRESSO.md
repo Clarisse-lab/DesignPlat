@@ -207,3 +207,19 @@ A partir da reunião de 02/10 sobre como a apresentação deve ser.
 - O token da Meta fica só no Supabase: o Design Mantora pede os números à função `meta-ads` (mesma chave do coletor), que usa o token dos segredos (`META_ADS_TOKEN` ou `META_ACCESS_TOKEN`). Se o token expirar, a aba avisa e o tráfego volta a ser digitado.
 - Também entram as conversas iniciadas por mensagem (WhatsApp/Direct), em "Todos os números".
 - Lógica pura e testes em `src/lib/relatorio/meta.ts`.
+
+## Relatório do cliente: retrospectiva, público, nicho, pendências e cores do cliente (12/11/2026)
+Ideias que vieram do protótipo antigo (Prils) e da reunião de 02/10.
+- **Números principais com leitura**: a seção "Os números" agora prioriza pessoas alcançadas, seguidores, leads, vendas e investimento (e a taxa de engajamento). O alcance vem com "acima / dentro / abaixo do seu normal", comparando com a mediana dos 4 períodos anteriores da própria conta, e o card diz qual é o normal ("numa semana típica, você alcança X pessoas").
+- **Dados que antes vinham do mLabs**, agora pela API do Instagram (função `instagram-conta` do Supabase, só leitura):
+  - números da conta no período (pessoas alcançadas, visualizações, contas que interagiram, quem começou e quem deixou de seguir). A frase do topo usa isso: "Seu conteúdo foi visto X vezes por Y pessoas, e Z% delas interagiram";
+  - público (idade, gênero, cidades): seção "Quem está vendo você";
+  - comentários dos posts do período: a IA escolhe até 5 "palavras que aqueceram" (sem nome de quem escreveu; nada de saúde, religião, política, reclamação ou contato). A equipe ajusta na aba, com a lista dos outros comentários para escolher;
+  - comparação com o nicho: engajamento por post (curtidas + comentários sobre seguidores) do cliente contra os perfis cadastrados em `clientes.nicho_perfis` (mínimo 3; contas comerciais ou de criador). Perfis com curtidas escondidas ou que não são comerciais ficam de fora e aparecem listados na aba.
+- **O que depende do cliente** ("N itens precisam de você"): tarefas do ClickUp com status "aguardando material" e peças enviadas no link de aprovação ainda sem resposta (com botão Aprovar). Aviso também no topo.
+- **Retrospectiva do mês** (estilo Spotify): botão no topo do relatório mensal abre telas em sequência com barra de progresso (toque para avançar, segure para pausar): abertura, alcance, nicho, conteúdo do mês, palavras, o que fizemos juntos, antes e depois e o próximo mês. Cada tela só aparece se tiver dado.
+- **Antes e depois** (mês): primeiro mês acompanhado contra o atual (mediana por post e as 3 capas de maior alcance de cada lado). Só aparece quando melhorou.
+- **Seus relatórios**: cards no fim do link do cliente com Novo / Lido / Retrospectiva, a frase e 3 números de cada relatório.
+- **Cores do cliente**: o relatório usa as cores do estilo padrão do cliente no Design Mantora; sem ele, as do kit de marca; ou as escolhidas pela equipe na aba (bloco "Identidade e nicho", coluna `clientes.relatorio_cores`). O tema garante contraste (escurece o fundo, aviva ou clareia o destaque) e deriva os tons claros e os gradientes.
+- Banco: `clientes.nicho_perfis` e `clientes.relatorio_cores` (migração `20261112170000_clientes_nicho_e_cores.sql` no Escritório, já aplicada). Funções `instagram-conta` e `meta-ads` publicadas no Supabase.
+- Limites: o alcance de um mês de 31 dias soma duas janelas (a API aceita até 30 dias). Stories não entram (a API só dá as métricas nas 24 horas em que o story está no ar).

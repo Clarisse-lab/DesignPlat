@@ -21,6 +21,11 @@ const textosSchema = z.object({
   funcionou: z.array(z.string()).describe("2 ou 3 frases: o que funcionou e por quê, a partir dos posts acima do normal e dos momentos"),
   ajustar: z.array(z.string()).describe("1 a 3 frases: o que ficou abaixo do normal e o que vamos fazer diferente. Vazio se nada ficou abaixo"),
   feito: z.array(z.string()).describe("2 a 5 frases curtas com o que a Mantora entregou no período, agrupado (ex.: 'Foram editados 5 vídeos, que já seguiram para a sua aprovação'). Vazio se não veio TRABALHO"),
+  palavras: z
+    .array(z.string())
+    .describe(
+      "Até 5 comentários da lista COMENTÁRIOS que aquecem o coração (gratidão, transformação, identificação, elogio sincero), copiados como estão (pode cortar no fim de uma frase). Vazio se nenhum for assim",
+    ),
   andamento: z.array(z.string()).describe("1 a 4 frases com o que está em andamento agora (ex.: 'Está em andamento a criação da página de captura'). Vazio se nada"),
 });
 
@@ -36,6 +41,9 @@ REGRAS
 - Próximos passos: concretos e possíveis para a próxima semana, ligados ao que os números mostraram ou às notas da equipe.
 - TRABALHO DA MANTORA (tarefas do ClickUp): é o que mostra ao cliente que o trabalho está andando. Agrupe por tipo e conte ("Foram editados 5 vídeos e estão a caminho da sua aprovação", "Está em andamento a criação da página de vendas", "A estratégia de conteúdo fica pronta na próxima semana"). Nunca liste tarefa por tarefa, nunca use o nome da tarefa como está, nunca cite pessoas da equipe, status internos ("alteração design", "pendente") ou atrasos. Deixe de fora trabalho interno (analisar dados, verificar, organizar, reunião, alinhamento), a não ser que vire uma entrega para o cliente. Use as contagens de PRODUZIDO quando existirem.
 - Leads: se não vier o bloco de leads, não fale de leads.
+- CONTA: "pessoas alcançadas" da conta são pessoas diferentes (não soma dos posts); prefira esse número no resumo quando vier.
+- NICHO: se vier, use a comparação no resumo ou num destaque ("2x o engajamento médio de perfis parecidos com o seu"). Nunca cite o nome dos perfis.
+- COMENTÁRIOS: escolha só os que um cliente teria orgulho de mostrar. Nada de reclamação, pergunta de preço, pedido de contato, religião, política, nem comentário que exponha a pessoa (doença, diagnóstico, acidente, vida íntima), mesmo que seja carinhoso.
 - Sem emoji, sem exclamação em excesso, sem "incrível", "explodiu", "bombou".
 - As notas da equipe são contexto interno: use a ideia, nunca copie nome de pessoa, valor de contrato ou assunto interno.`;
 
@@ -92,6 +100,18 @@ function contexto(input: {
         .join("\n"),
     );
   }
+  const c = dados.conta_ig?.atual;
+  if (c) {
+    const a = dados.conta_ig?.anterior;
+    partes.push(
+      `CONTA NO PERÍODO: ${fmt(c.alcance)} pessoas alcançadas${a ? ` (anterior: ${fmt(a.alcance)})` : ""}, ${fmt(c.visualizacoes)} visualizações, ${fmt(c.engajadas)} contas interagiram` +
+        (c.seguiram !== null ? `, ${fmt(c.seguiram)} começaram a seguir e ${fmt(c.deixaram ?? 0)} deixaram de seguir` : ""),
+    );
+  }
+  if (dados.nicho) partes.push(`NICHO: engajamento ${fmt(dados.nicho.cliente)}% contra média ${fmt(dados.nicho.media)}% de ${dados.nicho.total} perfis parecidos (${fmt(dados.nicho.vezes)}x); entre os ${dados.nicho.topo_pct}% com mais engajamento`);
+  if (dados.publico) partes.push(`PÚBLICO: ${dados.publico.idade.map((x) => `${x.faixa} ${fmt(x.pct)}%`).join(", ")}; mulheres ${fmt(dados.publico.mulheres)}%`);
+  if (dados.pendencias?.length) partes.push(`DEPENDEM DO CLIENTE (aparecem numa seção própria; só mencione nos próximos passos se ajudar): ${dados.pendencias.map((p) => p.titulo).join("; ")}`);
+  if (dados.comentarios?.length) partes.push(`COMENTÁRIOS:\n${dados.comentarios.slice(0, 40).map((x) => `- ${x.texto.slice(0, 220)}`).join("\n")}`);
   if (dados.marcos?.length) partes.push(`MOMENTOS (calculados, verdadeiros):\n${dados.marcos.map((m) => `- ${m.titulo}: ${m.valor}. ${m.texto}`).join("\n")}`);
   if (dados.leads) {
     partes.push(
@@ -160,6 +180,7 @@ export async function escreverTextos(input: Parameters<typeof contexto>[0]) {
     ajustar: (out.ajustar ?? []).slice(0, 3).map((p) => p.trim()).filter(Boolean),
     feito: (out.feito ?? []).slice(0, 5).map((p) => p.trim()).filter(Boolean),
     andamento: (out.andamento ?? []).slice(0, 4).map((p) => p.trim()).filter(Boolean),
+    palavras: (out.palavras ?? []).slice(0, 5).map((p) => p.trim()).filter(Boolean),
   };
   const usage = response.usage;
   const inputTokens = (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);

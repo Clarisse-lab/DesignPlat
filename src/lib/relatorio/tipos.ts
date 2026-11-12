@@ -65,6 +65,8 @@ export interface DadosSemana {
     parcial: boolean;
     /** O normal do perfil e os posts acima e abaixo dele (por alcance em relação à mediana). */
     historico?: Historico | null;
+    /** Alcance de um período típico do perfil (mediana dos anteriores), para a leitura do número. */
+    alcance_tipico?: number | null;
     acima?: string[];
     abaixo?: string[];
   } | null;
@@ -75,9 +77,73 @@ export interface DadosSemana {
   aprovadas: { titulo: string; em: string }[];
   /** Tráfego pago lido do Meta Ads (contas de anúncio do cliente), período atual e anterior. */
   meta_ads?: { atual: MetaNumeros; anterior: MetaNumeros | null; contas: string[]; em: string } | null;
+  /** Números da conta no período (pessoas diferentes, não soma dos posts), atual e anterior. */
+  conta_ig?: { atual: ContaIg; anterior: ContaIg | null; /** Pessoas alcançadas num período típico (mediana dos 4 anteriores). */ tipico_alcance?: number | null } | null;
+  /** Quem segue o perfil: idade, gênero e cidades (em %). */
+  publico?: Publico | null;
+  /** Comentários recentes dos posts do período (internos: o cliente só vê os escolhidos em textos.palavras). */
+  comentarios?: { media_id: string; texto: string; curtidas: number }[];
+  /** Engajamento comparado com perfis do nicho (os nomes dos perfis são internos). */
+  nicho?: Nicho | null;
+  /** O que depende do cliente: material pendente no ClickUp e peças esperando aprovação. */
+  pendencias?: Pendencia[];
+  /** Mês: como o perfil estava quando começamos a acompanhar e como está agora. */
+  antes_depois?: AntesDepois | null;
   /** Trabalho da Mantora no ClickUp. As listas de tarefas são internas (o link do cliente só recebe a contagem). */
   trabalho?: TrabalhoPeriodo | null;
   foto_perfil: string | null;
+}
+
+export interface ContaIg {
+  /** Contas alcançadas (pessoas diferentes). */
+  alcance: number;
+  visualizacoes: number;
+  /** Contas que interagiram. */
+  engajadas: number;
+  interacoes: number;
+  seguiram: number | null;
+  deixaram: number | null;
+}
+
+export interface Publico {
+  idade: { faixa: string; pct: number }[];
+  mulheres: number | null;
+  homens: number | null;
+  cidades: { cidade: string; pct: number }[];
+}
+
+export interface Nicho {
+  /** Engajamento médio por post (curtidas + comentários / seguidores, %), pela mesma régua para todos. */
+  cliente: number | null;
+  media: number | null;
+  /** Quantas vezes a média do nicho. */
+  vezes: number | null;
+  /** Fica entre os X% com mais engajamento. */
+  topo_pct: number | null;
+  total: number;
+  perfis: { perfil: string; seguidores: number; engajamento: number | null }[];
+  /** Perfis que não entraram na conta e por quê (interno). */
+  fora?: { perfil: string; motivo: string }[];
+}
+
+export interface Pendencia {
+  titulo: string;
+  /** Reels, Carrossel, Aprovação... */
+  tipo: string;
+  /** YYYY-MM-DD */
+  desde: string | null;
+  /** Link de aprovação, quando é uma peça para aprovar. */
+  link?: string | null;
+}
+
+export interface AntesDepois {
+  antes: { rotulo: string; mediana_alcance: number | null; mediana_salvos_compart: number | null; posts: number };
+  depois: { rotulo: string; mediana_alcance: number | null; mediana_salvos_compart: number | null; posts: number };
+  /** media_id dos 3 posts de maior alcance de cada lado. */
+  capas_antes: string[];
+  capas_depois: string[];
+  /** media_id → caminho da capa no bucket. */
+  capas?: Record<string, string>;
 }
 
 export interface MetaNumeros {
@@ -128,6 +194,8 @@ export interface TextosSemana {
   /** O trabalho da Mantora, em frases para o cliente (a partir do ClickUp). */
   feito?: string[];
   andamento?: string[];
+  /** "Palavras que aqueceram o coração": comentários escolhidos (sem nome de quem escreveu). */
+  palavras?: string[];
 }
 
 export interface TrafegoSemana {
@@ -161,7 +229,11 @@ export type SecaoId =
   | "trafego"
   | "entregas"
   | "proximos"
-  | "detalhes";
+  | "detalhes"
+  | "publico"
+  | "pendencias"
+  | "palavras"
+  | "nicho";
 
 export interface RelatorioSemana {
   id: string;
@@ -184,7 +256,7 @@ export interface RelatorioSemana {
 
 /** O que a página do relatório recebe (link do cliente ou prévia da equipe). */
 export interface RelatorioView {
-  cliente: { nome: string; foto: string | null };
+  cliente: { nome: string; foto: string | null; tema?: Tema | null };
   /** `trafego` já vem com os números do Meta e o que a equipe digitou por cima; `trafego_anterior`, o período anterior no Meta. */
   semana: Pick<RelatorioSemana, "tipo" | "semana_inicio" | "semana_fim" | "dados" | "textos" | "trafego" | "entregas" | "secoes"> & {
     trafego_anterior?: Partial<Record<keyof TrafegoSemana, number | null>>;
@@ -192,5 +264,26 @@ export interface RelatorioView {
   /** URLs assinadas das capas (caminho no bucket → URL). */
   capas: Record<string, string>;
   /** Períodos publicados, para o seletor do link do cliente. */
-  semanas?: { tipo: TipoPeriodo; inicio: string; fim: string }[];
+  semanas?: CardPeriodo[];
+}
+
+/** Um relatório publicado, para os cards "Seus relatórios" do link do cliente. */
+export interface CardPeriodo {
+  tipo: TipoPeriodo;
+  inicio: string;
+  fim: string;
+  titulo?: string;
+  /** O cliente já abriu. */
+  visto?: boolean;
+  numeros?: { rotulo: string; valor: number; formato?: "inteiro" | "moeda" | "pct" }[];
+}
+
+/** Cores do relatório do cliente (a partir do estilo padrão, do kit de marca ou escolhidas pela equipe). */
+export interface Tema {
+  /** Fundo escuro (capa, tráfego, retrospectiva). */
+  escuro: string;
+  /** Cor de destaque (números, barras, botões). */
+  destaque: string;
+  /** De onde veio: estilo, kit ou equipe. */
+  origem?: string;
 }
