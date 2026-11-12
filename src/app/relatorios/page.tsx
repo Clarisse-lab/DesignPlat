@@ -199,7 +199,7 @@ export default function RelatoriosPage() {
     });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.error ?? "Não foi possível gerar o relatório.");
-    return body as { relatorio: RelatorioSemana; capas: Record<string, string>; custo_usd: number };
+    return body as { relatorio: RelatorioSemana; capas: Record<string, string>; custo_usd: number; aviso?: string | null };
   }
 
   async function gerarAtual() {
@@ -209,7 +209,7 @@ export default function RelatoriosPage() {
     try {
       const out = await gerar();
       await carregarSemanas(cliente, semana);
-      setAviso({ tipo: "ok", texto: `Rascunho pronto (custo da IA: US$ ${out.custo_usd.toFixed(3)}). Revise e publique.` });
+      setAviso(out.aviso ? { tipo: "erro", texto: out.aviso } : { tipo: "ok", texto: `Rascunho pronto (custo da IA: US$ ${out.custo_usd.toFixed(3)}). Revise e publique.` });
       carregarClientes();
     } catch (e) {
       setAviso({ tipo: "erro", texto: e instanceof Error ? e.message : "Erro ao gerar." });
