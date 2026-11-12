@@ -33,7 +33,8 @@ export async function GET(request: Request, { params }: Params) {
         tipo: semana.tipo ?? "semana",
         semana_inicio: semana.semana_inicio,
         semana_fim: semana.semana_fim,
-        dados: semana.dados,
+        // As tarefas do ClickUp são internas: o cliente recebe só a contagem do que foi produzido.
+        dados: { ...semana.dados, trabalho: semana.dados.trabalho ? { ...semana.dados.trabalho, feitas: [], andamento: [], proximas: [] } : null },
         textos: semana.textos,
         trafego: semana.trafego ?? {},
         entregas: semana.entregas ?? [],

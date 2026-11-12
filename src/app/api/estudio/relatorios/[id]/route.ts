@@ -47,6 +47,8 @@ const putSchema = z.object({
       proximos: z.array(texto(240)).max(6),
       funcionou: z.array(texto(300)).max(5).optional(),
       ajustar: z.array(texto(300)).max(5).optional(),
+      feito: z.array(texto(300)).max(8).optional(),
+      andamento: z.array(texto(300)).max(8).optional(),
     })
     .optional(),
   trafego: z
@@ -62,6 +64,7 @@ const putSchema = z.object({
       ctr: num,
       cpc: num,
       cpm: num,
+      cpv: num,
       observacao: z.string().trim().max(400).nullish(),
     })
     .optional(),

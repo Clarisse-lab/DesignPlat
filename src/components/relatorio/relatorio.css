@@ -250,7 +250,39 @@ a.rs-mini:hover{background:var(--rs-lilac-2)}
 @keyframes rs-rolar{0%{opacity:0;transform:translateY(0)}30%{opacity:1}80%{opacity:0;transform:translateY(14px)}100%{opacity:0}}
 
 /* ---------- Responsivo ---------- */
+/* Trabalho da Mantora */
+.rs-producao{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:44px}
+.rs-producao-item{flex:1 1 170px;max-width:260px;padding:22px 24px;border-radius:20px;background:linear-gradient(150deg,#fff 0%,var(--rs-lilac-2) 100%);border:1px solid var(--rs-line);opacity:0;transform:translateY(24px);transition:opacity .9s var(--rs-ease),transform .9s var(--rs-ease);transition-delay:calc(var(--i,0) * 90ms + 100ms)}
+.rs-producao-item strong{display:block;font-size:clamp(40px,4vw,56px);font-weight:400;letter-spacing:-.045em;line-height:1;color:var(--rs-deep);font-variant-numeric:tabular-nums}
+.rs-producao-rotulo{margin:10px 0 0;font-size:14px;line-height:1.35;color:var(--rs-soft)}
+.rs-producao-total{background:linear-gradient(140deg,#704bfd 0%,#40095b 60%,#24002f 100%);border-color:transparent;max-width:300px;flex-basis:220px}
+.rs-producao-total strong{color:#fff}
+.rs-producao-total .rs-producao-rotulo{color:rgba(255,255,255,.78)}
+.is-in .rs-producao-item{opacity:1;transform:none}
+.rs-trabalho-cols{display:grid;gap:22px}
+.rs-trabalho-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rs-trabalho-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rs-trabalho-col{background:#fff;border:1px solid var(--rs-line);border-radius:24px;padding:28px 28px 14px;opacity:0;transform:translateY(28px);transition:opacity .9s var(--rs-ease),transform .9s var(--rs-ease);transition-delay:calc(var(--i,0) * 140ms + 150ms)}
+.is-in .rs-trabalho-col{opacity:1;transform:none}
+.rs-trabalho-col h3{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:12px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--rs-deep)}
+.rs-trabalho-ponto{width:9px;height:9px;border-radius:50%;background:var(--rs-up)}
+.rs-trabalho-andamento .rs-trabalho-ponto{background:var(--rs-violet);animation:rs-pulso 2.2s ease-in-out infinite}
+.rs-trabalho-proximo .rs-trabalho-ponto{background:transparent;border:2px solid var(--rs-lilac)}
+@keyframes rs-pulso{0%,100%{box-shadow:0 0 0 0 rgba(112,75,253,.45)}50%{box-shadow:0 0 0 7px rgba(112,75,253,0)}}
+.rs-trabalho-col ul{list-style:none;margin:0;padding:0}
+.rs-trabalho-col li{display:flex;align-items:flex-start;gap:12px;padding:15px 0;border-top:1px solid var(--rs-line);font-size:16px;line-height:1.45}
+.rs-trabalho-col li:first-child{border-top:0}
+.rs-trabalho-col svg{width:22px;height:22px;flex-shrink:0;margin-top:1px}
+.rs-trabalho-col svg circle{fill:var(--rs-up-bg);stroke:none}
+.rs-trabalho-col svg path{fill:none;stroke:var(--rs-up);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:16;stroke-dashoffset:16;transition:stroke-dashoffset .8s var(--rs-ease);transition-delay:calc(var(--i) * 90ms + 700ms)}
+.is-in .rs-trabalho-col svg path{stroke-dashoffset:0}
+.rs-trabalho-marca{width:22px;height:22px;flex-shrink:0;border-radius:50%;margin-top:1px;position:relative}
+.rs-trabalho-marca-andamento{background:conic-gradient(var(--rs-violet) 0 60%,var(--rs-lilac-2) 60% 100%)}
+.rs-trabalho-marca-andamento::after,.rs-trabalho-marca-proximo::after{content:"";position:absolute;inset:5px;border-radius:50%;background:#fff}
+.rs-trabalho-marca-proximo{background:var(--rs-lilac-2);border:1.5px dashed var(--rs-lilac)}
+
 @media (max-width:960px){
+  .rs-trabalho-cols-3,.rs-trabalho-cols-2{grid-template-columns:1fr}
   .rs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .rs-kpi-destaque{grid-row:auto;grid-column:span 2}
   .rs-destaques,.rs-posts{grid-template-columns:1fr}
@@ -285,7 +317,8 @@ a.rs-mini:hover{background:var(--rs-lilac-2)}
   @page{size:A4;margin:0}
   .rs{background:#fff}
   .rs *{animation:none!important;transition:none!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .rs-momento,.rs-fa-col,.rs-palavra,.rs-resumo,.rs-secao-topo,.rs-kpi,.rs-destaque,.rs-post,.rs-entregas li,.rs-proximos li,.rs-origens li,.rs-trafego-item{opacity:1!important;transform:none!important;filter:none!important}
+  .rs-producao-item,.rs-trabalho-col,.rs-momento,.rs-fa-col,.rs-palavra,.rs-resumo,.rs-secao-topo,.rs-kpi,.rs-destaque,.rs-post,.rs-entregas li,.rs-proximos li,.rs-origens li,.rs-trafego-item{opacity:1!important;transform:none!important;filter:none!important}
+  .rs-trabalho-col svg path{stroke-dashoffset:0!important}.rs-trabalho-ponto{animation:none!important}
   .rs-barra,.rs-origem-barra{transform:none!important}.rs-barra-valor{opacity:1!important}.rs-entregas path{stroke-dashoffset:0!important}
   .rs-acoes,.rs-rolar,.rs-orbe-3{display:none!important}
   .rs-hero{min-height:auto;break-after:page}.rs-hero-corpo{padding:56px 0 64px}
