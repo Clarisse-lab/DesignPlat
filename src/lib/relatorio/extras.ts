@@ -121,10 +121,12 @@ export function pendenciasDe(
 // ---------- Comentários ----------
 
 /** Comentários que podem virar "palavras que aqueceram": com texto de verdade, sem contato pessoal. */
-export function comentariosCandidatos(lista: { media_id: string; texto: string; curtidas: number }[]) {
+export function comentariosCandidatos(lista: { media_id: string; texto?: string | null; curtidas?: number | null }[]) {
   const vistos = new Set<string>();
   return lista
-    .map((c) => ({ ...c, texto: c.texto.replace(/@\w[\w.]*/g, "").replace(/\s+/g, " ").trim() }))
+    // Comentário só com figurinha ou GIF vem sem texto.
+    .filter((c): c is { media_id: string; texto: string; curtidas?: number | null } => typeof c?.texto === "string")
+    .map((c) => ({ media_id: c.media_id, curtidas: c.curtidas ?? 0, texto: c.texto.replace(/@\w[\w.]*/g, "").replace(/\s+/g, " ").trim() }))
     .filter((c) => {
       const letras = c.texto.replace(/[^\p{L}]/gu, "");
       if (letras.length < 12) return false; // emoji, "top", "amei"

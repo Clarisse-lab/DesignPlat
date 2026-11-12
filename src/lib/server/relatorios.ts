@@ -304,10 +304,20 @@ export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string
   const alcancesAnteriores = contasAnteriores.filter((c): c is NonNullable<typeof c> => Boolean(c)).map((c) => c.alcance);
   // Comentários dos posts com mais interação do período (até 20 posts) e o nicho, que dependem do Instagram.
   const comPosts = [...(ig.ig?.lista ?? [])].sort((a, b) => (b.interacoes ?? 0) - (a.interacoes ?? 0)).slice(0, 20);
+  // As partes extras nunca derrubam o relatório: se uma falhar, ela fica de fora e o resto sai.
+  const seguro = async <T,>(parte: string, f: () => Promise<T> | T, vazio: T): Promise<T> => {
+    try {
+      return await f();
+    } catch (error) {
+      console.error(`[relatorios] ${parte}:`, error instanceof Error ? error.message : error);
+      return vazio;
+    }
+  };
   const [comentarios, nicho] = await Promise.all([
-    comentariosDosPosts(comPosts.map((p) => p.media_id)),
-    nichoDoCliente(cliente, ig.ig?.contas[0]),
+    seguro("comentarios", () => comentariosDosPosts(comPosts.map((p) => p.media_id)), []),
+    seguro("nicho", () => nichoDoCliente(cliente, ig.ig?.contas[0]), null),
   ]);
+  const pendencias = await seguro("pendencias", () => pendenciasDe(tr?.aguardando ?? [], aprov, nome), []);
   const dados: DadosSemana = {
     instagram: ig.ig,
     marcos: ig.marcos,
@@ -321,7 +331,7 @@ export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string
     publico,
     comentarios,
     nicho,
-    pendencias: pendenciasDe(tr?.aguardando ?? [], aprov, nome),
+    pendencias,
     antes_depois: ig.antes_depois,
     foto_perfil: null,
   };
