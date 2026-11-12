@@ -73,7 +73,28 @@ export interface DadosSemana {
   leads: { total: Kpi; origens: { origem: string; total: number }[] } | null;
   /** Entregas que o sistema vê sozinho (peças aprovadas pelo cliente no link de aprovação). */
   aprovadas: { titulo: string; em: string }[];
+  /** Trabalho da Mantora no ClickUp. As listas de tarefas são internas (o link do cliente só recebe a contagem). */
+  trabalho?: TrabalhoPeriodo | null;
   foto_perfil: string | null;
+}
+
+export interface TarefaClickup {
+  nome: string;
+  lista: string;
+  status: string;
+  /** Prazo (YYYY-MM-DD, Brasília). */
+  prazo: string | null;
+}
+
+export interface TrabalhoPeriodo {
+  feitas: TarefaClickup[];
+  /** Em andamento e próximas: como estavam no momento em que o relatório foi gerado. */
+  andamento: TarefaClickup[];
+  proximas: TarefaClickup[];
+  /** O que ficou pronto, por tipo ("8 vídeos editados"). */
+  producao: { rotulo: string; total: number }[];
+  /** Quando as tarefas foram lidas (ISO). */
+  em: string;
 }
 
 export interface Destaque {
@@ -89,6 +110,9 @@ export interface TextosSemana {
   /** O que funcionou e o que ajustar, já interpretado (uma frase cada). */
   funcionou?: string[];
   ajustar?: string[];
+  /** O trabalho da Mantora, em frases para o cliente (a partir do ClickUp). */
+  feito?: string[];
+  andamento?: string[];
 }
 
 export interface TrafegoSemana {
@@ -104,6 +128,8 @@ export interface TrafegoSemana {
   ctr?: number | null;
   cpc?: number | null;
   cpm?: number | null;
+  /** Custo por visualização (vídeo). */
+  cpv?: number | null;
   observacao?: string | null;
 }
 

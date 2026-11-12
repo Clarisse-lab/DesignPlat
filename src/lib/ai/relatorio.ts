@@ -1,5 +1,6 @@
 import "server-only";
-// Textos do relatório do cliente (semanal ou mensal) (frase da semana, resumo, destaques, próximos passos).
+// Textos do relatório do cliente (semanal ou mensal): frase, resumo, destaques, o que funcionou e o que ajustar,
+// o trabalho da Mantora (feito, em andamento, próximos passos).
 // A IA só usa os números que recebe; a equipe revisa tudo antes de publicar.
 
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
@@ -15,21 +16,25 @@ const textosSchema = z.object({
   destaques: z
     .array(z.object({ titulo: z.string().describe("Até 5 palavras"), texto: z.string().describe("1 ou 2 frases com o número que sustenta") }))
     .describe("3 destaques de resultado"),
-  proximos: z.array(z.string()).describe("2 a 4 próximos passos, uma frase cada, começando por verbo"),
+  proximos: z.array(z.string()).describe("2 a 4 próximos passos, uma frase cada: o que vem a seguir no TRABALHO (com prazo, ex.: 'A estratégia de conteúdo fica pronta na próxima semana') e o que os números pedem"),
   funcionou: z.array(z.string()).describe("2 ou 3 frases: o que funcionou e por quê, a partir dos posts acima do normal e dos momentos"),
   ajustar: z.array(z.string()).describe("1 a 3 frases: o que ficou abaixo do normal e o que vamos fazer diferente. Vazio se nada ficou abaixo"),
+  feito: z.array(z.string()).describe("2 a 5 frases curtas com o que a Mantora entregou no período, agrupado (ex.: 'Foram editados 5 vídeos, que já seguiram para a sua aprovação'). Vazio se não veio TRABALHO"),
+  andamento: z.array(z.string()).describe("1 a 4 frases com o que está em andamento agora (ex.: 'Está em andamento a criação da página de captura'). Vazio se nada"),
 });
 
 const SYSTEM = `Você escreve o relatório (semanal ou mensal) que a agência Mantora Lab envia para cada cliente. O cliente quer saber de resultado, andamento, entregas e números, em poucas palavras, e sentir o valor do trabalho, como numa retrospectiva: o número sempre com contexto ("o post mais visto desde setembro", "3x o normal do seu perfil"), para ele não precisar interpretar nada. Escreva em português do Brasil, tom profissional, próximo e confiante, sem jargão de marketing e sem exagero.
 
 REGRAS
 - Use só os números e fatos recebidos. Nunca invente número, meta, causa ou entrega. Se um dado não veio, não fale dele.
-- Fale de resultado, não de tarefa: nada de "fizemos reunião", "ajustamos o ClickUp", "revisamos a planilha".
+- No resumo e nos destaques, fale de resultado, não de tarefa: nada de "fizemos reunião", "ajustamos o ClickUp", "revisamos a planilha". O trabalho feito vai em "feito", "andamento" e "proximos".
 - Contexto: compare com o normal do próprio perfil (a mediana dos últimos 90 dias) e com o período anterior. Os MOMENTOS já foram calculados e são verdadeiros: use-os no título, no resumo e nos destaques.
 - O QUE FUNCIONOU fala dos posts acima do normal (tema, formato, gancho) e por que provavelmente funcionaram. O QUE AJUSTAR fala dos abaixo do normal sem drama, sempre com a ação que vamos tomar.
 - Variações: cite a comparação com o período anterior quando ela existir. Queda se diz com franqueza e calma, junto do que vamos fazer a respeito, sem culpar o algoritmo nem o cliente.
 - Números por extenso curto e no formato brasileiro (12,4 mil; 1,2 milhão; 18%).
 - Próximos passos: concretos e possíveis para a próxima semana, ligados ao que os números mostraram ou às notas da equipe.
+- TRABALHO DA MANTORA (tarefas do ClickUp): é o que mostra ao cliente que o trabalho está andando. Agrupe por tipo e conte ("Foram editados 5 vídeos e estão a caminho da sua aprovação", "Está em andamento a criação da página de vendas", "A estratégia de conteúdo fica pronta na próxima semana"). Nunca liste tarefa por tarefa, nunca use o nome da tarefa como está, nunca cite pessoas da equipe, status internos ("alteração design", "pendente") ou atrasos. Deixe de fora trabalho interno (analisar dados, verificar, organizar, reunião, alinhamento), a não ser que vire uma entrega para o cliente. Use as contagens de PRODUZIDO quando existirem.
+- Leads: se não vier o bloco de leads, não fale de leads.
 - Sem emoji, sem exclamação em excesso, sem "incrível", "explodiu", "bombou".
 - As notas da equipe são contexto interno: use a ideia, nunca copie nome de pessoa, valor de contrato ou assunto interno.`;
 
@@ -95,7 +100,7 @@ function contexto(input: {
   const t = input.trafego;
   const trafego = [
     t.investimento != null && `investimento R$ ${fmt(t.investimento)}`,
-    t.leads != null && `${fmt(t.leads)} leads`,
+    t.leads ? `${fmt(t.leads)} leads` : null,
     t.cpl != null && `CPL R$ ${fmt(t.cpl)}`,
     t.vendas != null && `${fmt(t.vendas)} vendas`,
     t.faturamento != null && `faturamento R$ ${fmt(t.faturamento)}`,
@@ -104,6 +109,21 @@ function contexto(input: {
   if (trafego.length || t.observacao) partes.push(`TRÁFEGO PAGO: ${trafego.join(", ")}${t.observacao ? `. Observação: ${t.observacao}` : ""}`);
   const entregas = [...dados.aprovadas.map((a) => `Peça aprovada: ${a.titulo}`), ...input.entregas];
   if (entregas.length) partes.push(`ENTREGAS DA SEMANA:\n${entregas.map((e) => `- ${e}`).join("\n")}`);
+  const tr = dados.trabalho;
+  if (tr && tr.feitas.length + tr.andamento.length + tr.proximas.length > 0) {
+    const item = (x: { nome: string; lista: string; prazo: string | null }) => `- ${x.nome} [lista: ${x.lista.trim()}${x.prazo ? `, prazo ${x.prazo}` : ""}]`;
+    partes.push(
+      [
+        "TRABALHO DA MANTORA (tarefas do ClickUp, internas: use só para escrever feito/andamento/proximos)",
+        tr.producao.length ? `PRODUZIDO NO PERÍODO: ${tr.producao.map((p) => `${p.total} ${p.rotulo}`).join(", ")}` : "",
+        tr.feitas.length ? `FEITO NO PERÍODO:\n${tr.feitas.slice(0, 40).map(item).join("\n")}` : "",
+        tr.andamento.length ? `EM ANDAMENTO AGORA:\n${tr.andamento.slice(0, 30).map(item).join("\n")}` : "",
+        tr.proximas.length ? `PRÓXIMO (até o fim ${input.tipo === "mes" ? "do próximo mês" : "da próxima semana"}):\n${tr.proximas.slice(0, 30).map(item).join("\n")}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  }
   if (input.notas?.trim()) partes.push(`NOTAS DA EQUIPE (contexto interno):\n${input.notas.trim()}`);
   return partes.join("\n\n");
 }
@@ -111,7 +131,7 @@ function contexto(input: {
 export async function escreverTextos(input: Parameters<typeof contexto>[0]) {
   const response = await anthropic.beta.messages.parse({
     model: CAROUSEL_MODEL,
-    max_tokens: 3000,
+    max_tokens: 4000,
     output_config: { effort: "low", format: betaZodOutputFormat(textosSchema) },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
@@ -128,6 +148,8 @@ export async function escreverTextos(input: Parameters<typeof contexto>[0]) {
     proximos: out.proximos.slice(0, 4).map((p) => p.trim()).filter(Boolean),
     funcionou: (out.funcionou ?? []).slice(0, 3).map((p) => p.trim()).filter(Boolean),
     ajustar: (out.ajustar ?? []).slice(0, 3).map((p) => p.trim()).filter(Boolean),
+    feito: (out.feito ?? []).slice(0, 5).map((p) => p.trim()).filter(Boolean),
+    andamento: (out.andamento ?? []).slice(0, 4).map((p) => p.trim()).filter(Boolean),
   };
   const usage = response.usage;
   const inputTokens = (usage.input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0);
