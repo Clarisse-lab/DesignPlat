@@ -179,3 +179,13 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 - Textos da IA (Sonnet, `uso_ia` tipo "relatorio"): frase da semana, resumo, 3 destaques e próximos passos, só com os números recebidos, falando de resultado e não de tarefa. "Contexto para a IA" é interno e não aparece para o cliente.
 - Tabelas `relatorios_links` e `relatorios_semanais` (RLS, só service role) e a função `relatorio_visto` (conta as visitas do cliente). Migração no repositório do Escritório: `supabase/migrations/20261111210000_relatorios_semanais.sql`.
 - Tráfego pago entra à mão (os números do Meta Ads ainda não estão no Supabase).
+
+## Relatório do cliente: mensal, momentos e "funcionou / ajustar" (12/11/2026)
+A partir da reunião de 02/10 sobre como a apresentação deve ser.
+- **Semanal e mensal**: botão Semanal/Mensal na aba Relatórios. O mês é medido com a mesma régua da semana (coleta da segunda-feira depois do fim do mês) e comparado com o mês anterior. O link do cliente mostra os dois no seletor (`?periodo=mes:2026-10-01`; o antigo `?semana=` continua funcionando).
+- **Momentos** (estilo retrospectiva): cartões no topo com recordes e comparações com o **normal do próprio perfil** (mediana dos posts dos 90 dias anteriores; com menos de 5 posts não há "normal"). Entra só o que é verdade e chama atenção, no máximo 4: post mais visto do histórico ou "Nx o alcance normal", semana/mês de maior alcance, o conteúdo mais salvo e compartilhado, engajamento acima do normal, novos seguidores (≥ 1.000).
+- **O que funcionou e o que vamos ajustar**: frases da IA + os posts acima (≥ 1,5x o normal) e abaixo (≤ 0,6x) do normal, com o selo "Nx o normal". Post com menos de 3 dias na data da medição não entra em "abaixo".
+- **Todos os números**: bloco recolhido no fim (abre sozinho no PDF) com tráfego completo (impressões, cliques, CTR, CPC, CPM), Instagram completo e a tabela de cada publicação (alcance, vs. normal, interações, salvos, compartilhamentos, engajamento).
+- Banco: coluna `tipo` em `relatorios_semanais` e chave única (cliente, tipo, início). Migração `20261112030000_relatorios_tipo_periodo.sql` no Escritório (já aplicada). A chave antiga sai depois deste deploy.
+- Limite conhecido: os posts antigos usam as métricas mais recentes (acumuladas), então a comparação com o normal é conservadora para os posts do período.
+- Fica para depois: comentários que "aqueceram o coração", posts feitos pela Mantora, benchmark do nicho, cores do cliente.

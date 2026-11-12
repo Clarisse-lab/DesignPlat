@@ -1,4 +1,28 @@
-// Relatório semanal do cliente: formato dos dados (servidor, aba Relatórios e link do cliente).
+// Relatório do cliente (semanal ou mensal): formato dos dados (servidor, aba Relatórios e link do cliente).
+
+export type TipoPeriodo = "semana" | "mes";
+
+/** Um momento de destaque calculado pelo sistema (recorde, comparação com o normal do perfil). */
+export interface Marco {
+  /** Frase curta em cima do número: "Seu post mais visto em 90 dias". */
+  titulo: string;
+  /** O número em destaque, já formatado: "342 mil", "4,2x". */
+  valor: string;
+  /** Uma frase explicando: "O post de humor alcançou 342 mil pessoas, 11x o normal de um post seu." */
+  texto: string;
+  /** Post ligado ao momento (mostra a capa). */
+  media_id?: string;
+}
+
+/** O "normal" do perfil: medianas dos posts dos 90 dias antes do período. */
+export interface Historico {
+  desde: string;
+  posts: number;
+  mediana_alcance: number | null;
+  mediana_salvos_compart: number | null;
+  /** Interações por alcance (%). */
+  mediana_engajamento: number | null;
+}
 
 /** Um número da semana com a comparação com a semana anterior (null = sem base para comparar). */
 export interface Kpi {
@@ -39,7 +63,13 @@ export interface DadosSemana {
     /** Data da coleta usada (as métricas do Instagram são coletadas uma vez por semana). */
     medido_em: string | null;
     parcial: boolean;
+    /** O normal do perfil e os posts acima e abaixo dele (por alcance em relação à mediana). */
+    historico?: Historico | null;
+    acima?: string[];
+    abaixo?: string[];
   } | null;
+  /** Recordes e comparações com o normal do perfil, calculados pelo sistema. */
+  marcos?: Marco[];
   leads: { total: Kpi; origens: { origem: string; total: number }[] } | null;
   /** Entregas que o sistema vê sozinho (peças aprovadas pelo cliente no link de aprovação). */
   aprovadas: { titulo: string; em: string }[];
@@ -56,6 +86,9 @@ export interface TextosSemana {
   resumo: string;
   destaques: Destaque[];
   proximos: string[];
+  /** O que funcionou e o que ajustar, já interpretado (uma frase cada). */
+  funcionou?: string[];
+  ajustar?: string[];
 }
 
 export interface TrafegoSemana {
@@ -65,14 +98,32 @@ export interface TrafegoSemana {
   vendas?: number | null;
   faturamento?: number | null;
   roas?: number | null;
+  /** Secundários: só aparecem em "Todos os números". */
+  impressoes?: number | null;
+  cliques?: number | null;
+  ctr?: number | null;
+  cpc?: number | null;
+  cpm?: number | null;
   observacao?: string | null;
 }
 
-export type SecaoId = "numeros" | "destaques" | "conteudos" | "grafico" | "leads" | "trafego" | "entregas" | "proximos";
+export type SecaoId =
+  | "numeros"
+  | "momentos"
+  | "destaques"
+  | "conteudos"
+  | "funcionou"
+  | "grafico"
+  | "leads"
+  | "trafego"
+  | "entregas"
+  | "proximos"
+  | "detalhes";
 
 export interface RelatorioSemana {
   id: string;
   cliente_slug: string;
+  tipo: TipoPeriodo;
   semana_inicio: string;
   semana_fim: string;
   status: "rascunho" | "publicado";
@@ -91,9 +142,9 @@ export interface RelatorioSemana {
 /** O que a página do relatório recebe (link do cliente ou prévia da equipe). */
 export interface RelatorioView {
   cliente: { nome: string; foto: string | null };
-  semana: Pick<RelatorioSemana, "semana_inicio" | "semana_fim" | "dados" | "textos" | "trafego" | "entregas" | "secoes">;
+  semana: Pick<RelatorioSemana, "tipo" | "semana_inicio" | "semana_fim" | "dados" | "textos" | "trafego" | "entregas" | "secoes">;
   /** URLs assinadas das capas (caminho no bucket → URL). */
   capas: Record<string, string>;
-  /** Semanas publicadas, para o seletor do link do cliente. */
-  semanas?: { inicio: string; fim: string }[];
+  /** Períodos publicados, para o seletor do link do cliente. */
+  semanas?: { tipo: TipoPeriodo; inicio: string; fim: string }[];
 }

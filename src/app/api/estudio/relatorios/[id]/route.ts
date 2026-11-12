@@ -1,4 +1,4 @@
-// Um relatório semanal (aba Relatórios).
+// Um relatório do cliente, semanal ou mensal (aba Relatórios).
 // GET: relatório + capas + nome do cliente (prévia).
 // PUT: salva o que a equipe editou (textos, tráfego, entregas, seções, notas) e publica ou despublica.
 // POST { acao: "reescrever" }: a IA reescreve os textos com os números atuais e o que a equipe acrescentou.
@@ -45,10 +45,25 @@ const putSchema = z.object({
       resumo: texto(1200),
       destaques: z.array(z.object({ titulo: texto(80), texto: texto(400) })).max(4),
       proximos: z.array(texto(240)).max(6),
+      funcionou: z.array(texto(300)).max(5).optional(),
+      ajustar: z.array(texto(300)).max(5).optional(),
     })
     .optional(),
   trafego: z
-    .object({ investimento: num, leads: num, cpl: num, vendas: num, faturamento: num, roas: num, observacao: z.string().trim().max(400).nullish() })
+    .object({
+      investimento: num,
+      leads: num,
+      cpl: num,
+      vendas: num,
+      faturamento: num,
+      roas: num,
+      impressoes: num,
+      cliques: num,
+      ctr: num,
+      cpc: num,
+      cpm: num,
+      observacao: z.string().trim().max(400).nullish(),
+    })
     .optional(),
   entregas: z.array(texto(200)).max(20).optional(),
   secoes: z.record(z.string(), z.boolean()).optional(),
@@ -91,6 +106,7 @@ export async function POST(request: Request, { params }: Params) {
     if (!atual) return NextResponse.json({ error: "Relatório não encontrado." }, { status: 404 });
     const result = await escreverTextos({
       cliente: await nomeDoCliente(atual.cliente_slug),
+      tipo: atual.tipo ?? "semana",
       inicio: atual.semana_inicio,
       fim: atual.semana_fim,
       dados: atual.dados,

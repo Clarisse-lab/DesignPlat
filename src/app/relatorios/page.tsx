@@ -1,12 +1,12 @@
 "use client";
 
-// Relatórios semanais (equipe): escolhe o cliente e a semana, gera o rascunho (números + textos da IA),
-// revisa, acrescenta tráfego e entregas, publica e manda o link fixo do cliente.
+// Relatórios do cliente (equipe), semanais ou mensais: escolhe o cliente e o período, gera o rascunho
+// (números + textos da IA), revisa, acrescenta tráfego e entregas, publica e manda o link fixo do cliente.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Eye, Loader2, MessageCircle, RefreshCw, Send, Sparkles, Undo2 } from "lucide-react";
-import { periodo, RelatorioView } from "@/components/relatorio/RelatorioView";
-import type { RelatorioSemana, RelatorioView as View, SecaoId, TextosSemana, TrafegoSemana } from "@/lib/relatorio/tipos";
+import { nomePeriodo, RelatorioView } from "@/components/relatorio/RelatorioView";
+import type { RelatorioSemana, RelatorioView as View, SecaoId, TextosSemana, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
 
 interface ClienteLinha {
   slug: string;
@@ -15,6 +15,7 @@ interface ClienteLinha {
   visualizacoes: number;
 }
 interface SemanaLinha {
+  tipo: TipoPeriodo;
   inicio: string;
   fim: string;
   id: string | null;
@@ -24,14 +25,17 @@ interface SemanaLinha {
 
 const input = "w-full rounded-lg border border-line bg-surface px-3 py-2 text-[13.5px] outline-none focus:border-line-strong";
 const SECOES: [SecaoId, string][] = [
+  ["momentos", "Momentos"],
   ["numeros", "Números"],
   ["destaques", "Destaques"],
   ["conteudos", "Melhores conteúdos"],
+  ["funcionou", "Funcionou / ajustar"],
   ["grafico", "Gráfico de alcance"],
   ["leads", "Leads"],
   ["trafego", "Tráfego pago"],
   ["entregas", "Entregas"],
   ["proximos", "Próximos passos"],
+  ["detalhes", "Todos os números"],
 ];
 const CAMPOS_TRAFEGO: [keyof TrafegoSemana, string][] = [
   ["investimento", "Investimento (R$)"],
@@ -41,6 +45,15 @@ const CAMPOS_TRAFEGO: [keyof TrafegoSemana, string][] = [
   ["faturamento", "Faturamento (R$)"],
   ["roas", "ROAS"],
 ];
+/** Secundários: só aparecem em "Todos os números". */
+const CAMPOS_TRAFEGO_EXTRA: [keyof TrafegoSemana, string][] = [
+  ["impressoes", "Impressões"],
+  ["cliques", "Cliques"],
+  ["ctr", "CTR (%)"],
+  ["cpc", "CPC (R$)"],
+  ["cpm", "CPM (R$)"],
+];
+const TODOS_TRAFEGO = [...CAMPOS_TRAFEGO, ...CAMPOS_TRAFEGO_EXTRA];
 const curto = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 
 /** "1.234,56" ou "1234.56" → número; vazio → null. */
@@ -77,6 +90,7 @@ function Bloco({ titulo, dica, children }: { titulo: string; dica?: string; chil
 
 export default function RelatoriosPage() {
   const [clientes, setClientes] = useState<ClienteLinha[] | null>(null);
+  const [tipo, setTipo] = useState<TipoPeriodo>("semana");
   const [semanaRef, setSemanaRef] = useState<{ inicio: string; fim: string } | null>(null);
   const [cliente, setCliente] = useState<string>("");
   const [semanas, setSemanas] = useState<SemanaLinha[]>([]);
@@ -95,7 +109,7 @@ export default function RelatoriosPage() {
   const linkCliente = token && typeof window !== "undefined" ? `${window.location.origin}/r/${token}` : "";
 
   const carregarClientes = useCallback(async () => {
-    const r = await fetch("/api/estudio/relatorios");
+    const r = await fetch(`/api/estudio/relatorios?tipo=${tipo}`);
     const body = await r.json().catch(() => ({}));
     if (!r.ok) {
       setAviso({ tipo: "erro", texto: body.error ?? "Não foi possível carregar os clientes." });
@@ -104,7 +118,7 @@ export default function RelatoriosPage() {
     }
     setClientes(body.clientes);
     setSemanaRef(body.semana);
-  }, []);
+  }, [tipo]);
 
   useEffect(() => {
     carregarClientes();
@@ -118,7 +132,7 @@ export default function RelatoriosPage() {
     setCapas(body.capas ?? {});
     setNome(body.cliente);
     setToken(body.token);
-    setTrafegoTxt(Object.fromEntries(CAMPOS_TRAFEGO.map(([k]) => [k, paraTexto(body.relatorio.trafego?.[k] as number | null)])));
+    setTrafegoTxt(Object.fromEntries(TODOS_TRAFEGO.map(([k]) => [k, paraTexto(body.relatorio.trafego?.[k] as number | null)])));
     setSujo(false);
   }, []);
 
@@ -127,9 +141,10 @@ export default function RelatoriosPage() {
       const r = await fetch(`/api/estudio/relatorios?cliente=${slug}`);
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error ?? "Não foi possível carregar as semanas.");
-      setSemanas(body.semanas);
+      const lista: SemanaLinha[] = tipo === "mes" ? body.meses : body.semanas;
+      setSemanas(lista);
       setToken(body.token);
-      const alvo = (body.semanas as SemanaLinha[]).find((s) => s.inicio === escolher) ?? body.semanas[0];
+      const alvo = lista.find((s) => s.inicio === escolher) ?? lista[0];
       setSemana(alvo.inicio);
       if (alvo.id) await abrir(alvo.id);
       else {
@@ -137,8 +152,14 @@ export default function RelatoriosPage() {
         setCapas({});
       }
     },
-    [abrir],
+    [abrir, tipo],
   );
+
+  // Trocar semanal/mensal recarrega a lista de clientes e o período do cliente aberto.
+  useEffect(() => {
+    if (cliente) carregarSemanas(cliente).catch((e) => setAviso({ tipo: "erro", texto: e.message }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tipo]);
 
   async function trocarCliente(slug: string) {
     if (sujo && !confirm("Há alterações não salvas. Trocar de cliente mesmo assim?")) return;
@@ -166,7 +187,7 @@ export default function RelatoriosPage() {
     const r = await fetch("/api/estudio/relatorios", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cliente: slug, semana_inicio: inicio, notas }),
+      body: JSON.stringify({ cliente: slug, tipo, semana_inicio: inicio, notas }),
     });
     const body = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(body.error ?? "Não foi possível gerar o relatório.");
@@ -192,8 +213,8 @@ export default function RelatoriosPage() {
   async function gerarTodos() {
     if (!clientes || !semanaRef) return;
     const pendentes = clientes.filter((c) => !c.status);
-    if (!pendentes.length) return setAviso({ tipo: "ok", texto: "Todos os clientes já têm relatório desta semana." });
-    if (!confirm(`Gerar o rascunho de ${pendentes.length} cliente(s) da semana de ${curto(semanaRef.inicio)} a ${curto(semanaRef.fim)}?`)) return;
+    if (!pendentes.length) return setAviso({ tipo: "ok", texto: `Todos os clientes já têm relatório ${tipo === "mes" ? "deste mês" : "desta semana"}.` });
+    if (!confirm(`Gerar o rascunho de ${pendentes.length} cliente(s) ${tipo === "mes" ? "do mês" : "da semana"} de ${curto(semanaRef.inicio)} a ${curto(semanaRef.fim)}?`)) return;
     setOcupado("todos");
     setAviso(null);
     let ok = 0;
@@ -229,7 +250,7 @@ export default function RelatoriosPage() {
     setOcupado("salvar");
     setAviso(null);
     const trafego: TrafegoSemana = { observacao: rel.trafego?.observacao?.trim() || null };
-    for (const [k] of CAMPOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
+    for (const [k] of TODOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
     try {
       const r = await fetch(`/api/estudio/relatorios/${rel.id}`, {
         method: "PUT",
@@ -239,6 +260,8 @@ export default function RelatoriosPage() {
             ...rel.textos,
             destaques: rel.textos.destaques.filter((d) => d.titulo.trim() || d.texto.trim()),
             proximos: rel.textos.proximos.map((p) => p.trim()).filter(Boolean),
+            funcionou: (rel.textos.funcionou ?? []).map((p) => p.trim()).filter(Boolean),
+            ajustar: (rel.textos.ajustar ?? []).map((p) => p.trim()).filter(Boolean),
           },
           trafego,
           entregas: rel.entregas.map((e) => e.trim()).filter(Boolean),
@@ -253,8 +276,8 @@ export default function RelatoriosPage() {
       setSujo(false);
       if (status === "publicado") {
         await navigator.clipboard?.writeText(linkCliente).catch(() => null);
-        setAviso({ tipo: "ok", texto: "Publicado. O link do cliente já mostra esta semana (link copiado)." });
-      } else setAviso({ tipo: "ok", texto: status === "rascunho" ? "Voltou para rascunho: o cliente não vê mais esta semana." : "Salvo." });
+        setAviso({ tipo: "ok", texto: `Publicado. O link do cliente já mostra ${tipo === "mes" ? "este mês" : "esta semana"} (link copiado).` });
+      } else setAviso({ tipo: "ok", texto: status === "rascunho" ? `Voltou para rascunho: o cliente não vê mais ${tipo === "mes" ? "este mês" : "esta semana"}.` : "Salvo." });
       setSemanas((lista) => lista.map((s) => (s.inicio === rel.semana_inicio ? { ...s, status: body.relatorio.status } : s)));
       carregarClientes();
     } catch (e) {
@@ -285,15 +308,15 @@ export default function RelatoriosPage() {
   const previa: View | null = useMemo(() => {
     if (!rel) return null;
     const trafego: TrafegoSemana = { observacao: rel.trafego?.observacao ?? null };
-    for (const [k] of CAMPOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
+    for (const [k] of TODOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
     return {
       cliente: { nome, foto: rel.dados.foto_perfil ? (capas[rel.dados.foto_perfil] ?? null) : null },
-      semana: { semana_inicio: rel.semana_inicio, semana_fim: rel.semana_fim, dados: rel.dados, textos: rel.textos, trafego, entregas: rel.entregas, secoes: rel.secoes ?? {} },
+      semana: { tipo: rel.tipo ?? "semana", semana_inicio: rel.semana_inicio, semana_fim: rel.semana_fim, dados: rel.dados, textos: rel.textos, trafego, entregas: rel.entregas, secoes: rel.secoes ?? {} },
       capas,
     };
   }, [rel, capas, nome, trafegoTxt]);
 
-  const mensagem = `Olá! O relatório da semana de ${semana ? periodo(semana, semanas.find((s) => s.inicio === semana)?.fim ?? semana) : ""} já está no ar: ${linkCliente}`;
+  const mensagem = `Olá! O relatório ${semana ? `(${nomePeriodo(tipo, semana, semanas.find((s) => s.inicio === semana)?.fim ?? semana).toLowerCase()})` : ""} já está no ar: ${linkCliente}`;
   const atual = semanas.find((s) => s.inicio === semana);
   const destaques = rel ? [...rel.textos.destaques, ...Array.from({ length: Math.max(0, 3 - rel.textos.destaques.length) }, () => ({ titulo: "", texto: "" }))] : [];
 
@@ -301,11 +324,30 @@ export default function RelatoriosPage() {
     <div className="mx-auto max-w-[1540px] space-y-5 px-4 py-6 sm:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[.17em] text-ink-soft">Relatórios semanais</p>
-          <h1 className="mt-1 text-[34px] font-normal leading-none tracking-tight">A semana de cada cliente</h1>
+          <p className="text-[10px] uppercase tracking-[.17em] text-ink-soft">Relatórios</p>
+          <h1 className="mt-1 text-[34px] font-normal leading-none tracking-tight">{tipo === "mes" ? "O mês de cada cliente" : "A semana de cada cliente"}</h1>
           <p className="mt-2 max-w-2xl text-[13px] text-ink-soft">
-            Gere o rascunho, revise os textos, acrescente tráfego e entregas e publique. Cada cliente tem um link fixo que sempre mostra a semana mais recente.
+            Gere o rascunho, revise os textos, acrescente tráfego e entregas e publique. Cada cliente tem um link fixo que sempre mostra o período mais recente, semanal ou mensal.
           </p>
+          <div className="mt-3 inline-flex rounded-full border border-line bg-surface p-1 text-[13px]">
+            {(["semana", "mes"] as TipoPeriodo[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                disabled={!!ocupado}
+                onClick={() => {
+                  if (t === tipo) return;
+                  if (sujo && !confirm("Há alterações não salvas. Trocar mesmo assim?")) return;
+                  setSujo(false);
+                  setRel(null);
+                  setTipo(t);
+                }}
+                className={`rounded-full px-4 py-1.5 ${tipo === t ? "bg-ink text-surface" : "text-ink-soft hover:text-ink"}`}
+              >
+                {t === "mes" ? "Mensal" : "Semanal"}
+              </button>
+            ))}
+          </div>
         </div>
         {semanaRef && (
           <button
@@ -315,7 +357,7 @@ export default function RelatoriosPage() {
             className="inline-flex items-center gap-2 rounded-full bg-[var(--mosaic-action)] px-4 py-2.5 text-[13px] font-semibold text-[var(--mosaic-action-text)] disabled:opacity-50"
           >
             {ocupado === "todos" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {ocupado === "todos" ? progresso || "Gerando…" : `Gerar rascunhos de ${curto(semanaRef.inicio)} a ${curto(semanaRef.fim)}`}
+            {ocupado === "todos" ? progresso || "Gerando…" : `Gerar rascunhos ${tipo === "mes" ? "do mês" : "da semana"} de ${curto(semanaRef.inicio)} a ${curto(semanaRef.fim)}`}
           </button>
         )}
       </div>
@@ -347,7 +389,7 @@ export default function RelatoriosPage() {
       {cliente && (
         <div className="grid items-start gap-5 lg:grid-cols-[400px_minmax(0,1fr)]">
           <aside className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto lg:pr-1">
-            <Bloco titulo="Semana">
+            <Bloco titulo={tipo === "mes" ? "Mês" : "Semana"}>
               <select value={semana} onChange={(e) => trocarSemana(e.target.value)} className={input}>
                 {semanas.map((s) => (
                   <option key={s.inicio} value={s.inicio}>
@@ -366,13 +408,13 @@ export default function RelatoriosPage() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-line px-3 py-2 text-[13px] font-medium hover:border-line-strong disabled:opacity-50"
               >
                 {ocupado === "gerar" ? <Loader2 className="h-4 w-4 animate-spin" /> : rel ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
-                {ocupado === "gerar" ? "Coletando números e escrevendo…" : rel ? "Gerar de novo (números e textos)" : "Gerar o relatório desta semana"}
+                {ocupado === "gerar" ? "Coletando números e escrevendo…" : rel ? "Gerar de novo (números e textos)" : `Gerar o relatório ${tipo === "mes" ? "deste mês" : "desta semana"}`}
               </button>
             </Bloco>
 
             {rel && (
               <>
-                <Bloco titulo="Link do cliente" dica="O mesmo link toda semana. Só mostra semanas publicadas.">
+                <Bloco titulo="Link do cliente" dica="O mesmo link sempre. Só mostra períodos publicados (semanas e meses).">
                   <div className="flex gap-2">
                     <input readOnly value={linkCliente} className={`${input} text-[12px]`} onFocus={(e) => e.target.select()} />
                     <button
@@ -433,6 +475,14 @@ export default function RelatoriosPage() {
                     </div>
                   ))}
                   <label className="block space-y-1">
+                    <span className="text-[12px] text-ink-soft">O que funcionou (um por linha)</span>
+                    <textarea value={(rel.textos.funcionou ?? []).join("\n")} rows={3} onChange={(e) => editarTextos({ funcionou: e.target.value.split("\n") })} className={input} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[12px] text-ink-soft">O que vamos ajustar (um por linha)</span>
+                    <textarea value={(rel.textos.ajustar ?? []).join("\n")} rows={3} onChange={(e) => editarTextos({ ajustar: e.target.value.split("\n") })} className={input} />
+                  </label>
+                  <label className="block space-y-1">
                     <span className="text-[12px] text-ink-soft">Próximos passos (um por linha)</span>
                     <textarea value={rel.textos.proximos.join("\n")} rows={4} onChange={(e) => editarTextos({ proximos: e.target.value.split("\n") })} className={input} />
                   </label>
@@ -468,6 +518,25 @@ export default function RelatoriosPage() {
                       </label>
                     ))}
                   </div>
+                  <details className="rounded-xl bg-canvas p-2.5">
+                    <summary className="cursor-pointer text-[12px] text-ink-soft">Números secundários (só em “Todos os números”)</summary>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      {CAMPOS_TRAFEGO_EXTRA.map(([k, rotulo]) => (
+                        <label key={k} className="block space-y-1">
+                          <span className="text-[11.5px] text-ink-soft">{rotulo}</span>
+                          <input
+                            inputMode="decimal"
+                            value={trafegoTxt[k] ?? ""}
+                            onChange={(e) => {
+                              setTrafegoTxt({ ...trafegoTxt, [k]: e.target.value });
+                              setSujo(true);
+                            }}
+                            className={input}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
                   <textarea
                     value={rel.trafego?.observacao ?? ""}
                     rows={2}
@@ -558,7 +627,7 @@ export default function RelatoriosPage() {
                     <Loader2 className="h-4 w-4 animate-spin" /> Coletando os números da semana e escrevendo o resumo…
                   </span>
                 ) : (
-                  "Ainda não há relatório desta semana. Clique em “Gerar o relatório desta semana”."
+                  `Ainda não há relatório ${tipo === "mes" ? "deste mês" : "desta semana"}. Clique em “Gerar o relatório ${tipo === "mes" ? "deste mês" : "desta semana"}”.`
                 )}
               </div>
             )}
