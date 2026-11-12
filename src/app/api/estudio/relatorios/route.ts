@@ -83,7 +83,22 @@ export async function POST(request: Request) {
     const [dados, nome] = await Promise.all([coletar(cliente, tipo, semana_inicio, id), nomeDoCliente(cliente)]);
     const trafego = existente?.trafego ?? {};
     const entregas = existente?.entregas ?? [];
-    const result = await escreverTextos({ cliente: nome, tipo, inicio: semana_inicio, fim: fimDoPeriodo(tipo, semana_inicio), dados, trafego, entregas, notas });
+    // Se a IA falhar, os números coletados não se perdem: salva o rascunho e avisa.
+    let semTextos = null as string | null;
+    const result = await escreverTextos({ cliente: nome, tipo, inicio: semana_inicio, fim: fimDoPeriodo(tipo, semana_inicio), dados, trafego, entregas, notas }).catch(
+      (error: unknown) => {
+        if (error instanceof Anthropic.APIError && error.status === 429) throw error;
+        console.error("[estudio/relatorios] textos:", error);
+        semTextos =
+          error instanceof GenerationError
+            ? error.message
+            : error instanceof Anthropic.APIError
+              ? `Falha na API do Claude (${error.status ?? "sem status"}).`
+              : `Erro ao escrever os textos (${error instanceof Error ? error.message.slice(0, 120) : "desconhecido"}).`;
+        const vazio = { titulo: "", resumo: "", destaques: [], proximos: [], funcionou: [], ajustar: [], feito: [], andamento: [], palavras: [] };
+        return { textos: existente?.textos ?? vazio, model: "", inputTokens: 0, outputTokens: 0, costUsd: 0 };
+      },
+    );
     const row: Partial<RelatorioSemana> & { cliente_slug: string; tipo: TipoPeriodo; semana_inicio: string } = {
       id,
       cliente_slug: cliente,
@@ -95,7 +110,7 @@ export async function POST(request: Request) {
       ...(existente ? {} : { status: "rascunho" as const, trafego: {}, entregas: [], secoes: {} }),
     };
     const salvo = await salvar(row, member.email || null);
-    await rest("uso_ia", {
+    if (result.model) await rest("uso_ia", {
       method: "POST",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({
@@ -108,7 +123,12 @@ export async function POST(request: Request) {
         custo_usd: result.costUsd.toFixed(4),
       }),
     }).catch((error) => console.error("[estudio/relatorios] não registrou o custo:", error));
-    return NextResponse.json({ relatorio: salvo, capas: await urlsDasImagens(salvo.dados), custo_usd: Math.round(result.costUsd * 1000) / 1000 });
+    return NextResponse.json({
+      relatorio: salvo,
+      capas: await urlsDasImagens(salvo.dados),
+      custo_usd: Math.round(result.costUsd * 1000) / 1000,
+      aviso: semTextos ? `Os números foram salvos, mas os textos não saíram: ${semTextos} Clique em gerar de novo ou escreva os textos à mão.` : null,
+    });
   } catch (error) {
     if (error instanceof GenerationError) return NextResponse.json({ error: error.message }, { status: 422 });
     if (error instanceof Anthropic.APIError) {
@@ -116,6 +136,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.status === 429 ? "A API do Claude está ocupada. Tente em 1 minuto." : "Falha na API do Claude." }, { status: 502 });
     }
     console.error("[estudio/relatorios]", error);
-    return NextResponse.json({ error: "Não foi possível gerar o relatório." }, { status: 500 });
+    const motivo = error instanceof Error ? error.message.slice(0, 160) : "";
+    return NextResponse.json({ error: `Não foi possível gerar o relatório.${motivo ? ` Detalhe: ${motivo}` : ""}` }, { status: 500 });
   }
 }

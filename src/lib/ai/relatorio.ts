@@ -9,6 +9,7 @@ import { variacao } from "../relatorio/calc";
 import { anteriorDoMeta, trafegoEfetivo } from "../relatorio/meta";
 import type { DadosSemana, Kpi, PostSemana, TextosSemana, TrafegoSemana } from "../relatorio/tipos";
 import { CAROUSEL_MODEL, PRICES } from "./carousel-from-copy";
+import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, GenerationError } from "./claude";
 
 const textosSchema = z.object({
@@ -69,7 +70,7 @@ function contexto(input: {
   trafego: TrafegoSemana;
   entregas: string[];
   notas: string | null;
-}): string {
+}, enxuto = false): string {
   const { dados } = input;
   const ig = dados.instagram;
   const nome = input.tipo === "mes" ? "MÊS" : "SEMANA";
@@ -111,7 +112,7 @@ function contexto(input: {
   if (dados.nicho) partes.push(`NICHO: engajamento ${fmt(dados.nicho.cliente)}% contra média ${fmt(dados.nicho.media)}% de ${dados.nicho.total} perfis parecidos (${fmt(dados.nicho.vezes)}x); entre os ${dados.nicho.topo_pct}% com mais engajamento`);
   if (dados.publico) partes.push(`PÚBLICO: ${dados.publico.idade.map((x) => `${x.faixa} ${fmt(x.pct)}%`).join(", ")}; mulheres ${fmt(dados.publico.mulheres)}%`);
   if (dados.pendencias?.length) partes.push(`DEPENDEM DO CLIENTE (aparecem numa seção própria; só mencione nos próximos passos se ajudar): ${dados.pendencias.map((p) => p.titulo).join("; ")}`);
-  if (dados.comentarios?.length) partes.push(`COMENTÁRIOS:\n${dados.comentarios.slice(0, 40).map((x) => `- ${x.texto.slice(0, 220)}`).join("\n")}`);
+  if (!enxuto && dados.comentarios?.length) partes.push(`COMENTÁRIOS:\n${dados.comentarios.slice(0, 40).map((x) => `- ${x.texto.slice(0, 220)}`).join("\n")}`);
   if (dados.marcos?.length) partes.push(`MOMENTOS (calculados, verdadeiros):\n${dados.marcos.map((m) => `- ${m.titulo}: ${m.valor}. ${m.texto}`).join("\n")}`);
   if (dados.leads) {
     partes.push(
@@ -141,14 +142,14 @@ function contexto(input: {
   if (entregas.length) partes.push(`ENTREGAS DA SEMANA:\n${entregas.map((e) => `- ${e}`).join("\n")}`);
   const tr = dados.trabalho;
   if (tr && tr.feitas.length + tr.andamento.length + tr.proximas.length > 0) {
-    const item = (x: { nome: string; lista: string; prazo: string | null }) => `- ${x.nome} [lista: ${x.lista.trim()}${x.prazo ? `, prazo ${x.prazo}` : ""}]`;
+    const item = (x: { nome: string; lista: string; prazo: string | null }) => `- ${x.nome} [lista: ${(x.lista ?? "").trim()}${x.prazo ? `, prazo ${x.prazo}` : ""}]`;
     partes.push(
       [
         "TRABALHO DA MANTORA (tarefas do ClickUp, internas: use só para escrever feito/andamento/proximos)",
         tr.producao.length ? `PRODUZIDO NO PERÍODO: ${tr.producao.map((p) => `${p.total} ${p.rotulo}`).join(", ")}` : "",
-        tr.feitas.length ? `FEITO NO PERÍODO:\n${tr.feitas.slice(0, 40).map(item).join("\n")}` : "",
-        tr.andamento.length ? `EM ANDAMENTO AGORA:\n${tr.andamento.slice(0, 30).map(item).join("\n")}` : "",
-        tr.proximas.length ? `PRÓXIMO (até o fim ${input.tipo === "mes" ? "do próximo mês" : "da próxima semana"}):\n${tr.proximas.slice(0, 30).map(item).join("\n")}` : "",
+        tr.feitas.length ? `FEITO NO PERÍODO:\n${tr.feitas.slice(0, enxuto ? 15 : 40).map(item).join("\n")}` : "",
+        tr.andamento.length ? `EM ANDAMENTO AGORA:\n${tr.andamento.slice(0, enxuto ? 12 : 30).map(item).join("\n")}` : "",
+        tr.proximas.length ? `PRÓXIMO (até o fim ${input.tipo === "mes" ? "do próximo mês" : "da próxima semana"}):\n${tr.proximas.slice(0, enxuto ? 12 : 30).map(item).join("\n")}` : "",
       ]
         .filter(Boolean)
         .join("\n"),
@@ -159,16 +160,31 @@ function contexto(input: {
 }
 
 export async function escreverTextos(input: Parameters<typeof contexto>[0]) {
-  const response = await anthropic.beta.messages.parse({
-    model: CAROUSEL_MODEL,
-    max_tokens: 4000,
-    output_config: { effort: "low", format: betaZodOutputFormat(textosSchema) },
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: SYSTEM,
-    messages: [{ role: "user", content: `${contexto(input)}\n\nEscreva os textos do relatório ${input.tipo === "mes" ? "deste mês" : "desta semana"}.` }],
-  });
+  const pedir = (ctx: string) =>
+    anthropic.beta.messages.parse({
+      model: CAROUSEL_MODEL,
+      // O mensal tem mais trabalho, comentários e momentos: 4000 tokens cortavam a resposta no meio.
+      max_tokens: 16000,
+      output_config: { effort: "low", format: betaZodOutputFormat(textosSchema) },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: SYSTEM,
+      messages: [{ role: "user", content: `${ctx}\n\nEscreva os textos do relatório ${input.tipo === "mes" ? "deste mês" : "desta semana"}.` }],
+    });
+  let response;
+  try {
+    response = await pedir(contexto(input));
+  } catch (error) {
+    if (error instanceof Anthropic.APIError) throw error;
+    // Resposta cortada ou JSON inválido: tenta de novo com um contexto mais enxuto (sem comentários e com menos tarefas).
+    console.error("[relatorio] 1ª tentativa falhou, tentando com contexto enxuto:", error);
+    response = await pedir(contexto(input, true)).catch((e) => {
+      if (e instanceof Anthropic.APIError) throw e;
+      throw new GenerationError(`A IA não conseguiu escrever os textos (${e instanceof Error ? e.message.slice(0, 120) : "erro desconhecido"}).`);
+    });
+  }
   if (response.stop_reason === "refusal") throw new GenerationError("A IA não conseguiu escrever este relatório.");
+  if (response.stop_reason === "max_tokens") throw new GenerationError("A resposta da IA ficou grande demais e foi cortada.");
   const out = response.parsed_output;
   if (!out) throw new GenerationError("A IA não devolveu os textos. Tente novamente.");
   const textos: TextosSemana = {
