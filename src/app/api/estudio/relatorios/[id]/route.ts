@@ -49,6 +49,7 @@ const putSchema = z.object({
       ajustar: z.array(texto(300)).max(5).optional(),
       feito: z.array(texto(300)).max(8).optional(),
       andamento: z.array(texto(300)).max(8).optional(),
+      palavras: z.array(texto(400)).max(8).optional(),
     })
     .optional(),
   trafego: z

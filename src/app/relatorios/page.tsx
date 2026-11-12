@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Eye, Loader2, MessageCircle, RefreshCw, Send, Sparkles, Undo2 } from "lucide-react";
 import { nomePeriodo, RelatorioView } from "@/components/relatorio/RelatorioView";
 import { trafegoDoMeta, trafegoParaView } from "@/lib/relatorio/meta";
-import type { RelatorioSemana, RelatorioView as View, SecaoId, TextosSemana, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
+import type { RelatorioSemana, RelatorioView as View, SecaoId, Tema, TextosSemana, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
 
 interface ClienteLinha {
   slug: string;
@@ -36,6 +36,10 @@ const SECOES: [SecaoId, string][] = [
   ["trafego", "Tráfego pago"],
   ["entregas", "Trabalho: feito e em andamento"],
   ["proximos", "Trabalho: o que vem por aí"],
+  ["nicho", "Comparação com o nicho"],
+  ["palavras", "Palavras que aqueceram"],
+  ["publico", "Público"],
+  ["pendencias", "Precisam do cliente"],
   ["detalhes", "Todos os números"],
 ];
 const CAMPOS_TRAFEGO: [keyof TrafegoSemana, string][] = [
@@ -102,6 +106,7 @@ export default function RelatoriosPage() {
   const [rel, setRel] = useState<RelatorioSemana | null>(null);
   const [capas, setCapas] = useState<Record<string, string>>({});
   const [nome, setNome] = useState("");
+  const [tema, setTema] = useState<Tema | null>(null);
   const [trafegoTxt, setTrafegoTxt] = useState<Record<string, string>>({});
   const [sujo, setSujo] = useState(false);
   const [ocupado, setOcupado] = useState<"" | "gerar" | "salvar" | "reescrever" | "todos">("");
@@ -267,6 +272,7 @@ export default function RelatoriosPage() {
             ajustar: (rel.textos.ajustar ?? []).map((p) => p.trim()).filter(Boolean),
             feito: (rel.textos.feito ?? []).map((p) => p.trim()).filter(Boolean),
             andamento: (rel.textos.andamento ?? []).map((p) => p.trim()).filter(Boolean),
+            palavras: (rel.textos.palavras ?? []).map((p) => p.trim()).filter(Boolean),
           },
           trafego,
           entregas: rel.entregas.map((e) => e.trim()).filter(Boolean),
@@ -315,11 +321,11 @@ export default function RelatoriosPage() {
     const trafego: TrafegoSemana = { observacao: rel.trafego?.observacao ?? null };
     for (const [k] of TODOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
     return {
-      cliente: { nome, foto: rel.dados.foto_perfil ? (capas[rel.dados.foto_perfil] ?? null) : null },
+      cliente: { nome, foto: rel.dados.foto_perfil ? (capas[rel.dados.foto_perfil] ?? null) : null, tema },
       semana: { tipo: rel.tipo ?? "semana", semana_inicio: rel.semana_inicio, semana_fim: rel.semana_fim, dados: rel.dados, textos: rel.textos, ...trafegoParaView(rel.dados, trafego), entregas: rel.entregas, secoes: rel.secoes ?? {} },
       capas,
     };
-  }, [rel, capas, nome, trafegoTxt]);
+  }, [rel, capas, nome, trafegoTxt, tema]);
 
   const doMeta: Partial<Record<keyof TrafegoSemana, unknown>> = rel?.dados.meta_ads ? trafegoDoMeta(rel.dados.meta_ads.atual) : {};
   const mensagem = `Olá! O relatório ${semana ? `(${nomePeriodo(tipo, semana, semanas.find((s) => s.inicio === semana)?.fim ?? semana).toLowerCase()})` : ""} já está no ar: ${linkCliente}`;
@@ -496,6 +502,29 @@ export default function RelatoriosPage() {
                     <span className="text-[12px] text-ink-soft">Em andamento (um por linha)</span>
                     <textarea value={(rel.textos.andamento ?? []).join("\n")} rows={3} onChange={(e) => editarTextos({ andamento: e.target.value.split("\n") })} className={input} />
                   </label>
+                  <div className="space-y-1">
+                    <span className="text-[12px] text-ink-soft">Palavras que aqueceram (comentários, um por linha; sem o nome de quem escreveu)</span>
+                    <textarea value={(rel.textos.palavras ?? []).join("\n")} rows={4} onChange={(e) => editarTextos({ palavras: e.target.value.split("\n") })} className={input} />
+                    {(rel.dados.comentarios?.length ?? 0) > 0 && (
+                      <details className="rounded-xl bg-canvas p-2.5 text-[12.5px]">
+                        <summary className="cursor-pointer text-ink-soft">Outros comentários do período ({rel.dados.comentarios!.length})</summary>
+                        <ul className="mt-1.5 max-h-56 space-y-1 overflow-y-auto">
+                          {rel.dados.comentarios!.map((c, i) => (
+                            <li key={i} className="flex items-start gap-2">
+                              <button
+                                type="button"
+                                className="shrink-0 rounded border border-line px-1.5 text-[11px] hover:border-line-strong"
+                                onClick={() => editarTextos({ palavras: [...(rel.textos.palavras ?? []).filter(Boolean), c.texto] })}
+                              >
+                                usar
+                              </button>
+                              <span className="text-ink-soft">{c.texto}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
                   <label className="block space-y-1">
                     <span className="text-[12px] text-ink-soft">O que vem por aí (um por linha)</span>
                     <textarea value={rel.textos.proximos.join("\n")} rows={4} onChange={(e) => editarTextos({ proximos: e.target.value.split("\n") })} className={input} />
@@ -623,6 +652,24 @@ export default function RelatoriosPage() {
                     onChange={(e) => editar({ entregas: e.target.value.split("\n") })}
                     className={input}
                   />
+                </Bloco>
+
+                <Bloco titulo="Identidade e nicho" dica="Valem para todos os relatórios deste cliente.">
+                  <ConfigCliente cliente={cliente} onTema={setTema} />
+                  {rel.dados.nicho && (
+                    <div className="space-y-1 rounded-xl bg-canvas p-2.5 text-[12px] text-ink-soft">
+                      {rel.dados.nicho.cliente !== null ? (
+                        <p>
+                          Neste relatório: engajamento de {rel.dados.nicho.cliente}% contra {rel.dados.nicho.media}% da média de {rel.dados.nicho.total} perfis.
+                        </p>
+                      ) : (
+                        <p>A comparação com o nicho não entrou neste relatório (precisa do perfil do cliente com curtidas visíveis e de pelo menos 3 perfis válidos).</p>
+                      )}
+                      {(rel.dados.nicho.fora ?? []).length > 0 && (
+                        <p>Não deu para usar: {rel.dados.nicho.fora!.map((f) => `@${f.perfil} (${f.motivo})`).join(", ")}.</p>
+                      )}
+                    </div>
+                  )}
                 </Bloco>
 
                 <Bloco titulo="Seções" dica="Desmarque o que não deve aparecer nesta semana.">
@@ -795,6 +842,86 @@ function ContasMeta({ cliente, usadas }: { cliente: string; usadas: string[] }) 
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Cores do relatório e perfis do nicho do cliente. */
+function ConfigCliente({ cliente, onTema }: { cliente: string; onTema: (t: Tema | null) => void }) {
+  const [info, setInfo] = useState<{ tema: Tema | null; cores: { escuro: string; destaque: string } | null; nicho_perfis: string[] } | null>(null);
+  const [escuro, setEscuro] = useState("#24002f");
+  const [destaque, setDestaque] = useState("#704bfd");
+  const [perfis, setPerfis] = useState("");
+  const [estado, setEstado] = useState("");
+
+  useEffect(() => {
+    if (!cliente) return;
+    let vivo = true;
+    fetch(`/api/estudio/relatorios/cliente?cliente=${cliente}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        setInfo(j);
+        onTema(j.tema ?? null);
+        setEscuro(j.cores?.escuro ?? j.tema?.escuro ?? "#24002f");
+        setDestaque(j.cores?.destaque ?? j.tema?.destaque ?? "#704bfd");
+        setPerfis((j.nicho_perfis ?? []).join("\n"));
+      })
+      .catch(() => null);
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente]);
+
+  async function salvar(corpo: Record<string, unknown>) {
+    setEstado("salvando");
+    const r = await fetch("/api/estudio/relatorios/cliente", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cliente, ...corpo }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setEstado(j.error ?? "erro");
+    onTema(j.tema ?? null);
+    setInfo((i) => (i ? { ...i, tema: j.tema ?? null } : i));
+    setEstado("salvo");
+  }
+
+  if (!info) return <p className="text-[12px] text-ink-faint">Carregando…</p>;
+  const origem = { equipe: "escolhidas pela equipe", estilo: "do estilo padrão do cliente", kit: "do kit de marca (Instagram)", mantora: "da Mantora" }[info.tema?.origem ?? "mantora"];
+  return (
+    <div className="space-y-3 text-[12.5px]">
+      <div className="space-y-1.5">
+        <span className="text-ink-soft">Cores do relatório: hoje são as {origem}.</span>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5">
+            <input type="color" value={escuro} onChange={(e) => setEscuro(e.target.value)} className="h-7 w-9 cursor-pointer rounded border border-line" />
+            escuro
+          </label>
+          <label className="flex items-center gap-1.5">
+            <input type="color" value={destaque} onChange={(e) => setDestaque(e.target.value)} className="h-7 w-9 cursor-pointer rounded border border-line" />
+            destaque
+          </label>
+          <button type="button" onClick={() => onTema({ escuro, destaque, origem: "equipe" })} className="underline underline-offset-2">
+            ver na prévia
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button type="button" onClick={() => salvar({ cores: { escuro, destaque } })} className="rounded-lg border border-line px-2.5 py-1 hover:border-line-strong">
+            Salvar cores
+          </button>
+          {info.cores && (
+            <button type="button" onClick={() => salvar({ cores: null })} className="rounded-lg border border-line px-2.5 py-1 hover:border-line-strong">
+              Voltar às do estilo/kit
+            </button>
+          )}
+        </div>
+      </div>
+      <label className="block space-y-1">
+        <span className="text-ink-soft">Perfis do nicho para comparar (um @ por linha, contas comerciais ou de criador; mínimo 3)</span>
+        <textarea value={perfis} rows={4} onChange={(e) => setPerfis(e.target.value)} placeholder={"perfil1\nperfil2\nperfil3"} className={input} />
+      </label>
+      <button type="button" onClick={() => salvar({ nicho_perfis: perfis.split(/[\n,]/).map((p) => p.trim()).filter(Boolean) })} className="rounded-lg border border-line px-2.5 py-1 hover:border-line-strong">
+        Salvar perfis
+      </button>
+      {estado && estado !== "salvando" && <p className="text-[11.5px] text-ink-faint">{estado === "salvo" ? "Salvo. Para o nicho entrar no relatório, clique em Gerar de novo." : estado}</p>}
     </div>
   );
 }

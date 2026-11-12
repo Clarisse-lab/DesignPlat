@@ -6,6 +6,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { variacao } from "@/lib/relatorio/calc";
+import { antesDepoisMelhorou, kpiDe, leitura, taxaEngajamento, type Tom } from "@/lib/relatorio/extras";
+import { variaveisDoTema } from "@/lib/relatorio/tema";
 import type { Kpi, Marco, PostSemana, RelatorioView as View, SecaoId, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
 import "./relatorio.css";
 
@@ -173,6 +175,10 @@ function KpiCard({
   tipo,
   destaque = false,
   neutro = false,
+  inverso = false,
+  formato = fmtNumero,
+  sinal = false,
+  leitura,
 }: {
   rotulo: string;
   k: Kpi;
@@ -182,15 +188,23 @@ function KpiCard({
   tipo?: TipoPeriodo;
   destaque?: boolean;
   neutro?: boolean;
+  inverso?: boolean;
+  formato?: (n: number) => string;
+  /** Mostra "+" na frente (seguidores novos). */
+  sinal?: boolean;
+  leitura?: { tom: Tom; texto: string } | null;
 }) {
   if (k.valor === null) return null;
   return (
     <article className={`rs-kpi ${destaque ? "rs-kpi-destaque" : ""}`} style={{ "--i": ordem } as React.CSSProperties}>
-      <p className="rs-kpi-rotulo">{rotulo}</p>
+      <div className="rs-kpi-topo">
+        <p className="rs-kpi-rotulo">{rotulo}</p>
+        {leitura && <span className={`rs-leitura rs-leitura-${leitura.tom}`}>{leitura.texto}</span>}
+      </div>
       <p className="rs-kpi-valor">
-        <Contador valor={k.valor} ativo={ativo} formato={(n) => `${k.valor !== null && k.valor > 0 && rotulo.startsWith("Novos") ? "+" : ""}${fmtNumero(n)}`} />
+        <Contador valor={k.valor} ativo={ativo} formato={(n) => `${sinal && k.valor !== null && k.valor > 0 ? "+" : ""}${formato(n)}`} />
       </p>
-      <Variacao k={k} neutro={neutro} tipo={tipo} />
+      <Variacao k={k} neutro={neutro} tipo={tipo} inverso={inverso} />
       {detalhe && <p className="rs-kpi-detalhe">{detalhe}</p>}
     </article>
   );
@@ -202,35 +216,80 @@ const COR: Record<string, string> = { Reels: "#704bfd", Carrossel: "#40095b", Fo
 const DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 const diaSemana = (iso: string) => DIAS[new Date(new Date(iso).getTime() - 3 * 3600_000).getUTCDay()];
 
+/**
+ * Os números principais, na ordem que importa para o cliente: alcance, seguidores, leads, vendas e investimento.
+ * Cada um com a leitura contra o normal dele quando dá para saber (bom, normal ou abaixo).
+ */
 function Numeros({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
-  const ig = view.semana.dados.instagram;
-  const leads = leadsDe(view.semana.dados);
-  if (!ig && !leads) return null;
-  type Card = { rotulo: string; k: Kpi; detalhe?: string; destaque?: boolean; neutro?: boolean };
-  const cards: Card[] = [];
-  if (ig) {
-    cards.push(
-      {
-        rotulo: "Alcance",
-        k: ig.alcance,
-        destaque: true,
-        detalhe: ig.historico?.mediana_alcance
-          ? `pessoas alcançadas pelos posts ${rotulos(view.semana.tipo).deste} · um post seu alcança em geral ${fmtNumero(ig.historico.mediana_alcance)}`
-          : `pessoas alcançadas pelos posts ${rotulos(view.semana.tipo).deste}`,
-      },
-      { rotulo: "Interações", k: ig.interacoes, detalhe: "curtidas, comentários, salvamentos e compartilhamentos" },
-      { rotulo: "Novos seguidores", k: ig.novos_seguidores, detalhe: ig.seguidores ? `${fmtNumero(ig.seguidores)} no total` : undefined },
-      { rotulo: "Salvos e compartilhados", k: ig.salvos_compart, detalhe: "o sinal de conteúdo que as pessoas querem guardar" },
-      { rotulo: "Publicações", k: ig.posts, neutro: true, detalhe: ig.formatos.map((f) => `${f.posts} ${plural(f.formato, f.posts)}`).join(" · ") || undefined },
-    );
+  const { dados, tipo, trafego, trafego_anterior: tAnt = {} } = view.semana;
+  const ig = dados.instagram;
+  const conta = dados.conta_ig;
+  const leads = leadsDe(dados);
+  const r = rotulos(tipo);
+  type Card = Parameters<typeof KpiCard>[0];
+  const cards: Omit<Card, "ativo" | "ordem" | "tipo">[] = [];
+
+  // Alcance: pessoas diferentes (conta) quando vier; senão a soma do alcance dos posts.
+  // A leitura (bom, normal, abaixo) compara a mesma medida com o período típico do próprio cliente.
+  const tipicoTexto = (v: number) => `${tipo === "mes" ? "num mês típico" : "numa semana típica"}, você alcança ${fmtNumero(v)} pessoas`;
+  if (conta) {
+    const vezes = conta.atual.alcance > 0 ? conta.atual.visualizacoes / conta.atual.alcance : 0;
+    const tipico = conta.tipico_alcance ?? null;
+    cards.push({
+      rotulo: "Pessoas alcançadas",
+      k: kpiDe(conta.atual.alcance, conta.anterior?.alcance ?? null),
+      destaque: true,
+      leitura: leitura(conta.atual.alcance, tipico),
+      detalhe: [
+        `pessoas diferentes viram seu conteúdo ${r.deste}${vezes >= 1.5 ? `, cada uma cerca de ${decimal.format(Math.round(vezes * 10) / 10)} vezes` : ""}`,
+        tipico ? tipicoTexto(tipico) : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    });
+  } else if (ig) {
+    cards.push({
+      rotulo: "Alcance",
+      k: ig.alcance,
+      destaque: true,
+      leitura: leitura(ig.alcance.valor, ig.alcance_tipico ?? null),
+      detalhe: ig.alcance_tipico
+        ? `pessoas alcançadas pelos posts ${r.deste} · ${tipicoTexto(ig.alcance_tipico)}`
+        : ig.historico?.mediana_alcance
+          ? `pessoas alcançadas pelos posts ${r.deste} · um post seu alcança em geral ${fmtNumero(ig.historico.mediana_alcance)}`
+          : `pessoas alcançadas pelos posts ${r.deste}`,
+    });
   }
+  // Seguidores: quem começou a seguir (e quantos deixaram), com o total.
+  const seguiram = conta?.atual.seguiram ?? null;
+  if (seguiram !== null) {
+    cards.push({
+      rotulo: "Novos seguidores",
+      k: kpiDe(seguiram, conta?.anterior?.seguiram ?? null),
+      sinal: true,
+      detalhe: [ig?.seguidores ? `${fmtNumero(ig.seguidores)} no total` : "", conta?.atual.deixaram ? `${fmtNumero(conta.atual.deixaram)} deixaram de seguir` : ""].filter(Boolean).join(" · ") || undefined,
+    });
+  } else if (ig) {
+    cards.push({ rotulo: "Novos seguidores", k: ig.novos_seguidores, sinal: true, detalhe: ig.seguidores ? `${fmtNumero(ig.seguidores)} no total` : undefined });
+  }
+  // Resultado de negócio: leads (das páginas ou dos anúncios), vendas e investimento.
   if (leads) cards.push({ rotulo: "Leads", k: leads.total, detalhe: "contatos novos que chegaram pelas páginas" });
-  const visiveis = cards.filter((c) => c.k.valor !== null);
+  else if (trafego.leads) cards.push({ rotulo: "Leads", k: kpiDe(trafego.leads, tAnt.leads ?? null), detalhe: "contatos que chegaram pelos anúncios" });
+  if (trafego.vendas) cards.push({ rotulo: "Vendas", k: kpiDe(trafego.vendas, tAnt.vendas ?? null), detalhe: trafego.faturamento ? `${moedaCurta(trafego.faturamento)} em vendas` : undefined });
+  if (trafego.investimento) cards.push({ rotulo: "Investimento em anúncios", k: kpiDe(trafego.investimento, tAnt.investimento ?? null), neutro: true, formato: moedaCurta, detalhe: trafego.roas ? `cada R$ 1 investido voltou R$ ${decimal.format(trafego.roas)}` : undefined });
+  // Engajamento: de quem viu, quantos interagiram.
+  const taxa = taxaEngajamento(conta?.atual);
+  if (taxa !== null) cards.push({ rotulo: "Taxa de engajamento", k: kpiDe(taxa, taxaEngajamento(conta?.anterior)), formato: (n) => `${decimal.format(Math.round(n * 10) / 10)}%`, detalhe: `${fmtNumero(conta!.atual.engajadas)} pessoas interagiram com você` });
+  // Poucos números? Completa com os do Instagram.
+  if (ig && cards.length < 4) cards.push({ rotulo: "Interações", k: ig.interacoes, detalhe: "curtidas, comentários, salvamentos e compartilhamentos" });
+  if (ig && cards.length < 4) cards.push({ rotulo: "Salvos e compartilhados", k: ig.salvos_compart, detalhe: "o sinal de conteúdo que as pessoas querem guardar" });
+  const visiveis = cards.filter((c) => c.k.valor !== null).slice(0, 6);
+  if (!visiveis.length) return null;
   return (
-    <div ref={ref} className={`rs-kpis ${ativo ? "is-in" : ""}`}>
+    <div ref={ref} className={`rs-kpis rs-kpis-n${visiveis.length} ${ativo ? "is-in" : ""}`}>
       {visiveis.map((c, i) => (
-        <KpiCard key={c.rotulo} {...c} ativo={ativo} ordem={i} tipo={view.semana.tipo} />
+        <KpiCard key={c.rotulo} {...c} ativo={ativo} ordem={i} tipo={tipo} />
       ))}
     </div>
   );
@@ -535,12 +594,7 @@ function Trabalho({ view, comProximos }: { view: View; comProximos: boolean }) {
   );
 }
 
-const GRADIENTES = [
-  "linear-gradient(140deg,#704bfd 0%,#40095b 55%,#24002f 100%)",
-  "linear-gradient(150deg,#ff8fb1 0%,#a23a8f 45%,#40095b 100%)",
-  "linear-gradient(140deg,#24002f 0%,#5a1780 50%,#b89aff 100%)",
-  "linear-gradient(160deg,#ffb36b 0%,#d2477a 50%,#40095b 100%)",
-];
+const GRADIENTES = ["var(--rs-g1)", "var(--rs-g2)", "var(--rs-g3)", "var(--rs-g4)"];
 
 /** Momentos do período, no espírito de uma retrospectiva: o número grande com o contexto do próprio perfil. */
 function Momentos({ view }: { view: View }) {
@@ -787,8 +841,509 @@ function TodosNumeros({ view }: { view: View }) {
   );
 }
 
-function Hero({ view, onSemana }: { view: View; onSemana?: (inicio: string) => void }) {
+// ---------- Seções novas: público, o que depende do cliente, palavras, nicho, antes e depois ----------
+
+/** URL da capa de um post (do período ou do "antes e depois"). */
+function capaDe(view: View, mediaId: string): string | undefined {
+  const post = view.semana.dados.instagram?.lista.find((p) => p.media_id === mediaId);
+  const caminho = post?.capa ?? view.semana.dados.antes_depois?.capas?.[mediaId];
+  return caminho ? view.capas[caminho] : undefined;
+}
+
+function primeiroNome(nome: string): string {
+  return nome.split(/\s+/).find((p) => p.length > 2 && !/^(dra?|sr|sra)\.?$/i.test(p)) ?? nome;
+}
+
+function Publico({ view }: { view: View }) {
+  const [ref, ativo] = useReveal<HTMLDivElement>();
+  const p = view.semana.dados.publico;
+  if (!p) return null;
+  const max = Math.max(1, ...p.idade.map((x) => x.pct));
+  const maior = [...p.idade].sort((a, b) => b.pct - a.pct)[0];
+  return (
+    <div ref={ref} className={`rs-publico ${ativo ? "is-in" : ""}`}>
+      <div className="rs-publico-barras">
+        {p.idade.map((x, i) => (
+          <div key={x.faixa} className={`rs-publico-linha ${x === maior ? "is-maior" : ""}`} style={{ "--i": i } as React.CSSProperties}>
+            <span>{x.faixa}</span>
+            <div className="rs-publico-trilho">
+              <div className="rs-publico-barra" style={{ "--w": `${(x.pct / max) * 100}%` } as React.CSSProperties} />
+            </div>
+            <b>{decimal.format(x.pct)}%</b>
+          </div>
+        ))}
+      </div>
+      <div className="rs-publico-lado">
+        {maior && (
+          <p className="rs-publico-frase">
+            Quem mais acompanha você tem <b>{maior.faixa.replace("-", " a ")} anos</b>.
+          </p>
+        )}
+        {p.mulheres !== null && p.homens !== null && (
+          <div className="rs-publico-genero">
+            <div style={{ "--w": `${p.mulheres}%` } as React.CSSProperties} />
+            <p>
+              <span>{decimal.format(p.mulheres)}% mulheres</span>
+              <span>{decimal.format(p.homens)}% homens</span>
+            </p>
+          </div>
+        )}
+        {p.cidades.length > 0 && (
+          <ul className="rs-publico-cidades">
+            {p.cidades.map((c) => (
+              <li key={c.cidade}>
+                <span>{c.cidade}</span>
+                <b>{decimal.format(c.pct)}%</b>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Pendencias({ view }: { view: View }) {
+  const lista = view.semana.dados.pendencias ?? [];
+  const [aberto, setAberto] = useState(true);
+  if (!lista.length) return null;
+  const dataCurta = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "");
+  return (
+    <div className="rs-pend">
+      <button type="button" className="rs-pend-topo" onClick={() => setAberto(!aberto)} aria-expanded={aberto}>
+        <span className="rs-pend-n">{lista.length}</span>
+        <span className="rs-pend-texto">
+          <b>{lista.length === 1 ? "item precisa de você" : "itens precisam de você"}</b>
+          <small>Para a gente concluir, precisamos do seu retorno nestes pontos.</small>
+        </span>
+        <span className={`rs-pend-seta ${aberto ? "is-aberto" : ""}`} aria-hidden="true" />
+      </button>
+      {aberto && (
+        <ul className="rs-pend-lista">
+          {lista.map((p, i) => (
+            <li key={i}>
+              <span className="rs-pend-tipo">{p.tipo}</span>
+              <span className="rs-pend-titulo">{p.titulo}</span>
+              {p.link ? (
+                <a className="rs-pend-acao" href={p.link} target="_blank" rel="noreferrer">
+                  Aprovar
+                </a>
+              ) : (
+                <span className="rs-pend-desde">{p.desde ? `desde ${dataCurta(p.desde)}` : ""}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function Palavras({ view }: { view: View }) {
+  const lista = (view.semana.textos.palavras ?? []).filter(Boolean);
+  if (!lista.length) return null;
+  return (
+    <div className={`rs-palavras rs-palavras-${Math.min(lista.length, 3)}`}>
+      {lista.map((t, i) => (
+        <figure key={i} className="rs-palavra-card" style={{ "--i": i } as React.CSSProperties}>
+          <span className="rs-aspas" aria-hidden="true">
+            “
+          </span>
+          <blockquote>{t}</blockquote>
+          <figcaption>comentário no seu perfil</figcaption>
+        </figure>
+      ))}
+    </div>
+  );
+}
+
+function NichoCard({ view }: { view: View }) {
+  const [ref, ativo] = useReveal<HTMLDivElement>();
+  const n = view.semana.dados.nicho;
+  if (!n || n.cliente === null || n.media === null) return null;
+  const max = Math.max(n.cliente, n.media);
+  const acima = (n.vezes ?? 0) >= 1.1;
+  return (
+    <div ref={ref} className={`rs-nicho ${ativo ? "is-in" : ""}`}>
+      <div>
+        <p className="rs-nicho-grande">{acima ? `${decimal.format(n.vezes!)}x` : `${decimal.format(n.cliente)}%`}</p>
+        <p className="rs-nicho-frase">
+          {acima
+            ? "o engajamento médio dos perfis parecidos com o seu"
+            : `de engajamento por post, contra ${decimal.format(n.media)}% da média dos perfis parecidos com o seu`}
+        </p>
+      </div>
+      <div className="rs-nicho-barras">
+        {[
+          ["Você", n.cliente, true],
+          ["Média do nicho", n.media, false],
+        ].map(([rotulo, v, voce]) => (
+          <div key={rotulo as string} className={`rs-nicho-linha ${voce ? "is-voce" : ""}`}>
+            <span>{rotulo as string}</span>
+            <div className="rs-nicho-trilho">
+              <div style={{ "--w": `${((v as number) / max) * 100}%` } as React.CSSProperties} />
+            </div>
+            <b>{decimal.format(v as number)}%</b>
+          </div>
+        ))}
+        {n.topo_pct !== null && n.topo_pct <= 50 && (
+          <p className="rs-nicho-nota">
+            Você ficou entre os <b>{n.topo_pct}%</b> perfis com mais engajamento entre os {n.total} que acompanhamos.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AntesDepoisSec({ view }: { view: View }) {
+  const ad = view.semana.dados.antes_depois;
+  if (!ad) return null;
+  const lado = (titulo: string, d: typeof ad.antes, capas: string[], depois: boolean) => (
+    <div className={`rs-ad-lado ${depois ? "is-depois" : ""}`}>
+      <p className="rs-ad-rotulo">{titulo}</p>
+      <p className="rs-ad-mes">{d.rotulo}</p>
+      <div className="rs-ad-capas">
+        {capas.map((id) => {
+          const url = capaDe(view, id);
+          return <div key={id} className="rs-ad-capa">{url ? <img src={url} alt="" loading="lazy" /> : null}</div>;
+        })}
+      </div>
+      {d.mediana_alcance !== null && (
+        <p className="rs-ad-num">
+          <b>{fmtNumero(d.mediana_alcance)}</b> pessoas alcançadas por post, em média
+        </p>
+      )}
+      {d.mediana_salvos_compart !== null && (
+        <p className="rs-ad-num">
+          <b>{fmtNumero(d.mediana_salvos_compart)}</b> salvamentos e compartilhamentos por post
+        </p>
+      )}
+    </div>
+  );
+  return (
+    <div className="rs-ad">
+      {lado("Quando começamos a acompanhar", ad.antes, ad.capas_antes, false)}
+      <span className="rs-ad-seta" aria-hidden="true" />
+      {lado("Agora", ad.depois, ad.capas_depois, true)}
+    </div>
+  );
+}
+
+/** Todos os relatórios publicados do cliente, em cards (o aberto agora fica marcado). */
+function CardsRelatorios({ view, onSemana }: { view: View; onSemana?: (periodo: string) => void }) {
+  const lista = view.semanas ?? [];
+  if (lista.length < 2 || !onSemana) return null;
+  const atual = `${view.semana.tipo ?? "semana"}:${view.semana.semana_inicio}`;
+  const fmtN = (v: number, f?: string) => (f === "moeda" ? moedaCurta(v) : f === "pct" ? `${decimal.format(v)}%` : fmtNumero(v));
+  return (
+    <div className="rs-cards">
+      {lista.slice(0, 9).map((c, i) => {
+        const chave = `${c.tipo}:${c.inicio}`;
+        const tag = c.tipo === "mes" ? "Retrospectiva" : c.visto ? "Lido" : "Novo";
+        return (
+          <button
+            key={chave}
+            type="button"
+            className={`rs-card ${chave === atual ? "is-atual" : ""}`}
+            style={{ "--i": i } as React.CSSProperties}
+            onClick={() => {
+              onSemana(chave);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+          >
+            <span className="rs-card-topo">
+              <span className={`rs-card-tag rs-card-tag-${tag.toLowerCase()}`}>{chave === atual ? "Aberto agora" : tag}</span>
+              <span className="rs-card-tipo">{c.tipo === "mes" ? "Mensal" : "Semanal"}</span>
+            </span>
+            <span className="rs-card-periodo">{c.tipo === "mes" ? `${mes(c.inicio).replace(/^./, (x) => x.toUpperCase())} de ${c.inicio.slice(0, 4)}` : `${curtoData(c.inicio)} a ${curtoData(c.fim)}`}</span>
+            {c.titulo && <span className="rs-card-frase">{c.titulo}</span>}
+            {c.numeros && c.numeros.length > 0 && (
+              <span className="rs-card-nums">
+                {c.numeros.map((n) => (
+                  <span key={n.rotulo}>
+                    <b>{fmtN(n.valor, n.formato)}</b>
+                    <small>{n.rotulo}</small>
+                  </span>
+                ))}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---------- Retrospectiva (mês), no estilo das retrospectivas de fim de ano ----------
+
+interface Tela {
+  id: string;
+  eyebrow: string;
+  conteudo: React.ReactNode;
+}
+
+function telasDaRetrospectiva(view: View): Tela[] {
   const { cliente, semana } = view;
+  const { dados, textos, trafego } = semana;
+  const ig = dados.instagram;
+  const nomeMes = mes(semana.semana_inicio);
+  const Mes = nomeMes.replace(/^./, (x) => x.toUpperCase());
+  const proxMes = MESES[(Number(semana.semana_inicio.slice(5, 7)) % 12)];
+  const telas: Tela[] = [];
+  telas.push({
+    id: "abertura",
+    eyebrow: "Retrospectiva",
+    conteudo: (
+      <>
+        <h2 className="rs-st-titulo">
+          {Mes} foi o seu mês, {primeiroNome(cliente.nome)}.
+        </h2>
+        <p className="rs-st-texto">Separamos o que mais marcou o seu perfil em {nomeMes}. Toque para continuar.</p>
+      </>
+    ),
+  });
+  const alcance = dados.conta_ig?.atual.alcance ?? ig?.alcance.valor ?? null;
+  if (alcance) {
+    const recorde = dados.marcos?.find((m) => /maior alcance/i.test(m.titulo));
+    const anterior = dados.conta_ig?.anterior?.alcance ?? ig?.alcance.anterior ?? null;
+    const v = anterior ? variacao({ valor: alcance, anterior }) : null;
+    telas.push({
+      id: "alcance",
+      eyebrow: "Alcance do mês",
+      conteudo: (
+        <>
+          <p className="rs-st-numero">{fmtNumero(alcance)}</p>
+          <p className="rs-st-unidade">pessoas viram o seu conteúdo</p>
+          <p className="rs-st-texto">
+            {recorde ? `${recorde.titulo}.` : v !== null && v > 0 ? `${decimal.format(v)}% a mais que no mês anterior.` : textos.resumo.split(/(?<=\.)\s/)[0]}
+          </p>
+        </>
+      ),
+    });
+  }
+  const n = dados.nicho;
+  if (n && n.cliente !== null && n.media !== null) {
+    const acima = (n.vezes ?? 0) >= 1.1;
+    const max = Math.max(n.cliente, n.media);
+    telas.push({
+      id: "nicho",
+      eyebrow: "Comparado ao seu nicho",
+      conteudo: (
+        <>
+          <h2 className="rs-st-titulo rs-st-titulo-m">
+            {acima ? `Seu engajamento foi ${decimal.format(n.vezes!)}x a média dos perfis parecidos com o seu.` : `Seu engajamento foi de ${decimal.format(n.cliente)}% por post.`}
+          </h2>
+          <div className="rs-st-barras">
+            {[
+              ["Você", n.cliente],
+              ["Média do nicho", n.media],
+            ].map(([r, v]) => (
+              <div key={r as string}>
+                <span>{r as string}</span>
+                <i style={{ "--w": `${((v as number) / max) * 100}%` } as React.CSSProperties} />
+                <b>{decimal.format(v as number)}%</b>
+              </div>
+            ))}
+          </div>
+          {n.topo_pct !== null && n.topo_pct <= 50 && (
+            <p className="rs-st-texto">
+              Você ficou entre os {n.topo_pct}% perfis com mais engajamento entre os {n.total} que acompanhamos.
+            </p>
+          )}
+        </>
+      ),
+    });
+  }
+  const melhor = ig?.melhores[0] ? ig.lista.find((p) => p.media_id === ig.melhores[0]) : undefined;
+  if (melhor && melhor.alcance !== null) {
+    const capa = capaDe(view, melhor.media_id);
+    const vezes = ig?.historico?.mediana_alcance ? melhor.alcance / ig.historico.mediana_alcance : null;
+    telas.push({
+      id: "conteudo",
+      eyebrow: "O conteúdo do mês",
+      conteudo: (
+        <>
+          <div className="rs-st-post">{capa ? <img src={capa} alt="" /> : <span>{melhor.formato}</span>}</div>
+          <p className="rs-st-numero rs-st-numero-m">{fmtNumero(melhor.alcance)}</p>
+          <p className="rs-st-unidade">pessoas alcançadas{vezes && vezes >= 1.5 ? `, ${decimal.format(Math.round(vezes * 10) / 10)}x o seu normal` : ""}</p>
+          <p className="rs-st-legenda">{melhor.legenda}</p>
+        </>
+      ),
+    });
+  }
+  const palavras = (textos.palavras ?? []).filter(Boolean).slice(0, 3);
+  if (palavras.length) {
+    telas.push({
+      id: "palavras",
+      eyebrow: "Palavras que aqueceram",
+      conteudo: (
+        <div className="rs-st-falas">
+          {palavras.map((t, i) => (
+            <blockquote key={i} style={{ "--i": i } as React.CSSProperties}>
+              “{t}”
+            </blockquote>
+          ))}
+        </div>
+      ),
+    });
+  }
+  const producao = dados.trabalho?.producao ?? [];
+  const total = producao.reduce((t, p) => t + p.total, 0);
+  if (total >= 2 || (textos.feito ?? []).length) {
+    telas.push({
+      id: "juntos",
+      eyebrow: "O que fizemos juntos",
+      conteudo: (
+        <>
+          {total >= 2 && (
+            <>
+              <p className="rs-st-numero">{total}</p>
+              <p className="rs-st-unidade">entregas prontas em {nomeMes}</p>
+            </>
+          )}
+          <ul className="rs-st-lista">
+            {(producao.length > 1 ? producao.slice(0, 4).map((p) => `${p.total} ${p.rotulo}`) : (textos.feito ?? []).slice(0, 3)).map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+          {trafego.investimento ? <p className="rs-st-texto">E {moedaCurta(trafego.investimento)} em anúncios trabalhando por você.</p> : null}
+        </>
+      ),
+    });
+  }
+  const ad = dados.antes_depois;
+  if (ad && antesDepoisMelhorou(ad)) {
+    const porAlcance = (ad.depois.mediana_alcance ?? 0) >= (ad.antes.mediana_alcance ?? 0) * 1.1;
+    telas.push({
+      id: "antes-depois",
+      eyebrow: "Antes e depois",
+      conteudo: (
+        <>
+          <h2 className="rs-st-titulo rs-st-titulo-m">
+            {porAlcance
+              ? `Em ${ad.antes.rotulo}, um post seu alcançava ${fmtNumero(ad.antes.mediana_alcance ?? 0)} pessoas. Em ${nomeMes}, ${fmtNumero(ad.depois.mediana_alcance ?? 0)}.`
+              : `Em ${ad.antes.rotulo}, um post seu era salvo ou compartilhado ${fmtNumero(ad.antes.mediana_salvos_compart ?? 0)} vezes. Em ${nomeMes}, ${fmtNumero(ad.depois.mediana_salvos_compart ?? 0)}.`}
+          </h2>
+          <div className="rs-st-ad">
+            {[ad.capas_antes, ad.capas_depois].map((ids, i) => (
+              <div key={i}>
+                <small>{i ? "agora" : "antes"}</small>
+                <span>
+                  {ids.slice(0, 3).map((id) => {
+                    const u = capaDe(view, id);
+                    return <i key={id}>{u ? <img src={u} alt="" /> : null}</i>;
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      ),
+    });
+  }
+  const proximos = (textos.proximos ?? []).filter(Boolean).slice(0, 3);
+  if (proximos.length) {
+    telas.push({
+      id: "proximo",
+      eyebrow: `${proxMes.replace(/^./, (x) => x.toUpperCase())} vem aí`,
+      conteudo: (
+        <>
+          <h2 className="rs-st-titulo rs-st-titulo-m">O que vem a seguir</h2>
+          <ol className="rs-st-lista rs-st-lista-n">
+            {proximos.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ol>
+          <p className="rs-st-assinatura">
+            mantora<sup>®</sup>
+          </p>
+        </>
+      ),
+    });
+  }
+  return telas;
+}
+
+const DURACAO_TELA = 6500;
+
+function Retrospectiva({ view, onFechar }: { view: View; onFechar: () => void }) {
+  const telas = useMemo(() => telasDaRetrospectiva(view), [view]);
+  const [i, setI] = useState(0);
+  const [pausado, setPausado] = useState(false);
+  const fechar = useRef(onFechar);
+  fechar.current = onFechar;
+  const ir = (n: number) => {
+    if (n < 0) return setI(0);
+    if (n >= telas.length) return fechar.current?.();
+    setI(n);
+  };
+  useEffect(() => {
+    if (pausado) return;
+    const t = window.setTimeout(() => ir(i + 1), DURACAO_TELA);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i, pausado, telas.length]);
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") fechar.current?.();
+      if (e.key === "ArrowRight") ir(i + 1);
+      if (e.key === "ArrowLeft") ir(i - 1);
+    };
+    window.addEventListener("keydown", tecla);
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", tecla);
+      document.body.style.overflow = antes;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i]);
+  const tela = telas[i];
+  if (!tela) return null;
+  return (
+    <div className="rs-story" role="dialog" aria-modal="true" aria-label="Retrospectiva do mês" style={variaveisDoTema(view.cliente.tema) as React.CSSProperties}>
+      <div className={`rs-story-tela rs-story-${tela.id}`} style={{ "--g": `var(--rs-g${(i % 4) + 1})` } as React.CSSProperties}>
+        <div className="rs-story-barras">
+          {telas.map((t, n) => (
+            <span key={t.id} className={n < i ? "is-feita" : n === i ? (pausado ? "is-pausada" : "is-agora") : ""} style={{ "--d": `${DURACAO_TELA}ms` } as React.CSSProperties}>
+              <i />
+            </span>
+          ))}
+        </div>
+        <div className="rs-story-cab">
+          <span className="rs-story-avatar">{view.cliente.foto ? <img src={view.cliente.foto} alt="" /> : primeiroNome(view.cliente.nome)[0]}</span>
+          <span>
+            Seu {mes(view.semana.semana_inicio)} · Mantora Lab
+          </span>
+          <button type="button" className="rs-story-fechar" onClick={onFechar} aria-label="Fechar">
+            ×
+          </button>
+        </div>
+        <button type="button" className="rs-story-voltar" aria-label="Tela anterior" onClick={() => ir(i - 1)} />
+        <button
+          type="button"
+          className="rs-story-avancar"
+          aria-label="Próxima tela"
+          onClick={() => ir(i + 1)}
+          onPointerDown={() => setPausado(true)}
+          onPointerUp={() => setPausado(false)}
+          onPointerLeave={() => setPausado(false)}
+        />
+        <div key={tela.id} className="rs-story-corpo">
+          <p className="rs-st-eyebrow">{tela.eyebrow}</p>
+          {tela.conteudo}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Hero({ view, onSemana, onRetrospectiva }: { view: View; onSemana?: (inicio: string) => void; onRetrospectiva?: () => void }) {
+  const { cliente, semana } = view;
+  const conta = semana.dados.conta_ig?.atual;
+  const taxa = taxaEngajamento(conta);
+  const pendencias = semana.dados.pendencias?.length ?? 0;
   const r = rotulos(semana.tipo);
   const palavras = (semana.textos.titulo || `Relatório ${r.deste}`).split(/\s+/);
   const iniciais = cliente.nome
@@ -845,7 +1400,33 @@ function Hero({ view, onSemana }: { view: View; onSemana?: (inicio: string) => v
             </Fragment>
           ))}
         </h1>
+        {conta && conta.visualizacoes > 0 && (
+          <p className="rs-hero-dados">
+            Seu conteúdo foi visto <b>{fmtNumero(conta.visualizacoes)} vezes</b> por <b>{fmtNumero(conta.alcance)} pessoas</b>
+            {taxa !== null ? (
+              <>
+                , e <b>{decimal.format(taxa)}%</b> delas interagiram.
+              </>
+            ) : (
+              "."
+            )}
+          </p>
+        )}
         {semana.textos.resumo && <p className="rs-resumo">{semana.textos.resumo}</p>}
+        {(onRetrospectiva || pendencias > 0) && (
+          <div className="rs-hero-botoes">
+            {onRetrospectiva && (
+              <button type="button" className="rs-botao-retro" onClick={onRetrospectiva}>
+                <span aria-hidden="true">▶</span> Ver a retrospectiva de {mes(semana.semana_inicio)}
+              </button>
+            )}
+            {pendencias > 0 && (
+              <a className="rs-botao-pend" href="#pendencias">
+                <b>{pendencias}</b> {pendencias === 1 ? "item precisa de você" : "itens precisam de você"}
+              </a>
+            )}
+          </div>
+        )}
       </div>
       <a className="rs-rolar" href="#numeros" aria-label="Ver os números">
         <span />
@@ -866,9 +1447,13 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
   const temGrafico = (ig?.lista.filter((p) => p.alcance !== null).length ?? 0) >= 2;
   const r = rotulos(semana.tipo);
   const temFuncionou = (semana.textos.funcionou?.length ?? 0) + (semana.textos.ajustar?.length ?? 0) + (ig?.acima?.length ?? 0) + (ig?.abaixo?.length ?? 0) > 0;
+  const [retro, setRetro] = useState(false);
+  const temRetro = semana.tipo === "mes" && mostra("momentos");
+  const tema = useMemo(() => variaveisDoTema(view.cliente.tema), [view.cliente.tema]);
   return (
-    <div className="rs">
-      <Hero view={view} onSemana={onSemana} />
+    <div className="rs" style={tema as React.CSSProperties}>
+      <Hero view={view} onSemana={onSemana} onRetrospectiva={temRetro ? () => setRetro(true) : undefined} />
+      {retro && <Retrospectiva view={view} onFechar={() => setRetro(false)} />}
 
       {mostra("momentos") && (semana.dados.marcos?.length ?? 0) > 0 && (
         <Secao id="momentos" eyebrow={`Momentos ${r.deste}`} titulo={semana.tipo === "mes" ? "O mês em destaque" : "A semana em destaque"}>
@@ -880,6 +1465,12 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         <Secao id="numeros" eyebrow="Os números" titulo={semana.tipo === "mes" ? "Como o mês performou" : "Como a semana performou"}>
           <Numeros view={view} />
           {ig?.parcial && <p className="rs-nota">Números do Instagram parciais: a coleta {r.deste} ainda não foi feita.</p>}
+        </Secao>
+      )}
+
+      {mostra("nicho") && semana.dados.nicho?.cliente != null && (
+        <Secao id="nicho" eyebrow="Comparado ao seu nicho" titulo="Como você se sai entre perfis parecidos">
+          <NichoCard view={view} />
         </Secao>
       )}
 
@@ -909,9 +1500,21 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         </Secao>
       )}
 
+      {mostra("palavras") && (semana.textos.palavras?.length ?? 0) > 0 && (
+        <Secao id="palavras" eyebrow="Palavras que aqueceram" titulo="O que disseram sobre você">
+          <Palavras view={view} />
+        </Secao>
+      )}
+
       {mostra("grafico") && temGrafico && (
-        <Secao id="grafico" eyebrow="Alcance" titulo="Onde a semana rendeu mais">
+        <Secao id="grafico" eyebrow="Alcance" titulo={semana.tipo === "mes" ? "Onde o mês rendeu mais" : "Onde a semana rendeu mais"}>
           <Grafico view={view} />
+        </Secao>
+      )}
+
+      {mostra("publico") && semana.dados.publico && (
+        <Secao id="publico" eyebrow="Seu público" titulo="Quem está vendo você">
+          <Publico view={view} />
         </Secao>
       )}
 
@@ -930,6 +1533,24 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
       {temTrabalho && (
         <Secao id="entregas" eyebrow="O trabalho da Mantora" titulo="O que fizemos, o que está andando e o que vem aí">
           <Trabalho view={view} comProximos={mostra("proximos")} />
+        </Secao>
+      )}
+
+      {mostra("pendencias") && (semana.dados.pendencias?.length ?? 0) > 0 && (
+        <Secao id="pendencias" eyebrow="Com você" titulo="O que depende de você">
+          <Pendencias view={view} />
+        </Secao>
+      )}
+
+      {semana.tipo === "mes" && mostra("momentos") && antesDepoisMelhorou(semana.dados.antes_depois) && (
+        <Secao id="antes-depois" eyebrow="Antes e depois" titulo="Como o seu perfil mudou">
+          <AntesDepoisSec view={view} />
+        </Secao>
+      )}
+
+      {(view.semanas?.length ?? 0) > 1 && onSemana && (
+        <Secao id="relatorios" eyebrow="Seus relatórios" titulo="Semanais toda segunda, retrospectiva todo mês">
+          <CardsRelatorios view={view} onSemana={onSemana} />
         </Secao>
       )}
 
