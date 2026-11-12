@@ -65,6 +65,7 @@ const putSchema = z.object({
       cpc: num,
       cpm: num,
       cpv: num,
+      conversas: num,
       observacao: z.string().trim().max(400).nullish(),
     })
     .optional(),

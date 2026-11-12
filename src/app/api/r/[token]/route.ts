@@ -3,6 +3,7 @@
 // Sem período, o mais recente (semana ou mês, o que terminou por último). Rascunho nunca aparece aqui.
 
 import { NextResponse } from "next/server";
+import { trafegoParaView } from "@/lib/relatorio/meta";
 import type { RelatorioView } from "@/lib/relatorio/tipos";
 import { clienteDoToken, doCliente, nomeDoCliente, urlsDasImagens } from "@/lib/server/relatorios";
 import { rpc } from "@/lib/server/supabase";
@@ -34,9 +35,9 @@ export async function GET(request: Request, { params }: Params) {
         semana_inicio: semana.semana_inicio,
         semana_fim: semana.semana_fim,
         // As tarefas do ClickUp são internas: o cliente recebe só a contagem do que foi produzido.
-        dados: { ...semana.dados, trabalho: semana.dados.trabalho ? { ...semana.dados.trabalho, feitas: [], andamento: [], proximas: [] } : null },
+        dados: { ...semana.dados, meta_ads: semana.dados.meta_ads ? { ...semana.dados.meta_ads, contas: [] } : null, trabalho: semana.dados.trabalho ? { ...semana.dados.trabalho, feitas: [], andamento: [], proximas: [] } : null },
         textos: semana.textos,
-        trafego: semana.trafego ?? {},
+        ...trafegoParaView(semana.dados, semana.trafego),
         entregas: semana.entregas ?? [],
         secoes: semana.secoes ?? {},
       },

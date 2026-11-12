@@ -1,5 +1,5 @@
 import "server-only";
-// Relatório do cliente (semanal ou mensal): coleta os números do período (Instagram, leads, peças aprovadas, tarefas do ClickUp),
+// Relatório do cliente (semanal ou mensal): coleta os números do período (Instagram, leads, peças aprovadas, tarefas do ClickUp, Meta Ads),
 // guarda as capas dos melhores posts no bucket (o link da Meta expira) e lê/grava os relatórios.
 
 import { randomBytes } from "node:crypto";
@@ -23,6 +23,7 @@ import {
 } from "../relatorio/calc";
 import type { DadosSemana, PostSemana, RelatorioSemana, TipoPeriodo } from "../relatorio/tipos";
 import { trabalhoDoCliente } from "./clickup";
+import { trafegoDoCliente } from "./meta-ads";
 import { callFunction, rest, signObjects, uploadObject } from "./supabase";
 
 const COLS =
@@ -249,13 +250,14 @@ async function guardarImagens(cliente: string, id: string, dados: DadosSemana): 
 
 export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string, id: string): Promise<DadosSemana> {
   const fim = fimDoPeriodo(tipo, inicio);
-  const [ig, ld, ap, tr] = await Promise.all([
+  const [ig, ld, ap, tr, ma] = await Promise.all([
     instagram(cliente, tipo, inicio, fim),
     leads(cliente, tipo, inicio, fim),
     aprovadas(cliente, inicio, fim),
     trabalhoDoCliente(cliente, tipo, inicio, fim),
+    trafegoDoCliente(cliente, tipo, inicio, fim),
   ]);
-  const dados: DadosSemana = { instagram: ig.ig, marcos: ig.marcos, leads: ld, aprovadas: ap, trabalho: tr, foto_perfil: null };
+  const dados: DadosSemana = { instagram: ig.ig, marcos: ig.marcos, leads: ld, aprovadas: ap, trabalho: tr, meta_ads: ma, foto_perfil: null };
   await guardarImagens(cliente, id, dados);
   return dados;
 }

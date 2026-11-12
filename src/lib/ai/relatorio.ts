@@ -6,6 +6,7 @@ import "server-only";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import { variacao } from "../relatorio/calc";
+import { anteriorDoMeta, trafegoEfetivo } from "../relatorio/meta";
 import type { DadosSemana, Kpi, PostSemana, TextosSemana, TrafegoSemana } from "../relatorio/tipos";
 import { CAROUSEL_MODEL, PRICES } from "./carousel-from-copy";
 import { anthropic, GenerationError } from "./claude";
@@ -97,16 +98,25 @@ function contexto(input: {
       [linha("LEADS NA SEMANA", dados.leads.total), dados.leads.origens.length ? `- Origens: ${dados.leads.origens.map((o) => `${o.origem} ${o.total}`).join(", ")}` : ""].filter(Boolean).join("\n"),
     );
   }
-  const t = input.trafego;
+  const t = trafegoEfetivo(dados, input.trafego);
+  const ant = (campo: keyof TrafegoSemana, prefixo = "") => {
+    const a = anteriorDoMeta(dados, input.trafego, campo);
+    return a !== null ? ` (período anterior: ${prefixo}${fmt(a)})` : "";
+  };
   const trafego = [
-    t.investimento != null && `investimento R$ ${fmt(t.investimento)}`,
-    t.leads ? `${fmt(t.leads)} leads` : null,
-    t.cpl != null && `CPL R$ ${fmt(t.cpl)}`,
-    t.vendas != null && `${fmt(t.vendas)} vendas`,
+    t.investimento != null && `investimento R$ ${fmt(t.investimento)}${ant("investimento", "R$ ")}`,
+    t.leads ? `${fmt(t.leads)} leads${ant("leads")}` : null,
+    t.cpl != null && `CPL R$ ${fmt(t.cpl)}${ant("cpl", "R$ ")}`,
+    t.vendas != null && `${fmt(t.vendas)} vendas${ant("vendas")}`,
     t.faturamento != null && `faturamento R$ ${fmt(t.faturamento)}`,
-    t.roas != null && `ROAS ${fmt(t.roas)}`,
+    t.roas != null && `ROAS ${fmt(t.roas)}${ant("roas")}`,
+    t.ctr != null && `CTR ${fmt(t.ctr)}%`,
+    t.cpm != null && `CPM R$ ${fmt(t.cpm)}`,
   ].filter(Boolean);
-  if (trafego.length || t.observacao) partes.push(`TRÁFEGO PAGO: ${trafego.join(", ")}${t.observacao ? `. Observação: ${t.observacao}` : ""}`);
+  if (trafego.length || t.observacao)
+    partes.push(
+      `TRÁFEGO PAGO${dados.meta_ads ? " (Meta Ads; vendas e faturamento são os atribuídos pelo pixel, a não ser que a equipe tenha corrigido)" : ""}: ${trafego.join(", ")}${t.observacao ? `. Observação: ${t.observacao}` : ""}`,
+    );
   const entregas = [...dados.aprovadas.map((a) => `Peça aprovada: ${a.titulo}`), ...input.entregas];
   if (entregas.length) partes.push(`ENTREGAS DA SEMANA:\n${entregas.map((e) => `- ${e}`).join("\n")}`);
   const tr = dados.trabalho;
