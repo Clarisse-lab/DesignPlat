@@ -111,7 +111,7 @@ export function MenuButton({
         <ChevronDown className="h-3.5 w-3.5 opacity-70" />
       </button>
       {open && (
-        <div className={`absolute top-full z-40 mt-1 min-w-[220px] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}>
+        <div className={`absolute top-full z-40 mt-1 min-w-[220px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-lg ${align === "right" ? "right-0" : "left-0"}`}>
           {items.map((item) => (
             <button
               key={item.label}
