@@ -93,9 +93,11 @@ export default function DesempenhoPage() {
   }, []);
 
   useEffect(() => {
-    // Abre no primeiro cliente da lista.
+    // Abre no cliente do link (?cliente=, vindo da ficha do Escritório) ou no primeiro da lista.
+    if (cliente || !clients?.length) return;
+    const pedido = new URLSearchParams(window.location.search).get("cliente");
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!cliente && clients?.length) setCliente(clients[0].slug);
+    setCliente(clients.some((c) => c.slug === pedido) ? (pedido as string) : clients[0].slug);
   }, [clients, cliente]);
   useEffect(() => {
     void load(cliente);
