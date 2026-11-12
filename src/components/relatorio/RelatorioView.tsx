@@ -6,7 +6,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { variacao } from "@/lib/relatorio/calc";
-import type { Kpi, Marco, PostSemana, RelatorioView as View, SecaoId, TipoPeriodo } from "@/lib/relatorio/tipos";
+import type { Kpi, Marco, PostSemana, RelatorioView as View, SecaoId, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
 import "./relatorio.css";
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -437,25 +437,32 @@ function Leads({ view }: { view: View }) {
 function Trafego({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
   const t = view.semana.trafego;
-  const itens: { rotulo: string; valor: number; fmt: (n: number) => string }[] = [];
-  if (t.investimento != null) itens.push({ rotulo: "Investimento", valor: t.investimento, fmt: moedaCurta });
-  if (t.leads) itens.push({ rotulo: "Leads", valor: t.leads, fmt: (n) => inteiro.format(n) });
-  if (t.cpl != null && t.leads !== 0) itens.push({ rotulo: "Custo por lead", valor: t.cpl, fmt: (n) => moeda.format(n) });
-  if (t.vendas != null) itens.push({ rotulo: "Vendas", valor: t.vendas, fmt: (n) => inteiro.format(n) });
-  if (t.faturamento != null) itens.push({ rotulo: "Faturamento", valor: t.faturamento, fmt: moedaCurta });
-  if (t.roas != null) itens.push({ rotulo: "Retorno (ROAS)", valor: t.roas, fmt: (n) => `${decimal.format(n)}x` });
+  const ant = view.semana.trafego_anterior ?? {};
+  const itens: { campo: keyof TrafegoSemana; rotulo: string; valor: number; fmt: (n: number) => string; inverso?: boolean }[] = [];
+  if (t.investimento != null) itens.push({ campo: "investimento", rotulo: "Investimento", valor: t.investimento, fmt: moedaCurta });
+  if (t.leads) itens.push({ campo: "leads", rotulo: "Leads", valor: t.leads, fmt: (n) => inteiro.format(n) });
+  if (t.cpl != null && t.leads !== 0) itens.push({ campo: "cpl", rotulo: "Custo por lead", valor: t.cpl, fmt: (n) => moeda.format(n), inverso: true });
+  if (t.vendas) itens.push({ campo: "vendas", rotulo: "Vendas", valor: t.vendas, fmt: (n) => inteiro.format(n) });
+  if (t.faturamento) itens.push({ campo: "faturamento", rotulo: "Faturamento", valor: t.faturamento, fmt: moedaCurta });
+  if (t.roas) itens.push({ campo: "roas", rotulo: "Retorno (ROAS)", valor: t.roas, fmt: (n) => `${decimal.format(n)}x` });
   if (!itens.length && !t.observacao) return null;
   return (
     <div ref={ref} className={`rs-trafego ${ativo ? "is-in" : ""}`}>
-      <div className={`rs-trafego-grade ${itens.length >= 5 ? "is-cheia" : ""}`}>
-        {itens.map((it, i) => (
-          <div key={it.rotulo} className="rs-trafego-item" style={{ "--i": i } as React.CSSProperties}>
-            <p>{it.rotulo}</p>
-            <strong>
-              <Contador valor={it.valor} ativo={ativo} formato={it.fmt} />
-            </strong>
-          </div>
-        ))}
+      <div className={`rs-trafego-grade rs-trafego-n${itens.length} ${itens.length === 5 ? "is-cheia" : ""}`}>
+        {itens.map((it, i) => {
+          const anterior = ant[it.campo];
+          return (
+            <div key={it.rotulo} className="rs-trafego-item" style={{ "--i": i } as React.CSSProperties}>
+              <p>{it.rotulo}</p>
+              <strong>
+                <Contador valor={it.valor} ativo={ativo} formato={it.fmt} />
+              </strong>
+              {anterior != null && (
+                <Variacao k={{ valor: it.valor, anterior }} tipo={view.semana.tipo} inverso={it.inverso} neutro={it.campo === "investimento"} />
+              )}
+            </div>
+          );
+        })}
       </div>
       {t.observacao && <p className="rs-trafego-obs">{t.observacao}</p>}
     </div>

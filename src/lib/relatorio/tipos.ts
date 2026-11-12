@@ -73,9 +73,22 @@ export interface DadosSemana {
   leads: { total: Kpi; origens: { origem: string; total: number }[] } | null;
   /** Entregas que o sistema vê sozinho (peças aprovadas pelo cliente no link de aprovação). */
   aprovadas: { titulo: string; em: string }[];
+  /** Tráfego pago lido do Meta Ads (contas de anúncio do cliente), período atual e anterior. */
+  meta_ads?: { atual: MetaNumeros; anterior: MetaNumeros | null; contas: string[]; em: string } | null;
   /** Trabalho da Mantora no ClickUp. As listas de tarefas são internas (o link do cliente só recebe a contagem). */
   trabalho?: TrabalhoPeriodo | null;
   foto_perfil: string | null;
+}
+
+export interface MetaNumeros {
+  investimento: number;
+  impressoes: number;
+  cliques: number;
+  leads: number;
+  vendas: number;
+  faturamento: number;
+  /** Visualizações de vídeo (3 segundos ou mais). */
+  visualizacoes: number;
 }
 
 export interface TarefaClickup {
@@ -168,7 +181,10 @@ export interface RelatorioSemana {
 /** O que a página do relatório recebe (link do cliente ou prévia da equipe). */
 export interface RelatorioView {
   cliente: { nome: string; foto: string | null };
-  semana: Pick<RelatorioSemana, "tipo" | "semana_inicio" | "semana_fim" | "dados" | "textos" | "trafego" | "entregas" | "secoes">;
+  /** `trafego` já vem com os números do Meta e o que a equipe digitou por cima; `trafego_anterior`, o período anterior no Meta. */
+  semana: Pick<RelatorioSemana, "tipo" | "semana_inicio" | "semana_fim" | "dados" | "textos" | "trafego" | "entregas" | "secoes"> & {
+    trafego_anterior?: Partial<Record<keyof TrafegoSemana, number | null>>;
+  };
   /** URLs assinadas das capas (caminho no bucket → URL). */
   capas: Record<string, string>;
   /** Períodos publicados, para o seletor do link do cliente. */

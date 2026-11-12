@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy, ExternalLink, Eye, Loader2, MessageCircle, RefreshCw, Send, Sparkles, Undo2 } from "lucide-react";
 import { nomePeriodo, RelatorioView } from "@/components/relatorio/RelatorioView";
+import { trafegoDoMeta, trafegoParaView } from "@/lib/relatorio/meta";
 import type { RelatorioSemana, RelatorioView as View, SecaoId, TextosSemana, TipoPeriodo, TrafegoSemana } from "@/lib/relatorio/tipos";
 
 interface ClienteLinha {
@@ -314,11 +315,12 @@ export default function RelatoriosPage() {
     for (const [k] of TODOS_TRAFEGO) (trafego as Record<string, number | null | string>)[k] = paraNumero(trafegoTxt[k] ?? "");
     return {
       cliente: { nome, foto: rel.dados.foto_perfil ? (capas[rel.dados.foto_perfil] ?? null) : null },
-      semana: { tipo: rel.tipo ?? "semana", semana_inicio: rel.semana_inicio, semana_fim: rel.semana_fim, dados: rel.dados, textos: rel.textos, trafego, entregas: rel.entregas, secoes: rel.secoes ?? {} },
+      semana: { tipo: rel.tipo ?? "semana", semana_inicio: rel.semana_inicio, semana_fim: rel.semana_fim, dados: rel.dados, textos: rel.textos, ...trafegoParaView(rel.dados, trafego), entregas: rel.entregas, secoes: rel.secoes ?? {} },
       capas,
     };
   }, [rel, capas, nome, trafegoTxt]);
 
+  const doMeta: Partial<Record<keyof TrafegoSemana, unknown>> = rel?.dados.meta_ads ? trafegoDoMeta(rel.dados.meta_ads.atual) : {};
   const mensagem = `Olá! O relatório ${semana ? `(${nomePeriodo(tipo, semana, semanas.find((s) => s.inicio === semana)?.fim ?? semana).toLowerCase()})` : ""} já está no ar: ${linkCliente}`;
   const atual = semanas.find((s) => s.inicio === semana);
   const destaques = rel ? [...rel.textos.destaques, ...Array.from({ length: Math.max(0, 3 - rel.textos.destaques.length) }, () => ({ titulo: "", texto: "" }))] : [];
@@ -512,7 +514,15 @@ export default function RelatoriosPage() {
                   </button>
                 </Bloco>
 
-                <Bloco titulo="Tráfego pago" dica="Opcional. Deixe em branco o que não quiser mostrar.">
+                <Bloco
+                  titulo="Tráfego pago"
+                  dica={
+                    rel.dados.meta_ads
+                      ? "Os números em cinza vieram do Meta Ads. Digite só o que quiser corrigir (ex.: as vendas reais da plataforma)."
+                      : "Digite os números, ou escolha as contas do Meta abaixo e clique em Gerar de novo para puxar sozinho."
+                  }
+                >
+                  <ContasMeta cliente={cliente} usadas={rel.dados.meta_ads?.contas ?? []} />
                   <div className="grid grid-cols-2 gap-2">
                     {CAMPOS_TRAFEGO.map(([k, rotulo]) => (
                       <label key={k} className="block space-y-1">
@@ -520,6 +530,7 @@ export default function RelatoriosPage() {
                         <input
                           inputMode="decimal"
                           value={trafegoTxt[k] ?? ""}
+                          placeholder={doMeta[k] != null ? String(doMeta[k]).replace(".", ",") : ""}
                           onChange={(e) => {
                             setTrafegoTxt({ ...trafegoTxt, [k]: e.target.value });
                             setSujo(true);
@@ -538,6 +549,7 @@ export default function RelatoriosPage() {
                           <input
                             inputMode="decimal"
                             value={trafegoTxt[k] ?? ""}
+                          placeholder={doMeta[k] != null ? String(doMeta[k]).replace(".", ",") : ""}
                             onChange={(e) => {
                               setTrafegoTxt({ ...trafegoTxt, [k]: e.target.value });
                               setSujo(true);
@@ -678,6 +690,108 @@ export default function RelatoriosPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ContaMeta {
+  id: string;
+  nome: string;
+  ativa: boolean;
+}
+
+/** Escolha das contas de anúncio do Meta do cliente (o relatório soma todas). */
+function ContasMeta({ cliente, usadas }: { cliente: string; usadas: string[] }) {
+  const [info, setInfo] = useState<{ ligado: boolean; contas: ContaMeta[]; escolhidas: string[]; error?: string } | null>(null);
+  const [aberto, setAberto] = useState(false);
+  const [marcadas, setMarcadas] = useState<string[]>([]);
+  const [busca, setBusca] = useState("");
+  const [estado, setEstado] = useState("");
+
+  useEffect(() => {
+    if (!cliente) return;
+    let vivo = true;
+    setInfo(null);
+    fetch(`/api/estudio/relatorios/meta?cliente=${cliente}`)
+      .then((r) => r.json())
+      .then((j) => {
+        if (!vivo) return;
+        setInfo(j);
+        setMarcadas(j.escolhidas ?? []);
+      })
+      .catch(() => vivo && setInfo({ ligado: false, contas: [], escolhidas: [] }));
+    return () => {
+      vivo = false;
+    };
+  }, [cliente]);
+
+  if (!info) return <p className="text-[12px] text-ink-faint">Lendo as contas do Meta…</p>;
+  if (!info.ligado) return <p className="text-[12px] text-ink-soft">Meta Ads não conectado: falta o META_ADS_TOKEN no servidor.</p>;
+  const nomeDe = (id: string) => info.contas.find((c) => c.id === id)?.nome ?? id;
+  const lista = info.contas.filter((c) => !busca || `${c.nome} ${c.id}`.toLowerCase().includes(busca.toLowerCase()));
+
+  async function salvar() {
+    setEstado("salvando");
+    const r = await fetch("/api/estudio/relatorios/meta", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cliente, contas: marcadas }),
+    });
+    if (!r.ok) return setEstado("erro");
+    setInfo({ ...info!, escolhidas: marcadas });
+    setAberto(false);
+    setEstado("salvo");
+  }
+
+  return (
+    <div className="space-y-1.5 rounded-xl bg-canvas p-2.5 text-[12.5px]">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-ink-soft">
+          {info.escolhidas.length ? (
+            <>
+              Meta Ads: <span className="text-ink">{info.escolhidas.map(nomeDe).join(", ")}</span>
+            </>
+          ) : (
+            "Nenhuma conta do Meta escolhida para este cliente."
+          )}
+        </p>
+        <button type="button" onClick={() => setAberto(!aberto)} className="shrink-0 text-[12px] underline underline-offset-2">
+          {aberto ? "fechar" : "escolher contas"}
+        </button>
+      </div>
+      {info.error && <p className="text-[12px] text-red-700">{info.error}</p>}
+      {estado === "salvo" && <p className="text-[11.5px] text-ink-faint">Contas salvas. Clique em Gerar de novo para puxar os números.</p>}
+      {estado === "erro" && <p className="text-[11.5px] text-red-700">Não foi possível salvar.</p>}
+      {usadas.length > 0 && usadas.join() !== info.escolhidas.join() && estado !== "salvo" && (
+        <p className="text-[11.5px] text-ink-faint">Este relatório foi gerado com outras contas. Clique em Gerar de novo para atualizar.</p>
+      )}
+      {aberto && (
+        <div className="space-y-1.5">
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar conta" className={input} />
+          <div className="max-h-56 space-y-1 overflow-y-auto">
+            {lista.map((c) => (
+              <label key={c.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={marcadas.includes(c.id)}
+                  onChange={(e) => setMarcadas(e.target.checked ? [...marcadas, c.id] : marcadas.filter((x) => x !== c.id))}
+                />
+                <span className={c.ativa ? "" : "text-ink-faint"}>
+                  {c.nome} <span className="text-ink-faint">· {c.id.replace("act_", "")}{c.ativa ? "" : " · inativa"}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={salvar}
+            disabled={estado === "salvando"}
+            className="w-full rounded-lg border border-line px-3 py-1.5 text-[12.5px] hover:border-line-strong disabled:opacity-50"
+          >
+            Salvar contas
+          </button>
         </div>
       )}
     </div>
