@@ -45,6 +45,9 @@ export const fmtNumero = (n: number) => (Math.abs(n) >= 10_000 ? compacto.format
 const reduzido = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 /** Marca o elemento como visível quando entra na tela (uma vez). */
+/** Leads só aparecem quando chegou pelo menos um no período (com zero, a parte de leads some). */
+const leadsDe = (d: View["semana"]["dados"]) => (d.leads && (d.leads.total.valor ?? 0) > 0 ? d.leads : null);
+
 function useReveal<T extends HTMLElement>(): [React.RefObject<T | null>, boolean] {
   const ref = useRef<T>(null);
   const [visivel, setVisivel] = useState(false);
@@ -202,7 +205,7 @@ const diaSemana = (iso: string) => DIAS[new Date(new Date(iso).getTime() - 3 * 3
 function Numeros({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
   const ig = view.semana.dados.instagram;
-  const leads = view.semana.dados.leads;
+  const leads = leadsDe(view.semana.dados);
   if (!ig && !leads) return null;
   type Card = { rotulo: string; k: Kpi; detalhe?: string; destaque?: boolean; neutro?: boolean };
   const cards: Card[] = [];
@@ -402,7 +405,7 @@ function Grafico({ view }: { view: View }) {
 
 function Leads({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
-  const leads = view.semana.dados.leads;
+  const leads = leadsDe(view.semana.dados);
   if (!leads || leads.total.valor === null) return null;
   const max = Math.max(1, ...leads.origens.map((o) => o.total));
   return (
@@ -436,8 +439,8 @@ function Trafego({ view }: { view: View }) {
   const t = view.semana.trafego;
   const itens: { rotulo: string; valor: number; fmt: (n: number) => string }[] = [];
   if (t.investimento != null) itens.push({ rotulo: "Investimento", valor: t.investimento, fmt: moedaCurta });
-  if (t.leads != null) itens.push({ rotulo: "Leads", valor: t.leads, fmt: (n) => inteiro.format(n) });
-  if (t.cpl != null) itens.push({ rotulo: "Custo por lead", valor: t.cpl, fmt: (n) => moeda.format(n) });
+  if (t.leads) itens.push({ rotulo: "Leads", valor: t.leads, fmt: (n) => inteiro.format(n) });
+  if (t.cpl != null && t.leads !== 0) itens.push({ rotulo: "Custo por lead", valor: t.cpl, fmt: (n) => moeda.format(n) });
   if (t.vendas != null) itens.push({ rotulo: "Vendas", valor: t.vendas, fmt: (n) => inteiro.format(n) });
   if (t.faturamento != null) itens.push({ rotulo: "Faturamento", valor: t.faturamento, fmt: moedaCurta });
   if (t.roas != null) itens.push({ rotulo: "Retorno (ROAS)", valor: t.roas, fmt: (n) => `${decimal.format(n)}x` });
@@ -459,21 +462,69 @@ function Trafego({ view }: { view: View }) {
   );
 }
 
-function Entregas({ view }: { view: View }) {
-  const lista = [...view.semana.dados.aprovadas.map((a) => `${a.titulo} (aprovado)`), ...view.semana.entregas];
-  if (!lista.length) return null;
+function Check({ i }: { i: number }) {
   return (
-    <ul className="rs-entregas">
-      {lista.map((e, i) => (
-        <li key={`${e}-${i}`} style={{ "--i": i } as React.CSSProperties}>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="11" />
-            <path d="M7 12.5l3.2 3.2L17 9" />
-          </svg>
-          <span>{e}</span>
-        </li>
-      ))}
-    </ul>
+    <svg viewBox="0 0 24 24" aria-hidden="true" style={{ "--i": i } as React.CSSProperties}>
+      <circle cx="12" cy="12" r="11" />
+      <path d="M7 12.5l3.2 3.2L17 9" />
+    </svg>
+  );
+}
+
+/** O trabalho da Mantora: a contagem do que ficou pronto e as três colunas (feito, em andamento, o que vem por aí). */
+function Trabalho({ view, comProximos }: { view: View; comProximos: boolean }) {
+  const { dados, textos, entregas, tipo } = view.semana;
+  const producao = dados.trabalho?.producao ?? [];
+  const totalProduzido = producao.reduce((t, p) => t + p.total, 0);
+  const feito = [...(textos.feito ?? []), ...dados.aprovadas.map((a) => `${a.titulo} (aprovado por você)`), ...(entregas ?? [])].filter(Boolean);
+  const andamento = (textos.andamento ?? []).filter(Boolean);
+  const proximos = comProximos ? (textos.proximos ?? []).filter(Boolean) : [];
+  const colunas = [
+    { chave: "feito", titulo: tipo === "mes" ? "Feito no mês" : "Feito na semana", itens: feito },
+    { chave: "andamento", titulo: "Em andamento", itens: andamento },
+    { chave: "proximo", titulo: tipo === "mes" ? "O que vem no próximo mês" : "O que vem na próxima semana", itens: proximos },
+  ].filter((c) => c.itens.length > 0);
+  const [ref, ativo] = useReveal<HTMLDivElement>();
+  return (
+    <div ref={ref} className={`rs-trabalho ${ativo ? "is-in" : ""}`}>
+      {totalProduzido >= 2 && (
+        <div className="rs-producao">
+          <div className="rs-producao-item rs-producao-total" style={{ "--i": 0 } as React.CSSProperties}>
+            <strong>
+              <Contador valor={totalProduzido} ativo={ativo} />
+            </strong>
+            <p className="rs-producao-rotulo">{tipo === "mes" ? "entregas prontas no mês" : "entregas prontas na semana"}</p>
+          </div>
+          {producao.length > 1 &&
+            producao.slice(0, 5).map((p, i) => (
+              <div key={p.rotulo} className="rs-producao-item" style={{ "--i": i + 1 } as React.CSSProperties}>
+                <strong>
+                  <Contador valor={p.total} ativo={ativo} />
+                </strong>
+                <p className="rs-producao-rotulo">{p.rotulo}</p>
+              </div>
+            ))}
+        </div>
+      )}
+      <div className={`rs-trabalho-cols rs-trabalho-cols-${colunas.length}`}>
+        {colunas.map((c, ci) => (
+          <section key={c.chave} className={`rs-trabalho-col rs-trabalho-${c.chave}`} style={{ "--i": ci } as React.CSSProperties}>
+            <h3>
+              <span className="rs-trabalho-ponto" aria-hidden="true" />
+              {c.titulo}
+            </h3>
+            <ul>
+              {c.itens.map((e, i) => (
+                <li key={`${e}-${i}`} style={{ "--i": i } as React.CSSProperties}>
+                  {c.chave === "feito" ? <Check i={i} /> : <span className={`rs-trabalho-marca rs-trabalho-marca-${c.chave}`} aria-hidden="true" />}
+                  <span>{e}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -616,8 +667,9 @@ function TodosNumeros({ view }: { view: View }) {
   add("CTR", t.ctr, (n) => `${decimal.format(n)}%`);
   add("CPC", t.cpc, (n) => moeda.format(n));
   add("CPM", t.cpm, (n) => moeda.format(n));
-  add("Leads", t.leads, (n) => inteiro.format(n));
-  add("Custo por lead", t.cpl, (n) => moeda.format(n));
+  add("Custo por visualização", t.cpv, (n) => moeda.format(n));
+  add("Leads", t.leads || null, (n) => inteiro.format(n));
+  add("Custo por lead", t.leads === 0 ? null : t.cpl, (n) => moeda.format(n));
   add("Vendas", t.vendas, (n) => inteiro.format(n));
   add("Faturamento", t.faturamento, (n) => moeda.format(n));
   add("ROAS", t.roas, (n) => `${decimal.format(n)}x`);
@@ -801,7 +853,8 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
   const destaques = semana.textos.destaques?.filter((d) => d.titulo || d.texto) ?? [];
   const proximos = semana.textos.proximos?.filter(Boolean) ?? [];
   const temTrafego = Object.entries(semana.trafego ?? {}).some(([, v]) => v !== null && v !== undefined && v !== "");
-  const temEntregas = semana.dados.aprovadas.length + (semana.entregas?.length ?? 0) > 0;
+  const temFeito = (semana.textos.feito?.length ?? 0) + (semana.textos.andamento?.length ?? 0) + (semana.dados.trabalho?.producao.length ?? 0) + semana.dados.aprovadas.length + (semana.entregas?.length ?? 0) > 0;
+  const temTrabalho = (mostra("entregas") && temFeito) || (mostra("proximos") && proximos.length > 0);
   const temGrafico = (ig?.lista.filter((p) => p.alcance !== null).length ?? 0) >= 2;
   const r = rotulos(semana.tipo);
   const temFuncionou = (semana.textos.funcionou?.length ?? 0) + (semana.textos.ajustar?.length ?? 0) + (ig?.acima?.length ?? 0) + (ig?.abaixo?.length ?? 0) > 0;
@@ -815,7 +868,7 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         </Secao>
       )}
 
-      {mostra("numeros") && (ig || semana.dados.leads) && (
+      {mostra("numeros") && (ig || leadsDe(semana.dados)) && (
         <Secao id="numeros" eyebrow="Os números" titulo={semana.tipo === "mes" ? "Como o mês performou" : "Como a semana performou"}>
           <Numeros view={view} />
           {ig?.parcial && <p className="rs-nota">Números do Instagram parciais: a coleta {r.deste} ainda não foi feita.</p>}
@@ -854,7 +907,7 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         </Secao>
       )}
 
-      {mostra("leads") && semana.dados.leads && semana.dados.leads.total.valor !== null && (
+      {mostra("leads") && leadsDe(semana.dados) && (
         <Secao id="leads" eyebrow="Captação" titulo="Leads que chegaram">
           <Leads view={view} />
         </Secao>
@@ -866,22 +919,9 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         </Secao>
       )}
 
-      {mostra("entregas") && temEntregas && (
-        <Secao id="entregas" eyebrow="Entregas" titulo="O que entregamos">
-          <Entregas view={view} />
-        </Secao>
-      )}
-
-      {mostra("proximos") && proximos.length > 0 && (
-        <Secao id="proximos" eyebrow={semana.tipo === "mes" ? "Próximo mês" : "Próxima semana"} titulo="Próximos passos">
-          <ol className="rs-proximos">
-            {proximos.map((p, i) => (
-              <li key={i} style={{ "--i": i } as React.CSSProperties}>
-                <span>{String(i + 1).padStart(2, "0")}</span>
-                <p>{p}</p>
-              </li>
-            ))}
-          </ol>
+      {temTrabalho && (
+        <Secao id="entregas" eyebrow="O trabalho da Mantora" titulo="O que fizemos, o que está andando e o que vem aí">
+          <Trabalho view={view} comProximos={mostra("proximos")} />
         </Secao>
       )}
 

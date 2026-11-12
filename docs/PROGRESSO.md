@@ -189,3 +189,12 @@ A partir da reunião de 02/10 sobre como a apresentação deve ser.
 - Banco: coluna `tipo` em `relatorios_semanais` e chave única (cliente, tipo, início). Migração `20261112030000_relatorios_tipo_periodo.sql` no Escritório (já aplicada). A chave antiga sai depois deste deploy.
 - Limite conhecido: os posts antigos usam as métricas mais recentes (acumuladas), então a comparação com o normal é conservadora para os posts do período.
 - Fica para depois: comentários que "aqueceram o coração", posts feitos pela Mantora, benchmark do nicho, cores do cliente.
+
+## Relatório do cliente: trabalho da Mantora pelo ClickUp e regra dos leads (12/11/2026)
+- **O trabalho da Mantora**: nova seção com a contagem do que ficou pronto ("4 entregas prontas na semana", "2 vídeos editados", "5 anúncios criados") e três colunas: **Feito**, **Em andamento** e **O que vem por aí**. Substitui as seções Entregas e Próximos passos (as entregas digitadas e as peças aprovadas entram em "Feito").
+- As frases vêm da IA a partir das tarefas do ClickUp do cliente, agrupadas e sem nome de tarefa, de pessoa ou status interno ("Foram editados 5 vídeos e estão a caminho da sua aprovação"). Na aba Relatórios, o bloco **Lido do ClickUp** mostra as tarefas que a IA usou; o link do cliente só recebe a contagem.
+- Regras (`src/lib/relatorio/trabalho.ts`): feita = status "finalizado" (ou fechado) com prazo no período, ou atualizada no período com prazo recente; em andamento = aberta e já começada, ou com prazo até o fim do período; próxima = ainda não começou e tem prazo até o fim da próxima semana (ou do próximo mês). Stand by, cancelada e arquivada ficam de fora.
+- Pastas e listas de cada cliente: colunas `clientes.clickup_pastas` e `clientes.clickup_listas` (migração `20261112130000_clientes_clickup.sql` no Escritório, já aplicada), o mesmo mapa do `clientes.json` do Escritório.
+- Precisa de `CLICKUP_TOKEN` no Railway (o mesmo token do Escritório). Sem ele o relatório sai sem essa parte e a aba avisa.
+- **Leads**: com zero leads no período, a parte de leads não aparece (nem o card, nem a seção, nem no tráfego).
+- Tráfego: novo campo "Custo por visualização" em "Todos os números".

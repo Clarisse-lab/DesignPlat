@@ -33,8 +33,8 @@ const SECOES: [SecaoId, string][] = [
   ["grafico", "Gráfico de alcance"],
   ["leads", "Leads"],
   ["trafego", "Tráfego pago"],
-  ["entregas", "Entregas"],
-  ["proximos", "Próximos passos"],
+  ["entregas", "Trabalho: feito e em andamento"],
+  ["proximos", "Trabalho: o que vem por aí"],
   ["detalhes", "Todos os números"],
 ];
 const CAMPOS_TRAFEGO: [keyof TrafegoSemana, string][] = [
@@ -52,6 +52,7 @@ const CAMPOS_TRAFEGO_EXTRA: [keyof TrafegoSemana, string][] = [
   ["ctr", "CTR (%)"],
   ["cpc", "CPC (R$)"],
   ["cpm", "CPM (R$)"],
+  ["cpv", "Custo por visualização (R$)"],
 ];
 const TODOS_TRAFEGO = [...CAMPOS_TRAFEGO, ...CAMPOS_TRAFEGO_EXTRA];
 const curto = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
@@ -262,6 +263,8 @@ export default function RelatoriosPage() {
             proximos: rel.textos.proximos.map((p) => p.trim()).filter(Boolean),
             funcionou: (rel.textos.funcionou ?? []).map((p) => p.trim()).filter(Boolean),
             ajustar: (rel.textos.ajustar ?? []).map((p) => p.trim()).filter(Boolean),
+            feito: (rel.textos.feito ?? []).map((p) => p.trim()).filter(Boolean),
+            andamento: (rel.textos.andamento ?? []).map((p) => p.trim()).filter(Boolean),
           },
           trafego,
           entregas: rel.entregas.map((e) => e.trim()).filter(Boolean),
@@ -483,7 +486,15 @@ export default function RelatoriosPage() {
                     <textarea value={(rel.textos.ajustar ?? []).join("\n")} rows={3} onChange={(e) => editarTextos({ ajustar: e.target.value.split("\n") })} className={input} />
                   </label>
                   <label className="block space-y-1">
-                    <span className="text-[12px] text-ink-soft">Próximos passos (um por linha)</span>
+                    <span className="text-[12px] text-ink-soft">Feito pela Mantora (um por linha)</span>
+                    <textarea value={(rel.textos.feito ?? []).join("\n")} rows={4} onChange={(e) => editarTextos({ feito: e.target.value.split("\n") })} className={input} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[12px] text-ink-soft">Em andamento (um por linha)</span>
+                    <textarea value={(rel.textos.andamento ?? []).join("\n")} rows={3} onChange={(e) => editarTextos({ andamento: e.target.value.split("\n") })} className={input} />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-[12px] text-ink-soft">O que vem por aí (um por linha)</span>
                     <textarea value={rel.textos.proximos.join("\n")} rows={4} onChange={(e) => editarTextos({ proximos: e.target.value.split("\n") })} className={input} />
                   </label>
                 </Bloco>
@@ -547,7 +558,42 @@ export default function RelatoriosPage() {
                   />
                 </Bloco>
 
-                <Bloco titulo="Entregas" dica="Uma por linha. As peças aprovadas no link de aprovação já entram sozinhas.">
+                <Bloco titulo="Lido do ClickUp" dica="Interno: as tarefas que a IA usou para escrever o trabalho da Mantora. O cliente só vê as frases e a contagem.">
+                  {rel.dados.trabalho ? (
+                    <div className="space-y-2 text-[12.5px]">
+                      {rel.dados.trabalho.producao.length > 0 && (
+                        <p className="text-ink">{rel.dados.trabalho.producao.map((p) => `${p.total} ${p.rotulo}`).join(" · ")}</p>
+                      )}
+                      {(
+                        [
+                          ["Feitas no período", rel.dados.trabalho.feitas],
+                          ["Em andamento", rel.dados.trabalho.andamento],
+                          ["Próximas", rel.dados.trabalho.proximas],
+                        ] as const
+                      ).map(([titulo, lista]) => (
+                        <details key={titulo} className="rounded-xl bg-canvas p-2.5">
+                          <summary className="cursor-pointer text-ink-soft">
+                            {titulo} ({lista.length})
+                          </summary>
+                          <ul className="mt-1.5 space-y-1 text-ink-soft">
+                            {lista.map((t, i) => (
+                              <li key={i}>
+                                {t.nome} <span className="text-ink-faint">· {t.status}{t.prazo ? ` · ${t.prazo.split("-").reverse().slice(0, 2).join("/")}` : ""}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </details>
+                      ))}
+                      <p className="text-[11.5px] text-ink-faint">Para ler de novo, clique em Gerar outra vez.</p>
+                    </div>
+                  ) : (
+                    <p className="text-[12.5px] text-ink-soft">
+                      Sem tarefas do ClickUp neste relatório. Confira se o servidor tem o CLICKUP_TOKEN e se o cliente tem pastas do ClickUp cadastradas; depois clique em Gerar de novo.
+                    </p>
+                  )}
+                </Bloco>
+
+                <Bloco titulo="Entregas extras" dica="Opcional, uma por linha: o que não está no ClickUp. As peças aprovadas no link de aprovação já entram sozinhas.">
                   {rel.dados.aprovadas.length > 0 && (
                     <ul className="space-y-1 text-[12.5px] text-ink-soft">
                       {rel.dados.aprovadas.map((a, i) => (

@@ -1,5 +1,5 @@
 import "server-only";
-// Relatório do cliente (semanal ou mensal): coleta os números do período (Instagram, leads, peças aprovadas),
+// Relatório do cliente (semanal ou mensal): coleta os números do período (Instagram, leads, peças aprovadas, tarefas do ClickUp),
 // guarda as capas dos melhores posts no bucket (o link da Meta expira) e lê/grava os relatórios.
 
 import { randomBytes } from "node:crypto";
@@ -22,6 +22,7 @@ import {
   totais,
 } from "../relatorio/calc";
 import type { DadosSemana, PostSemana, RelatorioSemana, TipoPeriodo } from "../relatorio/tipos";
+import { trabalhoDoCliente } from "./clickup";
 import { callFunction, rest, signObjects, uploadObject } from "./supabase";
 
 const COLS =
@@ -187,6 +188,8 @@ async function leads(cliente: string, tipo: TipoPeriodo, inicio: string, fim: st
     const o = normalizaOrigem(r.utm_source);
     origens.set(o, (origens.get(o) ?? 0) + 1);
   }
+  // Sem lead no período, a seção nem aparece (regra combinada com o time).
+  if (!semana.length) return null;
   return {
     total: kpi(semana.length, rows.length - semana.length),
     origens: [...origens.entries()].map(([origem, total]) => ({ origem, total })).sort((a, b) => b.total - a.total),
@@ -246,8 +249,13 @@ async function guardarImagens(cliente: string, id: string, dados: DadosSemana): 
 
 export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string, id: string): Promise<DadosSemana> {
   const fim = fimDoPeriodo(tipo, inicio);
-  const [ig, ld, ap] = await Promise.all([instagram(cliente, tipo, inicio, fim), leads(cliente, tipo, inicio, fim), aprovadas(cliente, inicio, fim)]);
-  const dados: DadosSemana = { instagram: ig.ig, marcos: ig.marcos, leads: ld, aprovadas: ap, foto_perfil: null };
+  const [ig, ld, ap, tr] = await Promise.all([
+    instagram(cliente, tipo, inicio, fim),
+    leads(cliente, tipo, inicio, fim),
+    aprovadas(cliente, inicio, fim),
+    trabalhoDoCliente(cliente, tipo, inicio, fim),
+  ]);
+  const dados: DadosSemana = { instagram: ig.ig, marcos: ig.marcos, leads: ld, aprovadas: ap, trabalho: tr, foto_perfil: null };
   await guardarImagens(cliente, id, dados);
   return dados;
 }
