@@ -6,7 +6,7 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { variacao } from "@/lib/relatorio/calc";
-import type { Kpi, PostSemana, RelatorioView as View, SecaoId } from "@/lib/relatorio/tipos";
+import type { Kpi, Marco, PostSemana, RelatorioView as View, SecaoId, TipoPeriodo } from "@/lib/relatorio/tipos";
 import "./relatorio.css";
 
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
@@ -20,10 +20,26 @@ export function periodo(inicio: string, fim: string): string {
 }
 const curtoData = (d: string) => `${String(dia(d)).padStart(2, "0")}/${d.slice(5, 7)}`;
 
+/** Palavras do período: "semana" ou "mês". */
+export function rotulos(tipo: TipoPeriodo | undefined) {
+  return tipo === "mes"
+    ? { nome: "mês", anterior: "mês anterior", deste: "deste mês", no: "no mês", titulo: "relatório mensal", primeira: "primeiro mês medido" }
+    : { nome: "semana", anterior: "semana anterior", deste: "desta semana", no: "na semana", titulo: "relatório semanal", primeira: "primeira semana medida" };
+}
+
+/** "Semana de 2 a 8 de novembro de 2026" ou "Mês de novembro de 2026". */
+export function nomePeriodo(tipo: TipoPeriodo | undefined, inicio: string, fim: string): string {
+  if (tipo === "mes") return `${mes(inicio).replace(/^./, (c) => c.toUpperCase())} de ${inicio.slice(0, 4)}`;
+  return `Semana de ${periodo(inicio, fim)}`;
+}
+
 const compacto = new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 });
 const inteiro = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 const decimal = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 });
 const moeda = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 2 });
+const moedaInteira = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+/** Valores grandes sem centavos (R$ 4.398), para caber no card; os centavos ficam em "Todos os números". */
+const moedaCurta = (n: number) => (Math.abs(n) >= 1000 ? moedaInteira.format(n) : moeda.format(n));
 export const fmtNumero = (n: number) => (Math.abs(n) >= 10_000 ? compacto.format(n) : inteiro.format(n));
 
 const reduzido = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -113,10 +129,11 @@ function ComUnidade({ texto }: { texto: string }) {
   );
 }
 
-function Variacao({ k, inverso = false, neutro = false }: { k: Kpi; inverso?: boolean; neutro?: boolean }) {
+function Variacao({ k, tipo, inverso = false, neutro = false }: { k: Kpi; tipo?: TipoPeriodo; inverso?: boolean; neutro?: boolean }) {
+  const r = rotulos(tipo);
   const v = variacao(k);
-  if (v === null) return <span className="rs-delta rs-delta-neutro">primeira semana medida</span>;
-  if (v === 0) return <span className="rs-delta rs-delta-neutro">igual à semana anterior</span>;
+  if (v === null) return <span className="rs-delta rs-delta-neutro">{r.primeira}</span>;
+  if (v === 0) return <span className="rs-delta rs-delta-neutro">igual {tipo === "mes" ? "ao" : "à"} {r.anterior}</span>;
   const bom = inverso ? v < 0 : v > 0;
   return (
     <span className={`rs-delta ${neutro ? "rs-delta-neutro" : bom ? "rs-delta-sobe" : "rs-delta-desce"}`}>
@@ -124,7 +141,7 @@ function Variacao({ k, inverso = false, neutro = false }: { k: Kpi; inverso?: bo
         <path d="M6 2.5 10 8H2z" fill="currentColor" />
       </svg>
       {`${v > 0 ? "+" : ""}${decimal.format(v)}%`}
-      <em>vs. semana anterior</em>
+      <em>vs. {r.anterior}</em>
     </span>
   );
 }
@@ -144,7 +161,25 @@ function Secao({ id, eyebrow, titulo, children, escura = false }: { id: string; 
   );
 }
 
-function KpiCard({ rotulo, k, detalhe, ativo, ordem, destaque = false, neutro = false }: { rotulo: string; k: Kpi; detalhe?: string; ativo: boolean; ordem: number; destaque?: boolean; neutro?: boolean }) {
+function KpiCard({
+  rotulo,
+  k,
+  detalhe,
+  ativo,
+  ordem,
+  tipo,
+  destaque = false,
+  neutro = false,
+}: {
+  rotulo: string;
+  k: Kpi;
+  detalhe?: string;
+  ativo: boolean;
+  ordem: number;
+  tipo?: TipoPeriodo;
+  destaque?: boolean;
+  neutro?: boolean;
+}) {
   if (k.valor === null) return null;
   return (
     <article className={`rs-kpi ${destaque ? "rs-kpi-destaque" : ""}`} style={{ "--i": ordem } as React.CSSProperties}>
@@ -152,7 +187,7 @@ function KpiCard({ rotulo, k, detalhe, ativo, ordem, destaque = false, neutro = 
       <p className="rs-kpi-valor">
         <Contador valor={k.valor} ativo={ativo} formato={(n) => `${k.valor !== null && k.valor > 0 && rotulo.startsWith("Novos") ? "+" : ""}${fmtNumero(n)}`} />
       </p>
-      <Variacao k={k} neutro={neutro} />
+      <Variacao k={k} neutro={neutro} tipo={tipo} />
       {detalhe && <p className="rs-kpi-detalhe">{detalhe}</p>}
     </article>
   );
@@ -173,7 +208,14 @@ function Numeros({ view }: { view: View }) {
   const cards: Card[] = [];
   if (ig) {
     cards.push(
-      { rotulo: "Alcance", k: ig.alcance, detalhe: "pessoas alcançadas pelos posts da semana", destaque: true },
+      {
+        rotulo: "Alcance",
+        k: ig.alcance,
+        destaque: true,
+        detalhe: ig.historico?.mediana_alcance
+          ? `pessoas alcançadas pelos posts ${rotulos(view.semana.tipo).deste} · um post seu alcança em geral ${fmtNumero(ig.historico.mediana_alcance)}`
+          : `pessoas alcançadas pelos posts ${rotulos(view.semana.tipo).deste}`,
+      },
       { rotulo: "Interações", k: ig.interacoes, detalhe: "curtidas, comentários, salvamentos e compartilhamentos" },
       { rotulo: "Novos seguidores", k: ig.novos_seguidores, detalhe: ig.seguidores ? `${fmtNumero(ig.seguidores)} no total` : undefined },
       { rotulo: "Salvos e compartilhados", k: ig.salvos_compart, detalhe: "o sinal de conteúdo que as pessoas querem guardar" },
@@ -185,7 +227,7 @@ function Numeros({ view }: { view: View }) {
   return (
     <div ref={ref} className={`rs-kpis ${ativo ? "is-in" : ""}`}>
       {visiveis.map((c, i) => (
-        <KpiCard key={c.rotulo} {...c} ativo={ativo} ordem={i} />
+        <KpiCard key={c.rotulo} {...c} ativo={ativo} ordem={i} tipo={view.semana.tipo} />
       ))}
     </div>
   );
@@ -263,23 +305,31 @@ function Grafico({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
   const ig = view.semana.dados.instagram;
   const inicio = view.semana.semana_inicio;
-  // Alcance por dia da semana (segunda a domingo), empilhado por formato.
+  const fim = view.semana.semana_fim;
+  const mensal = view.semana.tipo === "mes";
+  // Semana: alcance por dia (segunda a domingo). Mês: por blocos de 7 dias (1–7, 8–14...). Empilhado por formato.
   const dias = useMemo(() => {
-    const base = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(Date.parse(`${inicio}T12:00:00Z`) + i * 86_400_000);
-      return { rotulo: DIAS[d.getUTCDay()], data: d.toISOString().slice(0, 10), total: 0, posts: 0, partes: new Map<string, number>() };
+    const passo = mensal ? 7 : 1;
+    const diasNoPeriodo = Math.round((Date.parse(`${fim}T12:00:00Z`) - Date.parse(`${inicio}T12:00:00Z`)) / 86_400_000) + 1;
+    const qtd = mensal ? Math.ceil(diasNoPeriodo / 7) : 7;
+    const base = Array.from({ length: qtd }, (_, i) => {
+      const d = new Date(Date.parse(`${inicio}T12:00:00Z`) + i * passo * 86_400_000);
+      const data = d.toISOString().slice(0, 10);
+      const ate = new Date(d.getTime() + (passo - 1) * 86_400_000).toISOString().slice(0, 10);
+      const rotulo = mensal ? `${dia(data)}–${Math.min(dia(ate), dia(fim))}` : DIAS[d.getUTCDay()];
+      return { rotulo, data, ate: ate > fim ? fim : ate, total: 0, posts: 0, partes: new Map<string, number>() };
     });
     for (const p of ig?.lista ?? []) {
       if (p.alcance === null) continue;
       const local = new Date(new Date(p.publicado_em).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
-      const dia = base.find((d) => d.data === local);
+      const dia = base.find((d) => local >= d.data && local <= d.ate);
       if (!dia) continue;
       dia.total += p.alcance;
       dia.posts++;
       dia.partes.set(p.formato, (dia.partes.get(p.formato) ?? 0) + p.alcance);
     }
     return base;
-  }, [ig, inicio]);
+  }, [ig, inicio, fim, mensal]);
   if (!ig || dias.filter((d) => d.posts > 0).length < 2) return null;
   const max = Math.max(...dias.map((d) => d.total), 1);
   const melhorDia = dias.reduce((a, b) => (b.total > a.total ? b : a));
@@ -291,9 +341,9 @@ function Grafico({ view }: { view: View }) {
     <div ref={ref} className={`rs-grafico ${ativo ? "is-in" : ""}`}>
       <div className="rs-barras-caixa">
         <p className="rs-barras-titulo">
-          Alcance por dia de publicação · melhor dia: <strong>{melhorDia.rotulo}</strong>
+          {mensal ? "Alcance por semana de publicação" : "Alcance por dia de publicação"} · melhor {mensal ? "período" : "dia"}: <strong>{melhorDia.rotulo}</strong>
         </p>
-        <div className="rs-barras" role="img" aria-label="Alcance das publicações por dia da semana">
+        <div className="rs-barras" role="img" aria-label="Alcance das publicações ao longo do período" style={{ gridTemplateColumns: `repeat(${dias.length}, minmax(0, 1fr))` }}>
           {dias.map((d, i) => (
             <div key={d.data} className={`rs-barra-col ${d === melhorDia ? "rs-barra-top" : ""}`} style={{ "--i": i } as React.CSSProperties}>
               <div className="rs-barra-trilho">
@@ -361,8 +411,8 @@ function Leads({ view }: { view: View }) {
         <p className="rs-kpi-valor rs-gigante">
           <Contador valor={leads.total.valor} ativo={ativo} />
         </p>
-        <p className="rs-leads-rotulo">leads na semana</p>
-        <Variacao k={leads.total} />
+        <p className="rs-leads-rotulo">leads {rotulos(view.semana.tipo).no}</p>
+        <Variacao k={leads.total} tipo={view.semana.tipo} />
       </div>
       {leads.origens.length > 0 && (
         <ul className="rs-origens">
@@ -385,16 +435,16 @@ function Trafego({ view }: { view: View }) {
   const [ref, ativo] = useReveal<HTMLDivElement>();
   const t = view.semana.trafego;
   const itens: { rotulo: string; valor: number; fmt: (n: number) => string }[] = [];
-  if (t.investimento != null) itens.push({ rotulo: "Investimento", valor: t.investimento, fmt: (n) => moeda.format(n) });
+  if (t.investimento != null) itens.push({ rotulo: "Investimento", valor: t.investimento, fmt: moedaCurta });
   if (t.leads != null) itens.push({ rotulo: "Leads", valor: t.leads, fmt: (n) => inteiro.format(n) });
   if (t.cpl != null) itens.push({ rotulo: "Custo por lead", valor: t.cpl, fmt: (n) => moeda.format(n) });
   if (t.vendas != null) itens.push({ rotulo: "Vendas", valor: t.vendas, fmt: (n) => inteiro.format(n) });
-  if (t.faturamento != null) itens.push({ rotulo: "Faturamento", valor: t.faturamento, fmt: (n) => moeda.format(n) });
+  if (t.faturamento != null) itens.push({ rotulo: "Faturamento", valor: t.faturamento, fmt: moedaCurta });
   if (t.roas != null) itens.push({ rotulo: "Retorno (ROAS)", valor: t.roas, fmt: (n) => `${decimal.format(n)}x` });
   if (!itens.length && !t.observacao) return null;
   return (
     <div ref={ref} className={`rs-trafego ${ativo ? "is-in" : ""}`}>
-      <div className="rs-trafego-grade">
+      <div className={`rs-trafego-grade ${itens.length >= 5 ? "is-cheia" : ""}`}>
         {itens.map((it, i) => (
           <div key={it.rotulo} className="rs-trafego-item" style={{ "--i": i } as React.CSSProperties}>
             <p>{it.rotulo}</p>
@@ -427,9 +477,260 @@ function Entregas({ view }: { view: View }) {
   );
 }
 
+const GRADIENTES = [
+  "linear-gradient(140deg,#704bfd 0%,#40095b 55%,#24002f 100%)",
+  "linear-gradient(150deg,#ff8fb1 0%,#a23a8f 45%,#40095b 100%)",
+  "linear-gradient(140deg,#24002f 0%,#5a1780 50%,#b89aff 100%)",
+  "linear-gradient(160deg,#ffb36b 0%,#d2477a 50%,#40095b 100%)",
+];
+
+/** Momentos do período, no espírito de uma retrospectiva: o número grande com o contexto do próprio perfil. */
+function Momentos({ view }: { view: View }) {
+  const marcos = view.semana.dados.marcos ?? [];
+  const ig = view.semana.dados.instagram;
+  if (!marcos.length) return null;
+  const capa = (m: Marco) => {
+    const post = m.media_id ? ig?.lista.find((p) => p.media_id === m.media_id) : undefined;
+    return post?.capa ? view.capas[post.capa] : undefined;
+  };
+  return (
+    <div className={`rs-momentos rs-momentos-${Math.min(marcos.length, 4)}`}>
+      {marcos.map((m, i) => {
+        const img = capa(m);
+        return (
+          <article key={i} className="rs-momento" style={{ "--i": i, background: GRADIENTES[i % GRADIENTES.length] } as React.CSSProperties}>
+            {img && <img src={img} alt="" className="rs-momento-capa" />}
+            <div className="rs-momento-brilho" />
+            <p className="rs-momento-titulo">{m.titulo}</p>
+            <p className="rs-momento-valor">
+              <ComUnidade texto={m.valor} />
+            </p>
+            <p className="rs-momento-texto">{m.texto}</p>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function MiniPost({ post, view, sinal }: { post: PostSemana; view: View; sinal: "acima" | "abaixo" }) {
+  const mediana = view.semana.dados.instagram?.historico?.mediana_alcance;
+  const x = mediana && post.alcance !== null ? post.alcance / mediana : null;
+  const conteudo = (
+    <>
+      <div className="rs-mini-capa">
+        <CapaPost post={post} capas={view.capas} />
+      </div>
+      <div className="rs-mini-corpo">
+        <p className="rs-mini-legenda">{post.legenda || post.formato}</p>
+        <p className="rs-mini-num">
+          {post.alcance !== null ? `${fmtNumero(post.alcance)} de alcance` : "sem métrica"}
+          {x !== null && <b className={sinal === "acima" ? "rs-mini-sobe" : "rs-mini-desce"}>{`${decimal.format(Math.round(x * 10) / 10)}x o normal`}</b>}
+        </p>
+      </div>
+    </>
+  );
+  return post.permalink ? (
+    <a className="rs-mini" href={post.permalink} target="_blank" rel="noreferrer">
+      {conteudo}
+    </a>
+  ) : (
+    <div className="rs-mini">{conteudo}</div>
+  );
+}
+
+function Funcionou({ view }: { view: View }) {
+  const ig = view.semana.dados.instagram;
+  const textos = view.semana.textos;
+  const acima = (ig?.acima ?? []).slice(0, 3).map((id) => ig?.lista.find((p) => p.media_id === id)).filter((p): p is PostSemana => Boolean(p));
+  const abaixo = (ig?.abaixo ?? []).slice(0, 3).map((id) => ig?.lista.find((p) => p.media_id === id)).filter((p): p is PostSemana => Boolean(p));
+  const funcionou = textos.funcionou?.filter(Boolean) ?? [];
+  const ajustar = textos.ajustar?.filter(Boolean) ?? [];
+  if (!funcionou.length && !ajustar.length && !acima.length && !abaixo.length) return null;
+  return (
+    <div className="rs-fa">
+      <div className="rs-fa-col rs-fa-ok" style={{ "--i": 0 } as React.CSSProperties}>
+        <p className="rs-fa-rotulo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 12.5l4.2 4.2L19 7" />
+          </svg>
+          O que funcionou
+        </p>
+        <ul>
+          {funcionou.map((f, i) => (
+            <li key={i}>{f}</li>
+          ))}
+        </ul>
+        {acima.length > 0 && (
+          <div className="rs-minis">
+            {acima.map((p) => (
+              <MiniPost key={p.media_id} post={p} view={view} sinal="acima" />
+            ))}
+          </div>
+        )}
+      </div>
+      {(ajustar.length > 0 || abaixo.length > 0) && (
+        <div className="rs-fa-col rs-fa-ajuste" style={{ "--i": 1 } as React.CSSProperties}>
+          <p className="rs-fa-rotulo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12a8 8 0 0 1 13.7-5.6M20 4v5h-5M20 12a8 8 0 0 1-13.7 5.6M4 20v-5h5" />
+            </svg>
+            O que vamos ajustar
+          </p>
+          <ul>
+            {ajustar.map((f, i) => (
+              <li key={i}>{f}</li>
+            ))}
+          </ul>
+          {abaixo.length > 0 && (
+            <div className="rs-minis">
+              {abaixo.map((p) => (
+                <MiniPost key={p.media_id} post={p} view={view} sinal="abaixo" />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Todos os números, para quem quer aprofundar: fechado por padrão (abre sozinho na impressão). */
+function TodosNumeros({ view }: { view: View }) {
+  const ref = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const abrir = () => ref.current?.setAttribute("open", "");
+    window.addEventListener("beforeprint", abrir);
+    return () => window.removeEventListener("beforeprint", abrir);
+  }, []);
+  const ig = view.semana.dados.instagram;
+  const t = view.semana.trafego;
+  const mediana = ig?.historico?.mediana_alcance ?? null;
+  const trafego: [string, string][] = [];
+  const add = (rotulo: string, v: number | null | undefined, f: (n: number) => string) => {
+    if (v !== null && v !== undefined) trafego.push([rotulo, f(v)]);
+  };
+  add("Investimento", t.investimento, (n) => moeda.format(n));
+  add("Impressões", t.impressoes, (n) => inteiro.format(n));
+  add("Cliques", t.cliques, (n) => inteiro.format(n));
+  add("CTR", t.ctr, (n) => `${decimal.format(n)}%`);
+  add("CPC", t.cpc, (n) => moeda.format(n));
+  add("CPM", t.cpm, (n) => moeda.format(n));
+  add("Leads", t.leads, (n) => inteiro.format(n));
+  add("Custo por lead", t.cpl, (n) => moeda.format(n));
+  add("Vendas", t.vendas, (n) => inteiro.format(n));
+  add("Faturamento", t.faturamento, (n) => moeda.format(n));
+  add("ROAS", t.roas, (n) => `${decimal.format(n)}x`);
+  const lista = ig?.lista ?? [];
+  if (!lista.length && !trafego.length) return null;
+  const eng = (p: PostSemana) => (p.alcance && p.interacoes !== null ? `${decimal.format(Math.round((p.interacoes / p.alcance) * 1000) / 10)}%` : "–");
+  const n = (v: number | null) => (v === null ? "–" : inteiro.format(v));
+  return (
+    <details ref={ref} className="rs-detalhes">
+      <summary>
+        <span>Ver todos os números {rotulos(view.semana.tipo).deste}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </summary>
+      <div className="rs-detalhes-corpo">
+        {trafego.length > 0 && (
+          <div className="rs-tabela-bloco">
+            <h3>Tráfego pago</h3>
+            <dl className="rs-dl">
+              {trafego.map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        {ig && (
+          <div className="rs-tabela-bloco">
+            <h3>Instagram</h3>
+            <dl className="rs-dl">
+              {[
+                ["Seguidores", ig.seguidores],
+                ["Novos seguidores", ig.novos_seguidores.valor],
+                ["Publicações", ig.posts.valor],
+                ["Alcance (soma dos posts)", ig.alcance.valor],
+                ["Visualizações", ig.visualizacoes.valor],
+                ["Interações", ig.interacoes.valor],
+                ["Salvos e compartilhados", ig.salvos_compart.valor],
+                ["Alcance normal de um post", mediana === null ? null : Math.round(mediana)],
+              ].map(([k, v]) => (
+                <div key={k as string}>
+                  <dt>{k}</dt>
+                  <dd>{n(v as number | null)}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+        {lista.length > 0 && (
+          <div className="rs-tabela-bloco">
+            <h3>Cada publicação</h3>
+            <div className="rs-tabela-rolagem">
+              <table className="rs-tabela">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Formato</th>
+                    <th className="rs-col-legenda">Publicação</th>
+                    <th>Alcance</th>
+                    {mediana !== null && <th>vs. normal</th>}
+                    <th>Visualiz.</th>
+                    <th>Interações</th>
+                    <th>Salvos</th>
+                    <th>Compart.</th>
+                    <th>Engaj.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lista.map((p) => (
+                    <tr key={p.media_id}>
+                      <td>{curtoData(new Date(new Date(p.publicado_em).getTime() - 3 * 3600_000).toISOString().slice(0, 10))}</td>
+                      <td>{p.formato}</td>
+                      <td className="rs-col-legenda">
+                        {p.permalink ? (
+                          <a href={p.permalink} target="_blank" rel="noreferrer">
+                            {p.legenda || "abrir"}
+                          </a>
+                        ) : (
+                          p.legenda
+                        )}
+                      </td>
+                      <td>{n(p.alcance)}</td>
+                      {mediana !== null && <td>{p.alcance === null ? "–" : `${decimal.format(Math.round((p.alcance / mediana) * 10) / 10)}x`}</td>}
+                      <td>{n(p.visualizacoes)}</td>
+                      <td>{n(p.interacoes)}</td>
+                      <td>{n(p.salvamentos)}</td>
+                      <td>{n(p.compartilhamentos)}</td>
+                      <td>{eng(p)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {ig?.medido_em && (
+              <p className="rs-nota">
+                Métricas do Instagram coletadas em {curtoData(ig.medido_em)}.
+                {ig.historico ? ` "Normal" = mediana de ${ig.historico.posts} posts publicados desde ${curtoData(ig.historico.desde)}.` : ""}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
 function Hero({ view, onSemana }: { view: View; onSemana?: (inicio: string) => void }) {
   const { cliente, semana } = view;
-  const palavras = (semana.textos.titulo || "Relatório da semana").split(/\s+/);
+  const r = rotulos(semana.tipo);
+  const palavras = (semana.textos.titulo || `Relatório ${r.deste}`).split(/\s+/);
   const iniciais = cliente.nome
     .split(/\s+/)
     .filter((p) => p.length > 2 || /^[A-Z]/.test(p))
@@ -447,16 +748,16 @@ function Hero({ view, onSemana }: { view: View; onSemana?: (inicio: string) => v
           <span>
             mantora<sup>®</sup>
           </span>
-          <small>relatório semanal</small>
+          <small>{r.titulo}</small>
         </span>
         <div className="rs-acoes">
           {view.semanas && view.semanas.length > 1 && onSemana && (
             <label className="rs-seletor">
-              <span className="sr-only">Escolher semana</span>
-              <select value={semana.semana_inicio} onChange={(e) => onSemana(e.target.value)}>
+              <span className="sr-only">Escolher período</span>
+              <select value={`${semana.tipo ?? "semana"}:${semana.semana_inicio}`} onChange={(e) => onSemana(e.target.value)}>
                 {view.semanas.map((s) => (
-                  <option key={s.inicio} value={s.inicio}>
-                    {curtoData(s.inicio)} a {curtoData(s.fim)}
+                  <option key={`${s.tipo}:${s.inicio}`} value={`${s.tipo}:${s.inicio}`}>
+                    {s.tipo === "mes" ? `Mês: ${mes(s.inicio)} de ${s.inicio.slice(0, 4)}` : `Semana: ${curtoData(s.inicio)} a ${curtoData(s.fim)}`}
                   </option>
                 ))}
               </select>
@@ -472,7 +773,7 @@ function Hero({ view, onSemana }: { view: View; onSemana?: (inicio: string) => v
           <span className="rs-avatar">{cliente.foto ? <img src={cliente.foto} alt="" /> : <b>{iniciais || "·"}</b>}</span>
           <div>
             <p className="rs-cliente-nome">{cliente.nome}</p>
-            <p className="rs-periodo">Semana de {periodo(semana.semana_inicio, semana.semana_fim)}</p>
+            <p className="rs-periodo">{nomePeriodo(semana.tipo, semana.semana_inicio, semana.semana_fim)}</p>
           </div>
         </div>
         <h1 className="rs-titulo">
@@ -502,14 +803,22 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
   const temTrafego = Object.entries(semana.trafego ?? {}).some(([, v]) => v !== null && v !== undefined && v !== "");
   const temEntregas = semana.dados.aprovadas.length + (semana.entregas?.length ?? 0) > 0;
   const temGrafico = (ig?.lista.filter((p) => p.alcance !== null).length ?? 0) >= 2;
+  const r = rotulos(semana.tipo);
+  const temFuncionou = (semana.textos.funcionou?.length ?? 0) + (semana.textos.ajustar?.length ?? 0) + (ig?.acima?.length ?? 0) + (ig?.abaixo?.length ?? 0) > 0;
   return (
     <div className="rs">
       <Hero view={view} onSemana={onSemana} />
 
+      {mostra("momentos") && (semana.dados.marcos?.length ?? 0) > 0 && (
+        <Secao id="momentos" eyebrow={`Momentos ${r.deste}`} titulo={semana.tipo === "mes" ? "O mês em destaque" : "A semana em destaque"}>
+          <Momentos view={view} />
+        </Secao>
+      )}
+
       {mostra("numeros") && (ig || semana.dados.leads) && (
-        <Secao id="numeros" eyebrow="Os números" titulo="Como a semana performou">
+        <Secao id="numeros" eyebrow="Os números" titulo={semana.tipo === "mes" ? "Como o mês performou" : "Como a semana performou"}>
           <Numeros view={view} />
-          {ig?.parcial && <p className="rs-nota">Números do Instagram parciais: a coleta desta semana ainda não foi feita.</p>}
+          {ig?.parcial && <p className="rs-nota">Números do Instagram parciais: a coleta {r.deste} ainda não foi feita.</p>}
         </Secao>
       )}
 
@@ -528,8 +837,14 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
       )}
 
       {mostra("conteudos") && ig && ig.melhores.length > 0 && (
-        <Secao id="conteudos" eyebrow="Conteúdos" titulo="Os melhores da semana">
+        <Secao id="conteudos" eyebrow="Conteúdos" titulo={semana.tipo === "mes" ? "Os melhores do mês" : "Os melhores da semana"}>
           <Melhores view={view} />
+        </Secao>
+      )}
+
+      {mostra("funcionou") && temFuncionou && (
+        <Secao id="funcionou" eyebrow="Leitura" titulo="O que funcionou e o que vamos ajustar">
+          <Funcionou view={view} />
         </Secao>
       )}
 
@@ -558,7 +873,7 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
       )}
 
       {mostra("proximos") && proximos.length > 0 && (
-        <Secao id="proximos" eyebrow="Próxima semana" titulo="Próximos passos">
+        <Secao id="proximos" eyebrow={semana.tipo === "mes" ? "Próximo mês" : "Próxima semana"} titulo="Próximos passos">
           <ol className="rs-proximos">
             {proximos.map((p, i) => (
               <li key={i} style={{ "--i": i } as React.CSSProperties}>
@@ -570,13 +885,21 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
         </Secao>
       )}
 
+      {mostra("detalhes") && (
+        <section className="rs-secao rs-secao-detalhes">
+          <div className="rs-container">
+            <TodosNumeros view={view} />
+          </div>
+        </section>
+      )}
+
       <footer className="rs-rodape">
         <div className="rs-container">
           <span className="rs-marca rs-marca-rodape">
             mantora<sup>®</sup>
           </span>
           <p>
-            Relatório preparado pela equipe Mantora Lab · {periodo(semana.semana_inicio, semana.semana_fim)}
+            Relatório preparado pela equipe Mantora Lab · {nomePeriodo(semana.tipo, semana.semana_inicio, semana.semana_fim)}
             {ig?.medido_em ? ` · Instagram medido em ${curtoData(ig.medido_em)}` : ""}
           </p>
         </div>
