@@ -34,10 +34,26 @@ export function isFeedDraft(value: unknown): value is FeedDraft {
   return Array.isArray(draft?.slides) && draft.slides.length > 0 && Boolean(draft.brand && draft.style?.palette);
 }
 
+/** Editor em branco: uma tela Livre vazia, sem cliente e sem peça (marca e estilo padrão do modo). */
+export function blankDraft(initialDraft: () => FeedDraft): FeedDraft {
+  const base = initialDraft();
+  return {
+    brand: base.brand,
+    style: base.style,
+    cliente: null,
+    pecaId: null,
+    titulo: null,
+    syncKey: null,
+    estilo: null,
+    legenda: null,
+    slides: [newFeedSlide({ layout: "livre", free: { bg: "fundo", overlay: "nenhuma", elements: [] } })],
+  };
+}
+
 /** Rascunho do post (Feed ou Story), salvo no navegador para não se perder ao recarregar. */
 export function useFeedDraft(storageKey: string, initialDraft: () => FeedDraft) {
   const [stored, setDraft, loaded] = usePersistentState(storageKey, initialDraft, isFeedDraft);
   // Rascunhos salvos antes de novas opções existirem ganham os valores padrão.
   const draft: FeedDraft = { ...stored, style: resolveFeedStyle(stored.style) };
-  return { draft, setDraft, loaded, reset: () => setDraft(initialDraft()) };
+  return { draft, setDraft, loaded, reset: () => setDraft(blankDraft(initialDraft)) };
 }

@@ -784,8 +784,32 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
   // Ao abrir a página: se o rascunho do navegador aponta para uma peça mas tem mudanças que nunca
   // foram salvas nela (ex.: rascunho antigo, de antes do salvamento automático), ele vira peça nova.
   // Sem isso, o salvamento automático gravaria por cima de uma peça com outro conteúdo.
+  // Cada pessoa vê só o que estava fazendo no próprio navegador; mesmo assim, a página abre em branco.
+  // O trabalho anterior fica guardado à parte e volta com "Continuar de onde parou" (ou pela lista de peças).
+  const stashKey = `${config.storageKey}:anterior`;
+  const [stash, setStash] = useState<{ titulo: string; cliente: string | null } | null>(null);
   useEffect(() => {
     if (!loaded || draftChecked) return;
+    const texts = (list: { title: string; body: string }[]) => list.map((sl) => `${sl.title}|${sl.body}`).join("§");
+    const isSample = texts(slides) === texts(config.initialDraft().slides);
+    if (draftHasContent && !isSample && !new URLSearchParams(window.location.search).get("peca")) {
+      try {
+        window.localStorage.setItem(stashKey, JSON.stringify(draft));
+        // Lido uma vez ao abrir a página, a partir do rascunho do navegador.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setStash({
+          titulo: (draft.titulo || slides.find((sl) => sl.title.trim())?.title || "Peça sem título").replace(/\*\*/g, "").slice(0, 80),
+          cliente: draft.cliente?.nome ?? null,
+        });
+      } catch {
+        /* sem armazenamento: o trabalho segue salvo como peça */
+      }
+      history.reset();
+      reset();
+      setDraftChecked(true);
+      return;
+    }
+    if (isSample) reset();
     if (draft.pecaId && draft.syncKey !== draftKey) {
       setDraft((d) => ({ ...d, pecaId: null, titulo: null, syncKey: null }));
       showInfo("Este rascunho tinha mudanças que não estavam na peça salva: ele vai ser salvo como peça nova (a original ficou como estava).");
@@ -794,6 +818,22 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     setDraftChecked(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
+
+  /** Volta o trabalho que estava aberto da última vez (guardado ao abrir a página). */
+  const continueStash = () => {
+    try {
+      const raw = window.localStorage.getItem(stashKey);
+      const saved = raw ? (JSON.parse(raw) as typeof draft) : null;
+      if (!saved || !Array.isArray(saved.slides) || !saved.slides.length) throw new Error();
+      history.reset();
+      setDraft(saved);
+      setActiveIndex(0);
+      setSelectedElement(null);
+    } catch {
+      showError("Não achei o trabalho anterior neste navegador. Procure em Mais → Abrir peça.");
+    }
+    setStash(null);
+  };
 
   const downloadItems: MenuItem[] = isPresentation
     ? [
@@ -976,6 +1016,22 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       )}
 
       <Notice message={message} onClose={() => setMessage(null)} />
+      {stash && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3 text-[13.5px]">
+          <span className="min-w-0 text-ink-soft">
+            Da última vez você estava em <strong className="text-ink">{stash.titulo}</strong>
+            {stash.cliente ? ` (${stash.cliente})` : ""}.
+          </span>
+          <div className="flex shrink-0 gap-2">
+            <button type="button" onClick={() => setStash(null)} className="rounded-lg px-3 py-1.5 font-medium text-ink-soft hover:text-ink">
+              Começar outra
+            </button>
+            <button type="button" onClick={continueStash} className="rounded-lg bg-accent px-3 py-1.5 font-semibold text-white hover:bg-accent/90">
+              Continuar de onde parei
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={`grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] ${isPresentation ? "" : "xl:grid-cols-[300px_minmax(0,1fr)_400px]"}`}>
         {/* Configurações: um bloco aberto por vez */}
