@@ -228,3 +228,8 @@ Ideias que vieram do protótipo antigo (Prils) e da reunião de 02/10.
 - A aba **Desempenho** saiu do menu do Design Mantora e virou a aba "Desempenho" da ficha de cada cliente no Escritório (onde a equipe de conteúdo trabalha).
 - Nova rota de integração `POST /api/v1/desempenho { cliente }` (DESIGN_API_KEY): o mesmo resumo da página (formatos, estilos feitos aqui, capa animada × parada, melhores carrosséis, peças publicadas) e a ligação automática peça ↔ post.
 - A página `/desempenho` continua no ar (sem link no menu) para ligar peças a posts à mão; a ficha do Escritório leva até ela com `?cliente=`.
+
+## Editor abre em branco (PR #37)
+- Feed, Story e Apresentação abrem com uma tela Livre vazia, sem cliente e sem peça. O que estava aberto da última vez (rascunho do navegador, de cada pessoa) fica guardado à parte e volta com **Continuar de onde parei**; ou abra pela lista de peças.
+- "Recomeçar do zero" e trocar de cliente também começam em branco (antes voltavam os slides de exemplo).
+- Link `/feed?peca=<id>` (aviso do Escritório) continua abrindo a peça direto.
