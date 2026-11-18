@@ -233,3 +233,7 @@ Ideias que vieram do protótipo antigo (Prils) e da reunião de 02/10.
 - Feed, Story e Apresentação abrem com uma tela Livre vazia, sem cliente e sem peça. O que estava aberto da última vez (rascunho do navegador, de cada pessoa) fica guardado à parte e volta com **Continuar de onde parei**; ou abra pela lista de peças.
 - "Recomeçar do zero" e trocar de cliente também começam em branco (antes voltavam os slides de exemplo).
 - Link `/feed?peca=<id>` (aviso do Escritório) continua abrindo a peça direto.
+
+## Carrossel Tweet: tamanho do texto igual em todas as telas (PR #48)
+- Estilo → **Tamanho do texto**: "Automático" (como antes, letra menor nas telas com mais texto) ou "Igual em todas", com controle de 28 a 72 px.
+- Ao escolher "Igual em todas", começa no maior tamanho que cabe em todas as telas (o da tela com mais texto); acima dele, aviso de que a tela mais cheia pode estourar e botão para voltar ao tamanho que cabe.

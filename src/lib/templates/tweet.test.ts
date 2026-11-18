@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderTweetSlide, tweetFontSize } from "./tweet";
+import { renderTweetSlide, tweetFontSize, uniformTweetFontSize } from "./tweet";
 import { formatRichText, safeImageSrc } from "./utils";
 
 const profile = { name: "Maria Silva", handle: "@maria", verified: true };
@@ -57,5 +57,23 @@ describe("tweetFontSize", () => {
   it("diminui a fonte conforme o texto cresce", () => {
     expect(tweetFontSize("curto", false)).toBeGreaterThan(tweetFontSize("x".repeat(300), false));
     expect(tweetFontSize("curto", true)).toBeLessThan(tweetFontSize("curto", false));
+  });
+});
+
+describe("tamanho do texto igual em todas as telas", () => {
+  const profile = { name: "Fulano", handle: "fulano", avatar: null, verified: false };
+  const curto = { text: "Frase curta." };
+  const longo = { text: "x ".repeat(200) };
+  const size = (html: string) => Number(html.match(/\.text\{margin-top:44px;font-size:(\d+)px/)?.[1]);
+
+  it("automático muda por tela; fixo é o mesmo em todas", () => {
+    const auto = (s: { text: string }) => size(renderTweetSlide({ slide: s, profile, style: { theme: "light", size: "portrait-3x4" }, fontCss: "" }));
+    expect(auto(curto)).toBeGreaterThan(auto(longo));
+    const fixo = (s: { text: string }) => size(renderTweetSlide({ slide: s, profile, style: { theme: "light", size: "portrait-3x4", fontSize: 44 }, fontCss: "" }));
+    expect(fixo(curto)).toBe(fixo(longo));
+  });
+
+  it("o tamanho igual sugerido é o da tela com mais texto", () => {
+    expect(uniformTweetFontSize([curto, longo])).toBe(tweetFontSize(longo.text, false));
   });
 });
