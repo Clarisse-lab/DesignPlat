@@ -26,6 +26,16 @@ export interface TweetStyle {
   size: TweetCanvasSizeId;
   /** Fonte do card; rascunhos antigos sem esse campo usam Inter. */
   font?: TweetFontId;
+  /** Tamanho do texto igual em todas as telas (px, antes da escala da fonte). Sem ele: automático por tela. */
+  fontSize?: number | null;
+}
+
+export const TWEET_FONT_SIZE_MIN = 28;
+export const TWEET_FONT_SIZE_MAX = 72;
+
+/** O maior tamanho igual para todas as telas que não estoura nenhuma (o menor dos automáticos). */
+export function uniformTweetFontSize(slides: TweetSlide[]): number {
+  return Math.min(...slides.map((s) => tweetFontSize(s.text, Boolean(s.image))));
 }
 
 const THEMES: Record<TweetTheme, { bg: string; text: string; muted: string; border: string }> = {
@@ -62,7 +72,10 @@ export function renderTweetSlide(params: {
   const imageSrc = safeImageSrc(slide.image);
   const handle = profile.handle.trim().replace(/^@+/, "");
   const font = TWEET_FONTS[style.font ?? "inter"] ?? TWEET_FONTS.inter;
-  const fontSize = Math.round(tweetFontSize(slide.text, Boolean(imageSrc)) * font.scale);
+  const base = style.fontSize
+    ? Math.min(TWEET_FONT_SIZE_MAX, Math.max(TWEET_FONT_SIZE_MIN, style.fontSize))
+    : tweetFontSize(slide.text, Boolean(imageSrc));
+  const fontSize = Math.round(base * font.scale);
 
   const avatar = avatarSrc
     ? `<img class="avatar" src="${avatarSrc}" alt=""/>`

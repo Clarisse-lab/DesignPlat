@@ -20,6 +20,7 @@ export const tweetStyleSchema = z.object({
   theme: z.enum(["light", "dark"]),
   size: z.enum(TWEET_CANVAS_SIZES),
   font: z.enum(TWEET_FONT_IDS as [TweetFontId, ...TweetFontId[]]).optional(),
+  fontSize: z.number().int().min(20).max(100).nullish(),
 });
 
 export const tweetSlideSchema = z.object({

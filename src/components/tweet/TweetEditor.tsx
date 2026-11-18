@@ -21,7 +21,14 @@ import { downloadRender, generateCarousel } from "@/lib/client/api";
 import { imageFileToDataUrl } from "@/lib/client/image";
 import { CANVAS_SIZES, TWEET_CANVAS_SIZES } from "@/lib/formats";
 import { browserFontCss, TWEET_FONT_IDS, TWEET_FONTS } from "@/lib/templates/fonts";
-import { renderTweetSlide, type TweetProfile, type TweetStyle } from "@/lib/templates/tweet";
+import {
+  renderTweetSlide,
+  TWEET_FONT_SIZE_MAX,
+  TWEET_FONT_SIZE_MIN,
+  uniformTweetFontSize,
+  type TweetProfile,
+  type TweetStyle,
+} from "@/lib/templates/tweet";
 import { MAX_SLIDES } from "@/lib/tweet/schema";
 import { newSlide, useTweetDraft, type EditorSlide } from "./useTweetDraft";
 
@@ -276,6 +283,50 @@ export function TweetEditor() {
                   onChange={(font) => updateStyle({ font })}
                   options={TWEET_FONT_IDS.map((id) => ({ value: id, label: TWEET_FONTS[id].label }))}
                 />
+              </Field>
+              <Field label="Tamanho do texto">
+                <div className="space-y-2">
+                  <Segmented
+                    value={style.fontSize ? "igual" : "auto"}
+                    onChange={(mode) => updateStyle({ fontSize: mode === "igual" ? uniformTweetFontSize(slides) : null })}
+                    options={[
+                      { value: "auto", label: "Automático" },
+                      { value: "igual", label: "Igual em todas" },
+                    ]}
+                  />
+                  {style.fontSize ? (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={TWEET_FONT_SIZE_MIN}
+                          max={TWEET_FONT_SIZE_MAX}
+                          step={1}
+                          value={style.fontSize}
+                          onChange={(e) => updateStyle({ fontSize: Number(e.target.value) })}
+                          className="flex-1 accent-accent"
+                          aria-label="Tamanho do texto"
+                        />
+                        <span className="w-12 text-right text-[13px] tabular-nums text-ink-soft">{style.fontSize} px</span>
+                      </div>
+                      <p className="text-[12px] leading-relaxed text-ink-faint">
+                        Vale para todas as telas.{" "}
+                        {style.fontSize > uniformTweetFontSize(slides) ? (
+                          <>
+                            Acima de {uniformTweetFontSize(slides)} px, a tela com mais texto pode estourar.{" "}
+                            <button type="button" onClick={() => updateStyle({ fontSize: uniformTweetFontSize(slides) })} className="font-medium text-accent underline">
+                              Usar {uniformTweetFontSize(slides)} px
+                            </button>
+                          </>
+                        ) : (
+                          "Cabe em todas as telas."
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-[12px] text-ink-faint">Telas com mais texto ficam com letra menor.</p>
+                  )}
+                </div>
               </Field>
               <Field label="Proporção">
                 <select value={style.size} onChange={(e) => updateStyle({ size: e.target.value as TweetStyle["size"] })} className={inputClass}>
