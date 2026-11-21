@@ -13,7 +13,8 @@ interface ImageJob {
   aspect?: string;
 }
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Undo2, Wand2 } from "lucide-react";
+import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Sparkles, Undo2, Wand2 } from "lucide-react";
+import { fitSlides } from "@/lib/review/ajuste";
 import { ReviewDialog } from "./ReviewDialog";
 import { ApprovalDialog, StatusChip, useApprovals } from "./ApprovalDialog";
 import { useUndoHistory } from "@/components/editor/useUndoHistory";
@@ -184,6 +185,47 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
 
   const showError = (text: string) => setMessage({ kind: "error", text });
   const showInfo = (text: string) => setMessage({ kind: "info", text });
+  // Arrumar telas: mede cada tela Livre e corrige sobreposição, texto fora da tela e letra pequena.
+  // Roda sozinho depois de gerar o carrossel, de "Outra versão" e de aplicar um modelo em todas as telas.
+  const pendingFit = useRef<{ silent: boolean } | null>(null);
+  const [fitting, setFitting] = useState(false);
+  const runFit = async (silent: boolean) => {
+    const snapshot = slides;
+    if (!snapshot.some((sl) => sl.layout === "livre" && sl.free)) {
+      if (!silent) showInfo("Não há telas no estilo Livre para arrumar.");
+      return;
+    }
+    setFitting(true);
+    try {
+      const fixed = await fitSlides({ slides: snapshot, brand, style });
+      if (fixed.size) {
+        setDraft((d) => ({
+          ...d,
+          slides: d.slides.map((sl) => {
+            const els = fixed.get(sl.id);
+            const before = snapshot.find((x) => x.id === sl.id);
+            // Só aplica se a tela não mudou enquanto media (a pessoa pode ter editado nesse meio tempo).
+            if (!els || !sl.free || !before?.free || sl.free.elements !== before.free.elements) return sl;
+            return { ...sl, free: { ...sl.free, elements: els } };
+          }),
+        }));
+      }
+      if (!silent || fixed.size) {
+        showInfo(fixed.size ? `${fixed.size} tela${fixed.size > 1 ? "s" : ""} arrumada${fixed.size > 1 ? "s" : ""}: sem texto em cima de texto, dentro da margem e com letra legível.` : "As telas já estão arrumadas.");
+      }
+    } catch {
+      if (!silent) showError("Não consegui medir as telas agora. Tente de novo.");
+    } finally {
+      setFitting(false);
+    }
+  };
+  useEffect(() => {
+    if (!pendingFit.current) return;
+    const opt = pendingFit.current;
+    pendingFit.current = null;
+    void runFit(opt.silent);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slides]);
   const updateBrand = (patch: Partial<FeedBrand>) => setDraft((d) => ({ ...d, brand: { ...d.brand, ...patch } }));
   const updateStyle = (patch: Partial<FeedStyle>) => setDraft((d) => ({ ...d, style: { ...d.style, ...patch } }));
   const updateActive = (patch: Partial<FeedEditorSlide>) =>
@@ -413,6 +455,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     }));
     setActiveIndex(0);
     setSelectedElement(null);
+    pendingFit.current = { silent: true };
     if (hadContent) {
       showInfo(
         saved
@@ -451,6 +494,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       }),
     }));
     setSelectedElement(null);
+    pendingFit.current = { silent: true };
     showInfo("Nova versão do design aplicada. O texto e as fotos continuam os mesmos.");
   };
 
@@ -466,6 +510,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       }),
     }));
     setSelectedElement(null);
+    pendingFit.current = { silent: true };
     showInfo(`Modelo "${presetById(id).label}" aplicado nas telas internas.`);
   };
 
@@ -924,6 +969,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
               <Redo2 className="h-4 w-4" />
             </button>
           </div>
+          {slides.some((sl) => sl.layout === "livre") && (
+            <ToolbarButton icon={Sparkles} busy={fitting} disabled={fitting} onClick={() => void runFit(false)}>
+              Arrumar telas
+            </ToolbarButton>
+          )}
           <MenuButton icon={MoreHorizontal} label="Mais" items={moreItems} />
           {slides.some((sl) => sl.layout === "livre") && (
             <ToolbarButton icon={Shuffle} disabled={generatingImages} onClick={shuffleDesign}>
