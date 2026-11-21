@@ -380,8 +380,11 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
       if (options.style === "editorial") {
-        const prompt = (it.imagem ?? "").trim();
-        const photoAvailable = prompt.length >= 5 && (options.images === "todas" || (options.images === "capa" && k === 0));
+        const wants = options.images === "todas" || (options.images === "capa" && k === 0);
+        // Capa ou foto cheia sem descrição de cena: a cena sai do próprio título (melhor que tela sem foto).
+        const needsPhoto = it.tela === "capa-foto" || it.tela === "foto-texto" || (k === 0 && !it.tela);
+        const prompt = (it.imagem ?? "").trim() || (wants && needsPhoto ? `Foto realista e documental que ilustra: ${it.titulo.replace(/\*\*/g, "")}` : "");
+        const photoAvailable = prompt.length >= 5 && wants;
         const m = fromGeneratedEditorial(it, photoAvailable) ?? mapToEditorial(it, k, list.length, photoAvailable);
         const slide = newFeedSlide({ layout: "editorial", title: m.title, body: m.body, editorial: m.editorial });
         if (m.foto) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: m.zone, style: options.estilo?.dados.imagem?.estilo ?? "auto" });

@@ -245,7 +245,7 @@ export function renderEditorialSlide(params: {
       const items = editorialItems(params.body);
       const size = Math.round(tTitle([[60, 60], [110, 52], [170, 46]], 42) * (photo ? 0.92 : boost));
       const longest = Math.max(0, ...items.map((i) => i.label.length + i.text.length));
-      const isz = items.length <= 3 && longest <= 90 ? 38 : items.length <= 4 && longest <= 120 ? 34 : 30;
+      const isz = Math.round((items.length <= 3 && longest <= 90 ? 38 : items.length <= 4 && longest <= 120 ? 34 : 30) * (photo ? 1 : 1.18));
       inner = `<div class="col">
         ${photo ? imgFrame(260, "margin-bottom:48px;flex:1 1 0") : ""}
         ${hasTitle ? `<h2 class="t" style="font-size:${size}px;margin-bottom:36px">${title}</h2>` : ""}
@@ -336,7 +336,7 @@ export function renderEditorialSlide(params: {
       const items = editorialItems(params.body);
       const size = tTitle([[40, 66], [80, 58], [130, 50]], 44);
       const longest = Math.max(0, ...items.map((i) => i.label.length + i.text.length));
-      const isz = longest <= 70 ? 40 : longest <= 110 ? 36 : 32;
+      const isz = Math.round((longest <= 70 ? 40 : longest <= 110 ? 36 : 32) * (items.length <= 3 ? 1.15 : 1.05));
       inner = `<div class="col mid">
         ${hasTitle ? `<h2 class="t" style="font-size:${size}px;margin-bottom:44px">${title}</h2>` : ""}
         <ul class="check" style="font-size:${isz}px">
