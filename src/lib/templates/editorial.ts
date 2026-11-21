@@ -282,7 +282,7 @@ export function renderEditorialSlide(params: {
     }
     case "respiro": {
       const size = tTitle([[60, 104], [100, 90], [150, 78], [220, 66]], 58);
-      const bsize = tBody([[120, 36], [220, 33]], 30);
+      const bsize = tBody([[120, 42], [220, 38], [320, 34]], 32);
       inner = `<div class="col">
         ${hasTitle ? `<h2 class="t serif" style="font-size:${size}px">${title}</h2>` : ""}
         <div class="fill"></div>
@@ -291,12 +291,12 @@ export function renderEditorialSlide(params: {
       break;
     }
     case "cta-comente": {
-      const size = tTitle([[70, 60], [120, 54], [180, 48]], 44);
+      const size = Math.round(tTitle([[70, 60], [120, 54], [180, 48]], 44) * (photo ? 1 : 1.2));
       const palavra = (ed.palavra ?? "").trim().replace(/^["“]|["”]$/g, "").toUpperCase().slice(0, 18) || "QUERO";
       const psize = palavra.length <= 8 ? 64 : palavra.length <= 12 ? 54 : 44;
-      inner = `<div class="col">
+      inner = `<div class="col${photo ? "" : " mid"}">
         ${hasTitle ? `<h2 class="t" style="font-size:${size}px">${title}</h2>` : ""}
-        ${photo ? imgFrame(280, "margin:48px 0 44px;border-radius:26px;box-shadow:0 24px 60px rgba(0,0,0,.18)") : `<div class="fill"></div>`}
+        ${photo ? imgFrame(280, "margin:48px 0 44px;border-radius:26px;box-shadow:0 24px 60px rgba(0,0,0,.18)") : `<div style="height:90px;flex:none"></div>`}
         <div class="bar">
           ${avatar(brand, 96, tk.accent)}
           <span class="lbl">Comente</span>
@@ -304,7 +304,6 @@ export function renderEditorialSlide(params: {
           <span class="go"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
         </div>
         ${hasBody ? `<p class="after">${formatRichText(params.body)}</p>` : ""}
-        ${photo ? "" : `<div class="fill"></div>`}
       </div>`;
       break;
     }
@@ -374,7 +373,7 @@ export function renderEditorialSlide(params: {
     case "equacao": {
       const parts = editorialItems(params.body.replace(/^\s*=\s*/gm, ""));
       const [a, b, r] = [parts[0], parts[1], parts[2]];
-      const size = tTitle([[80, 58], [140, 50], [220, 44]], 40);
+      const size = tTitle([[80, 64], [140, 56], [220, 48]], 42);
       const box = (it: { label: string; text: string } | undefined, cls: string) =>
         it ? `<div class="eq ${cls}"><h3>${escapeHtml(it.label || it.text)}</h3>${it.label ? `<p>${formatRichText(it.text.charAt(0).toUpperCase() + it.text.slice(1))}</p>` : ""}</div>` : "";
       inner = `<div class="col">
@@ -459,11 +458,11 @@ ${onAccent ? `.t strong,.s strong{text-decoration:underline;text-decoration-thic
 .blank{color:${hl};text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:7px}
 .eqrow{display:flex;align-items:stretch;gap:18px}
 .eq{border-radius:24px;padding:42px 38px;display:flex;flex-direction:column}
-.eq.dk{flex:1 1 0;background:${tk.escuro};color:#F6F6F4;min-height:440px}
+.eq.dk{flex:1 1 0;background:${tk.escuro};color:#F6F6F4;min-height:480px}
 .eq.lt{background:#FFFFFF;color:#101114;text-align:center;align-items:center}
-.eq h3{font-size:54px;font-weight:700;letter-spacing:-.035em;line-height:1.05}
-.eq.dk p{margin-top:auto;padding-top:26px;font-size:32px;line-height:1.28;color:rgba(246,246,244,.78)}
-.eq.lt p{margin-top:16px;font-size:33px;line-height:1.28;color:rgba(16,17,20,.7)}
+.eq h3{font-size:60px;font-weight:700;letter-spacing:-.035em;line-height:1.05}
+.eq.dk p{margin-top:auto;padding-top:26px;font-size:37px;line-height:1.28;color:rgba(246,246,244,.78)}
+.eq.lt p{margin-top:16px;font-size:37px;line-height:1.28;color:rgba(16,17,20,.7)}
 .op{align-self:center;font-size:64px;font-weight:700;color:${ink}}
 .op.down{text-align:center;margin:14px 0}
 `;

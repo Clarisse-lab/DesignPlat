@@ -382,7 +382,7 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
       if (options.style === "editorial") {
         const wants = options.images === "todas" || (options.images === "capa" && k === 0);
         // Capa ou foto cheia sem descrição de cena: a cena sai do próprio título (melhor que tela sem foto).
-        const needsPhoto = it.tela === "capa-foto" || it.tela === "foto-texto" || (k === 0 && !it.tela);
+        const needsPhoto = it.tela === "capa-foto" || it.tela === "capa-impacto" || it.tela === "foto-texto" || (k === 0 && !it.tela);
         const prompt = (it.imagem ?? "").trim() || (wants && needsPhoto ? `Foto realista e documental que ilustra: ${it.titulo.replace(/\*\*/g, "")}` : "");
         const photoAvailable = prompt.length >= 5 && wants;
         const m = fromGeneratedEditorial(it, photoAvailable) ?? mapToEditorial(it, k, list.length, photoAvailable);

@@ -137,7 +137,7 @@ export function expandEditorial(slides: EditorialRawSlide[], max = 14): Editoria
 
 /** Telas que só funcionam com foto: sem foto, viram a versão sem foto mais próxima. */
 const NEEDS_PHOTO: Partial<Record<EditorialTela, EditorialTela>> = { "capa-foto": "capa-impacto", "foto-texto": "frase-imagem" };
-const TAKES_PHOTO = new Set<EditorialTela>(["capa-foto", "foto-texto", "frase-imagem", "imagem-lista", "frase", "cta-comente"]);
+const TAKES_PHOTO = new Set<EditorialTela>(["capa-foto", "capa-impacto", "foto-texto", "frase-imagem", "imagem-lista", "frase", "cta-comente"]);
 
 /** Tela escrita pela IA já com o tipo: aplica a regra da foto e monta o slide Editorial. */
 export function fromGeneratedEditorial(
@@ -162,6 +162,6 @@ export function fromGeneratedEditorial(
     body: it.texto.trim(),
     editorial: ed,
     foto,
-    zone: tela === "capa-foto" || tela === "foto-texto" ? "inferior" : "nenhuma",
+    zone: tela === "capa-foto" || tela === "capa-impacto" || tela === "foto-texto" ? "inferior" : "nenhuma",
   };
 }

@@ -16,9 +16,9 @@ export type Roteiro = (typeof ROTEIROS)[number];
 /** O que a equipe pediu de fotos: sem isso a IA tende a escolher telas só de texto. */
 const FOTOS: Record<"nenhuma" | "capa" | "todas", string> = {
   nenhuma: "FOTOS: nenhuma. Use capa-impacto na capa e deixe \"imagem\" vazio em todas as telas.",
-  capa: "FOTOS: só na capa. A capa é capa-foto, com a cena descrita em \"imagem\". Nas outras telas, \"imagem\" vazio.",
+  capa: "FOTOS: só na capa, com a cena descrita em \"imagem\". Nas outras telas, \"imagem\" vazio.",
   todas:
-    "FOTOS: a equipe vai gerar fotos. A capa é capa-foto, com a cena em \"imagem\". Além dela, de 2 a 4 telas do meio levam foto (foto-texto, frase-imagem, imagem-lista ou frase), cada uma com a cena em \"imagem\"; espalhe essas telas pelo carrossel. Nas telas sem foto, \"imagem\" vazio.",
+    "FOTOS: a equipe vai gerar fotos, e o estilo depende delas (como nos carrosséis de referência, a maioria das telas tem imagem). A capa leva foto. Toda tela frase-imagem, foto-texto, imagem-lista, frase e cta-comente leva a cena em \"imagem\" (no CTA, o material oferecido sobre uma mesa). Só passo, checklist, revela, lacunas, equacao e respiro ficam sem foto; use no máximo 3 dessas no carrossel.",
 };
 
 export const editorialCarouselSchema = z.object({
@@ -65,8 +65,8 @@ const MOLDES = [
 ];
 
 const TELAS: Record<EditorialTela, string> = {
-  "capa-foto": "capa com foto na tela toda. título = manchete de 60 a 140 caracteres, com o fim (3 a 6 palavras) entre **asteriscos**. texto vazio. Precisa de foto",
-  "capa-impacto": "capa sem foto, em caixa alta condensada. título = manchete curta de até 70 caracteres, com 1 a 3 palavras entre **asteriscos**. texto vazio",
+  "capa-foto": "capa com foto na tela toda e manchete em frase (não caixa alta). Só quando a manchete passa de 75 caracteres. título = 60 a 140 caracteres, com o fim (3 a 6 palavras) entre **asteriscos**. texto vazio. Precisa de foto",
+  "capa-impacto": "capa em caixa alta condensada, com ou sem foto de fundo (a preferida da equipe). título = manchete de até 75 caracteres, com 1 a 3 palavras entre **asteriscos**. texto vazio",
   "frase-imagem": "a tela padrão. título = uma ideia em frase completa de 80 a 200 caracteres (2 a 4 linhas), com no máximo um trecho entre **asteriscos**. texto = apoio de até 160 caracteres. Foto opcional (print, cena, produto)",
   "foto-texto": "foto na tela toda com o texto embaixo; para cena forte ou virada. título até 140 caracteres; texto até 140. Precisa de foto",
   "imagem-lista": "lista com setas. título = frase que abre a lista (até 90). texto = 3 a 5 itens, um por linha, no formato \"Rótulo curto: explicação\" (até 90 caracteres cada). Foto opcional em cima",
