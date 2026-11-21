@@ -85,7 +85,7 @@ export function textZoneOfFree(free: Pick<FreeSlide, "elements"> | null | undefi
 
 // ---------- Estilos ----------
 
-export const IMAGE_STYLES = ["auto", "natural", "rua", "editorial", "produto", "conceito", "recorte"] as const;
+export const IMAGE_STYLES = ["auto", "natural", "rua", "editorial", "produto", "conceito", "recorte", "jornalistico"] as const;
 export type ImageStyle = (typeof IMAGE_STYLES)[number];
 
 export const IMAGE_STYLE_LABELS: Record<ImageStyle, { label: string; hint: string }> = {
@@ -96,6 +96,7 @@ export const IMAGE_STYLE_LABELS: Record<ImageStyle, { label: string; hint: strin
   produto: { label: "Produto / objeto", hint: "Objeto em destaque, still" },
   conceito: { label: "Conceito", hint: "Metáfora visual da ideia" },
   recorte: { label: "Recorte retrô", hint: "Gravura P&B em meio-tom, fundo branco, para colagem" },
+  jornalistico: { label: "Fotojornalismo", hint: "Foto de reportagem: o assunto da tela, de verdade, com impacto" },
 };
 
 const STYLE_PROMPTS: Record<ImageStyle, string> = {
@@ -114,6 +115,10 @@ const STYLE_PROMPTS: Record<ImageStyle, string> = {
     "STYLE: high-end product still life. One hero object, clean considered set, controlled soft shadows, tactile materials and texture, crisp focus on the object.",
   conceito:
     "STYLE: conceptual visual metaphor of the idea, simple and bold, one clear focal element, artful lighting; no literal infographic and no text.",
+  jornalistico:
+    "STYLE: documentary photojournalism for a news magazine feature (think Folha, Piauí, The New York Times). A real, specific moment in a real Brazilian place that SHOWS the subject literally (the actual people, objects, documents, screens or places involved), never a symbolic metaphor. " +
+    "One strong subject with a clear action or tension, decisive and bold composition (tight close-up of a telling detail, or a wide shot where the place tells the story), natural available light, true-to-life colors with crisp contrast, real textures and lived-in details. " +
+    "Avoid stock-photo clichés: no generic coffee cups, no empty desks with notebooks, no garden paths, no doors, no sunsets, no posed smiling models, no soft dreamy glow, no golden-hour haze.",
   recorte:
     "STYLE: a single vintage black-and-white halftone engraving cutout (1950s print, high contrast, visible dot screen) of ONE object or anonymous retro figure that works as a visual metaphor of the idea. Isolated on a PURE WHITE, completely plain background: no shadow on the floor, no scenery, no frame, no color except black, grays and white. The object fills most of the frame and is fully visible (not cropped).",
 };
@@ -220,7 +225,7 @@ export function buildImageInstructions(input: ImageDirectionInput): string {
   const variation = input.variation ?? [];
   const look = cutout
     ? ""
-    : input.style === "rua"
+    : input.style === "rua" || input.style === "jornalistico"
       ? (variation[1] ?? "").replace(" with shallow depth of field", "")
       : variation.filter(Boolean).join("; ");
   return [

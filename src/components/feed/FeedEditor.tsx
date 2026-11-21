@@ -387,7 +387,9 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
         const photoAvailable = prompt.length >= 5 && wants;
         const m = fromGeneratedEditorial(it, photoAvailable) ?? mapToEditorial(it, k, list.length, photoAvailable);
         const slide = newFeedSlide({ layout: "editorial", title: m.title, body: m.body, editorial: m.editorial });
-        if (m.foto) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: m.zone, style: options.estilo?.dados.imagem?.estilo ?? "auto" });
+        // Editorial: foto de reportagem (o assunto de verdade), a não ser que o estilo do cliente diga outra coisa.
+        const imgStyle = options.estilo?.dados.imagem?.estilo;
+        if (m.foto) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: m.zone, style: imgStyle && imgStyle !== "auto" ? imgStyle : "jornalistico" });
         return slide;
       }
       const layouts = options.estilo?.dados.layouts;
