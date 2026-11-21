@@ -148,6 +148,26 @@ export function StylePanel({
             </select>
           </Field>
         )}
+        <Field label="Faixa do topo (layout Editorial)">
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={style.editorial?.esquerda ?? ""}
+              maxLength={60}
+              placeholder="Esquerda: nome da marca"
+              onChange={(e) => onChange({ editorial: { ...(style.editorial ?? {}), esquerda: e.target.value || undefined } })}
+              className={inputClass}
+              aria-label="Texto da faixa do topo, à esquerda"
+            />
+            <input
+              value={style.editorial?.direita ?? ""}
+              maxLength={40}
+              placeholder={`Direita: ${new Date().getFullYear()} //`}
+              onChange={(e) => onChange({ editorial: { ...(style.editorial ?? {}), direita: e.target.value || undefined } })}
+              className={inputClass}
+              aria-label="Texto da faixa do topo, à direita"
+            />
+          </div>
+        </Field>
         <label className="flex items-center gap-2 text-[13px] text-ink-soft">
           <input
             type="checkbox"

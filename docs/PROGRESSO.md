@@ -107,6 +107,13 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
 
 - **Integração com o Escritório (04/11/2026):** o Design Mantora continua no Railway e o Escritório chama a API. Imagem gerada por IA fica de fora (custo); as peças saem dos templates HTML. A peça vai direto para aprovação no Escritório; ajuste no editor fica para depois.
 
+- **Layout Editorial (pronto)** (21/11/2026), etapa 1 do plano em `claude/estilo-editorial-carrossel.md` (projeto do Claude), a partir do estudo dos carrosséis do @brandsdecoded__.
+  - Telas em fluxo, sem posições absolutas: o texto empurra a imagem, então nada se sobrepõe. Código em `src/lib/templates/editorial.ts`.
+  - 8 tipos de tela: capa com foto, capa impacto, frase + imagem, imagem + lista, foto + texto, passo a passo, respiro (serifada em fundo creme) e CTA "Comente PALAVRA".
+  - Faixa no topo (texto livre | @ | "ANO //"), uma cor de destaque (clareada no fundo escuro quando precisa), fundos que se alternam sozinhos (capa escura ou foto, meio claro/escuro, respiro creme, fechamento claro).
+  - O gerador tem a opção **Editorial (pronto)**, padrão quando o cliente não tem estilo próprio. A escolha da tela por posição e tipo fica em `src/lib/feed/editorial-map.ts` (a etapa 2 passa essa escolha para a IA, com roteiros notícia/caso/ensaio).
+  - Cada tela pode trocar o tipo e o fundo no editor; a faixa do topo fica em Estilo.
+
 ## Próximos passos
 
 1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic. (A Clarisse decidiu adiar enquanto a IA não for ligada.)
