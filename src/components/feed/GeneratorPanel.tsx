@@ -29,6 +29,12 @@ export interface GeneratedSlide {
   rosto?: boolean;
   /** Estilo com telas próprias: qual tela interna usar. */
   variante?: number;
+  /** Layout Editorial: tipo de tela escolhido pela IA e os campos dela. */
+  tela?: string;
+  palavra?: string;
+  fonte?: string;
+  sinal?: "" | "sim" | "nao";
+  ativo?: number;
 }
 
 export type GeneratorStyle = "revista" | "classico" | "editorial";
@@ -144,11 +150,14 @@ export function GeneratorPanel({
           capa: style === "revista" && capa && !estiloId ? capa : null,
           interno: style === "revista" && interno && !estiloId ? interno : null,
           estiloId: style === "revista" && estiloId ? estiloId : null,
+          editorial: style === "editorial",
         }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar.");
-      onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).`);
+      const roteiro: Record<string, string> = { noticia: "notícia", caso: "caso", ensaio: "ensaio", novidades: "novidades", metodo: "método" };
+      const como = data.roteiro ? ` Roteiro: ${roteiro[data.roteiro] ?? data.roteiro}${data.molde ? `, molde de capa ${data.molde}` : ""}.` : "";
+      onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).${como}`);
       onGenerated(data.slides, data.legenda ?? "", { style, images: style === "classico" ? "nenhuma" : images, estilo: data.estilo ?? null, capaAnimada });
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao gerar.");
@@ -216,7 +225,7 @@ export function GeneratorPanel({
         {style === "editorial" && (
           <div className="space-y-2">
             <p className="text-[11.5px] leading-relaxed text-ink-faint">
-              Telas em fluxo no estilo jornalístico: faixa no topo, uma cor de destaque, fundos que se alternam e CTA de comentário. Cores e @ vêm do kit do cliente.
+              Telas em fluxo no estilo jornalístico: a IA escolhe o roteiro, escreve a capa num molde testado e cada tela no formato do tipo dela (lista, passos, citação, checklist, CTA de comentário). Cores e @ vêm do kit do cliente.
             </p>
             <select value={images} onChange={(e) => setImages(e.target.value as GeneratorImages)} className={inputClass} aria-label="Imagens com IA">
               <option value="nenhuma">Imagens com IA: não gerar</option>

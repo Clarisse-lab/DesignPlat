@@ -244,16 +244,38 @@ export function SlideFields({
               ))}
             </select>
           </Field>
-          {ed.tela === "passo" && (
-            <Field label="Etiqueta acima dos passos">
-              <input value={ed.etiqueta ?? ""} maxLength={40} placeholder="PASSO A PASSO" onChange={(e) => setEd({ etiqueta: e.target.value })} className={inputClass} />
+          {(ed.tela === "passo" || ed.tela === "frase") && (
+            <Field label={ed.tela === "frase" ? "Etiqueta acima da frase" : "Etiqueta acima dos passos"}>
+              <input value={ed.etiqueta ?? ""} maxLength={40} placeholder={ed.tela === "frase" ? "FRASE 1" : "PASSO A PASSO"} onChange={(e) => setEd({ etiqueta: e.target.value })} className={inputClass} />
             </Field>
+          )}
+          {ed.tela === "revela" && (
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Item aberto">
+                <select value={ed.ativo ?? 0} onChange={(e) => setEd({ ativo: Number(e.target.value) })} className={inputClass}>
+                  {Array.from({ length: Math.max(1, Math.min(6, slide.body.split("\n").filter((l) => l.trim()).length)) }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i + 1}º item
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Sinal">
+                <select value={ed.sinal ?? "sim"} onChange={(e) => setEd({ sinal: e.target.value as "sim" | "nao" })} className={inputClass}>
+                  <option value="sim">✓ o que fazer</option>
+                  <option value="nao">✕ o que evitar</option>
+                </select>
+              </Field>
+            </div>
           )}
           {ed.tela === "cta-comente" && (
             <Field label="Palavra para comentar">
               <input value={ed.palavra ?? ""} maxLength={18} placeholder="Ex.: GUIA" onChange={(e) => setEd({ palavra: e.target.value })} className={inputClass} />
             </Field>
           )}
+          <Field label="Fonte da informação (opcional)">
+            <input value={ed.fonte ?? ""} maxLength={90} placeholder="Ex.: Receita Federal" onChange={(e) => setEd({ fonte: e.target.value })} className={inputClass} />
+          </Field>
           {slide.image && fields.image && (
             <Field label="Crédito da foto (opcional)">
               <input value={ed.credito ?? ""} maxLength={80} placeholder="Ex.: Foto: Pexels" onChange={(e) => setEd({ credito: e.target.value })} className={inputClass} />

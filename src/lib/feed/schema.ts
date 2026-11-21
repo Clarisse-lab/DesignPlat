@@ -79,6 +79,9 @@ export const editorialSlideSchema = z.object({
   etiqueta: z.string().max(40).optional(),
   palavra: z.string().max(24).optional(),
   credito: z.string().max(80).optional(),
+  fonte: z.string().max(90).optional(),
+  ativo: z.number().int().min(0).max(9).optional(),
+  sinal: z.enum(["sim", "nao"]).optional(),
 });
 export const editorialTokensSchema = z.object({
   esquerda: z.string().max(60).optional(),

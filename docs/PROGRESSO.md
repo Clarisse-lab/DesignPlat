@@ -114,6 +114,11 @@ A ferramenta Carrossel Tweet foi replicada da **Central Mantora**, que fica em d
   - O gerador tem a opção **Editorial (pronto)**, padrão quando o cliente não tem estilo próprio. A escolha da tela por posição e tipo fica em `src/lib/feed/editorial-map.ts` (a etapa 2 passa essa escolha para a IA, com roteiros notícia/caso/ensaio).
   - Cada tela pode trocar o tipo e o fundo no editor; a faixa do topo fica em Estilo.
 
+- **Editorial, etapa 2: copy tela por tela** (21/11/2026).
+  - Com "Editorial (pronto)", a geração usa `src/lib/ai/editorial-copy.ts`: a IA escolhe o roteiro (notícia, caso, ensaio, novidades ou método), o molde de capa (os 50 do guia da BrandsDecoded) e o tipo de cada tela, e escreve cada uma no formato e no tamanho do tipo. Regras de texto: fato concreto na capa, fonte declarada, um destaque por tela, tela que traduz para o negócio do leitor, CTA com isca concreta.
+  - 5 telas novas: lista que abre um item por tela (a IA escreve uma, o sistema desdobra uma tela por item), checklist, citação numerada, modelo para preencher e equação ("na nossa leitura"). Fundo novo na cor de destaque e linha "Fonte:" no pé.
+  - Sem foto, a capa com foto vira capa impacto e a foto + texto vira frase (`fromGeneratedEditorial`).
+
 ## Próximos passos
 
 1. **Senha de acesso:** hoje o link está aberto para qualquer pessoa. Fazer antes de ligar a IA, para ninguém gastar os créditos da Anthropic. (A Clarisse decidiu adiar enquanto a IA não for ligada.)

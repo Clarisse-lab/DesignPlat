@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { GenerationError } from "@/lib/ai/claude";
 import { generateStudioCarousel } from "@/lib/ai/carousel-from-copy";
+import { generateEditorialCarousel } from "@/lib/ai/editorial-copy";
 import { isResponse, requireMember } from "@/lib/server/auth";
 import { hasLayouts } from "@/lib/estilos";
 import { loadEstilo } from "@/lib/server/estilos";
@@ -27,6 +28,8 @@ const schema = z
     interno: z.string().max(40).nullish(),
     /** Estilo de referência (design_estilos). Com ele, capa e interno são ignorados. */
     estiloId: z.string().uuid().nullish(),
+    /** Layout Editorial: a IA escreve cada tela já no formato do tipo dela. */
+    editorial: z.boolean().nullish(),
   })
   .refine((v) => v.pautaId || (v.tema && v.tema.length >= 5), { message: "Escolha uma pauta ou escreva o tema." });
 
@@ -45,7 +48,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Pedido inválido." }, { status: 400 });
-  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno, estiloId } = parsed.data;
+  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno, estiloId, editorial } = parsed.data;
 
   const estilo = estiloId ? await loadEstilo(estiloId).catch(() => null) : null;
   if (estiloId && !estilo) return NextResponse.json({ error: "Estilo não encontrado." }, { status: 404 });
@@ -67,7 +70,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await generateStudioCarousel({
+    const result = editorial
+      ? await generateEditorialCarousel({
+          nome,
+          handle,
+          slideCount: slides ?? null,
+          pauta: pauta ? { titulo: pauta.titulo, formato: pauta.formato, angulo: pauta.angulo, copy: pauta.copy! } : null,
+          tema: tema ?? null,
+        })
+      : await generateStudioCarousel({
       nome,
       handle,
       slideCount: slides ?? null,
@@ -75,7 +86,7 @@ export async function POST(request: Request) {
       tema: tema ?? null,
       prefer: [capa ? `use ${capa} na capa` : "", interno ? `use ${interno} em todas as telas internas que não forem lista, dado ou citação` : ""].filter(Boolean).join("; ") || null,
       estilo: estilo ? { nome: estilo.nome, modelos: estilo.dados.modelos, texto: estilo.dados.texto, cenaImagem: estilo.dados.imagem?.cena ?? "", layouts: estilo.dados.layouts ?? null } : null,
-    });
+        });
     await rest("uso_ia", {
       method: "POST",
       headers: { Prefer: "return=minimal" },

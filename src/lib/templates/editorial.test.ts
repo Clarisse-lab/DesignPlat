@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { editorialFundoAt, editorialItems, readableAccent, renderEditorialSlide } from "./editorial";
-import { mapToEditorial, ctaWord } from "../feed/editorial-map";
+import { mapToEditorial, ctaWord, expandEditorial, fromGeneratedEditorial } from "../feed/editorial-map";
 import { renderFeedSlide, DEFAULT_FEED_STYLE } from "./feed";
 import { contrastRatio } from "./utils";
 
@@ -71,5 +71,42 @@ describe("Editorial: do texto da IA para as telas", () => {
     expect(mapToEditorial({ tipo: "lista", titulo: "Faça", texto: "Acesse o site\nCopie o README\nPeça a explicação" }, 3, 8, false).editorial.tela).toBe("passo");
     expect(mapToEditorial({ tipo: "lista", titulo: "Tipos", texto: "Oferta: x\nEsteira: y\nOperação: z" }, 3, 8, true).editorial.tela).toBe("imagem-lista");
     expect(mapToEditorial({ tipo: "citacao", titulo: "Frase", texto: "" }, 4, 8, false).editorial.tela).toBe("respiro");
+  });
+});
+
+describe("Editorial: telas escritas pela IA", () => {
+  const raw = (tela: string, extra: Record<string, unknown> = {}) => ({ tela, etiqueta: "", titulo: "T", texto: "A: x\nB: y\nC: z", palavra: "", fonte: "", sinal: "", imagem: "", rosto: false, ...extra }) as Parameters<typeof expandEditorial>[0][number];
+
+  it("desdobra a 'revela' em uma tela por item e guarda a fonte só na primeira", () => {
+    const out = expandEditorial([raw("capa-impacto"), raw("revela", { sinal: "nao", fonte: "The Verge" }), raw("cta-comente", { palavra: "guia" })]);
+    expect(out.map((s) => s.tela).join(",")).toBe("capa-impacto,revela,revela,revela,cta-comente");
+    expect(out.slice(1, 4).map((s) => s.ativo).join(",")).toBe("0,1,2");
+    expect(out[1].fonte).toBe("The Verge");
+    expect(out[2].fonte).toBe("");
+    expect(out[4].palavra).toBe("GUIA");
+    expect(out[0].tipo).toBe("capa");
+  });
+
+  it("sem foto, a capa com foto vira capa impacto e a foto + texto vira frase", () => {
+    expect(fromGeneratedEditorial({ tela: "capa-foto", titulo: "x", texto: "" }, false)?.editorial.tela).toBe("capa-impacto");
+    expect(fromGeneratedEditorial({ tela: "foto-texto", titulo: "x", texto: "" }, false)?.editorial.tela).toBe("frase-imagem");
+    expect(fromGeneratedEditorial({ tela: "capa-foto", titulo: "x", texto: "" }, true)?.foto).toBe(true);
+    expect(fromGeneratedEditorial({ tela: "checklist", titulo: "x", texto: "" }, true)?.foto).toBe(false);
+    expect(fromGeneratedEditorial({ tela: "inventada", titulo: "x", texto: "" }, true)).toBeNull();
+    expect(fromGeneratedEditorial({ tela: "revela", titulo: "x", texto: "", sinal: "nao", ativo: 2 }, false)?.editorial).toMatchObject({ ativo: 2, sinal: "nao" });
+  });
+
+  it("monta as telas novas: item aberto, caixas, aspas, lacunas e conta", () => {
+    const r = (tela: string, title: string, body: string, ed: Record<string, unknown> = {}) =>
+      renderEditorialSlide({ ...base, ed: { tela: tela as never, ...ed }, title, body, image: null, index: 2, total: 8 });
+    const rev = r("revela", "Vale priorizar:", "Palavras: use as do cliente\nDM: algo para encaminhar", { ativo: 1, sinal: "sim" });
+    expect(rev).toContain("<h3>DM</h3>");
+    expect(rev).toContain('class="off"');
+    expect(r("checklist", "Revisar", "Na legenda: descreva").includes('class="box"')).toBe(true);
+    expect(r("frase", "Tenho notas espalhadas", "", { etiqueta: "Frase 1" })).toContain("“</span>Tenho");
+    expect(r("lacunas", "Frases", "Tenho [situação]")).toContain('<span class="blank">[situação]</span>');
+    const eq = r("equacao", "Na nossa leitura", "Caso: conhecido\nPergunta: curiosa\n= Motivo: para assistir");
+    expect(eq).toContain("<h3>Motivo</h3>");
+    expect(r("frase-imagem", "x", "", { fonte: "Folha" })).toContain("Fonte: Folha");
   });
 });
