@@ -105,7 +105,12 @@ FATOS: use só o que está na copy ou no tema. Não invente números, datas, nom
 
 Se a copy vier dividida em telas (TELA 01, TELA 02...), mantenha a ordem e o conteúdo, mas reescreva cada tela no formato do tipo escolhido (cortando o que não couber).
 
-FOTOS: prefira foto onde ela prova algo ou mostra a cena (capa, foto-texto, frase-imagem). Em "imagem", uma cena concreta e fotografável (pessoas, lugar, luz, objetos), sem texto, logotipo nem pessoas famosas. Marque "rosto" quando o próprio cliente deve aparecer.
+FOTOS (campo "imagem"): a foto é prova, como numa reportagem. Ela mostra o ASSUNTO DA TELA de forma literal e específica, nunca uma metáfora.
+- Descreva quem, o quê, onde e o momento: uma ação concreta, num lugar real do Brasil ligado ao negócio do cliente e ao público dele. Ex.: para "quem fecha a venda quando você não está?", "vendedora atendendo cliente no balcão de uma loja de roupas cheia, a dona ausente, plano aberto"; para "meta de faturamento", "close de mãos riscando um número numa planilha impressa sobre a mesa de uma pequena empresa".
+- Impacto: um sujeito forte, enquadramento decidido (close de um detalhe revelador ou plano aberto em que o lugar conta a história), alguma tensão ou contraste ligado à frase.
+- Proibido: caminho de jardim, porta, terreno vazio, pôr do sol, xícara de café, mesa vazia com notebook, pessoas posando sorrindo para a câmera, símbolos e metáforas.
+- Cada foto do carrossel em cena, lugar e enquadramento diferentes; não repita objetos.
+- Sem texto legível, logotipo nem pessoas famosas. Marque "rosto" quando o próprio cliente deve aparecer (capa e fechamento costumam ser dele, em ação no trabalho).
 
 LEGENDA: a primeira frase repete o fato principal da capa com mais contexto; 2 ou 3 parágrafos curtos; termina com o mesmo CTA da última tela; de 3 a 6 hashtags. Se a copy trouxer a legenda pronta, use a dela.
 
