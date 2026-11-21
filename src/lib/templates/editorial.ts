@@ -22,6 +22,11 @@ export const EDITORIAL_TELAS = [
   "passo",
   "respiro",
   "cta-comente",
+  "revela",
+  "checklist",
+  "frase",
+  "lacunas",
+  "equacao",
 ] as const;
 export type EditorialTela = (typeof EDITORIAL_TELAS)[number];
 
@@ -34,6 +39,11 @@ export const EDITORIAL_TELA_LABELS: Record<EditorialTela, string> = {
   passo: "Passo a passo (1)(2)(3)",
   respiro: "Frase serifada (respiro)",
   "cta-comente": "CTA: Comente PALAVRA",
+  revela: "Lista que abre um item por tela",
+  checklist: "Checklist",
+  frase: "Citação numerada (FRASE 1)",
+  lacunas: "Modelo para preencher [lacunas]",
+  equacao: "Equação (A + B = resultado)",
 };
 
 /** O que cada campo significa em cada tela (texto de ajuda do editor). */
@@ -46,15 +56,21 @@ export const EDITORIAL_TELA_HINTS: Record<EditorialTela, { title: string; body: 
   passo: { title: "Frase que abre os passos", body: "Passos, um por linha (o último fica em destaque)", image: null },
   respiro: { title: "Frase de efeito (serifada)", body: "Apoio no pé da tela (use **negrito**)", image: null },
   "cta-comente": { title: "Frase do convite (use **trecho** em destaque)", body: "Linha embaixo da barra (ex.: e eu te mando o guia)", image: "Imagem do material (opcional)" },
+  revela: { title: "Título da lista (ex.: Vale priorizar:)", body: "Itens, um por linha: \"Item: explicação\". O item aberto é o de \"Item aberto\".", image: null },
+  checklist: { title: "O que revisar", body: "Itens, um por linha. \"Na legenda: descreva…\" pinta o começo.", image: null },
+  frase: { title: "A frase (sai serifada e entre aspas)", body: "Comentário embaixo da linha", image: "Imagem (opcional)" },
+  lacunas: { title: "Título (ex.: Frases para preencher)", body: "Uma frase por linha, com as lacunas [entre colchetes]", image: null },
+  equacao: { title: "Frase que apresenta a ideia", body: "3 linhas: \"Parte A: explicação\", \"Parte B: explicação\" e \"= Resultado: explicação\"", image: null },
 };
 
-export const EDITORIAL_FUNDOS = ["auto", "claro", "escuro", "creme", "foto"] as const;
+export const EDITORIAL_FUNDOS = ["auto", "claro", "escuro", "creme", "destaque", "foto"] as const;
 export type EditorialFundo = (typeof EDITORIAL_FUNDOS)[number];
 export const EDITORIAL_FUNDO_LABELS: Record<EditorialFundo, string> = {
   auto: "Automático (alterna)",
   claro: "Claro",
   escuro: "Escuro",
   creme: "Creme",
+  destaque: "Cor de destaque",
   foto: "Foto",
 };
 
@@ -68,6 +84,12 @@ export interface EditorialSlide {
   palavra?: string;
   /** Crédito da foto, em letra pequena sobre a imagem. */
   credito?: string;
+  /** Fonte da informação, em letra pequena no pé da tela ("Fonte: Folha"). */
+  fonte?: string;
+  /** Lista que abre um item por tela: qual item está aberto (0, 1, 2...). */
+  ativo?: number;
+  /** Lista que abre um item por tela: "nao" (✕, o que evitar) ou "sim" (✓, o que fazer). */
+  sinal?: "sim" | "nao";
 }
 
 /** Tokens do sistema (opcionais; o que faltar sai do kit do cliente). */
@@ -104,6 +126,7 @@ export function editorialFundoAt(tela: EditorialTela, fundo: EditorialFundo | un
   if (fundo && fundo !== "auto") return fundo === "foto" && !hasImage ? "escuro" : fundo;
   if ((tela === "capa-foto" || tela === "foto-texto" || tela === "capa-impacto") && hasImage) return "foto";
   if (tela === "respiro") return "creme";
+  if (tela === "equacao") return "destaque";
   if (tela === "cta-comente" || (index === total - 1 && total > 1)) return "claro";
   if (index === 0) return "escuro";
   return index % 2 === 1 ? "claro" : "escuro";
@@ -159,14 +182,18 @@ export function renderEditorialSlide(params: {
   const tela: EditorialTela = (EDITORIAL_TELAS as readonly string[]).includes(ed.tela) ? ed.tela : "frase-imagem";
   const photo = safeImageSrc(params.image);
   const tk = editorialTokens(params.palette, params.tokens);
-  const fundo = editorialFundoAt(tela, ed.fundo, index, total, Boolean(photo));
+  // Lista que abre um item por tela: o que evitar no escuro, o que fazer no claro (o tom muda junto com o sentido).
+  const fundo = tela === "revela" && (!ed.fundo || ed.fundo === "auto") ? (ed.sinal === "nao" ? "escuro" : "claro") : editorialFundoAt(tela, ed.fundo, index, total, Boolean(photo));
   const usesPhotoBg = fundo === "foto" && (tela === "capa-foto" || tela === "capa-impacto" || tela === "foto-texto");
-  const dark = fundo === "escuro" || usesPhotoBg;
-  const pageBg = fundo === "claro" ? tk.claro : fundo === "creme" ? tk.creme : fundo === "escuro" ? tk.escuro : "#000000";
+  const pageBg = fundo === "claro" ? tk.claro : fundo === "creme" ? tk.creme : fundo === "escuro" ? tk.escuro : fundo === "destaque" ? tk.accent : "#000000";
+  const dark = fundo === "escuro" || usesPhotoBg || (fundo === "destaque" && relativeLuminance(tk.accent) <= 0.3);
   const ink = dark ? "#F6F6F4" : "#101114";
   const soft = dark ? "rgba(246,246,244,.72)" : "rgba(16,17,20,.66)";
   const line = dark ? "rgba(246,246,244,.28)" : "rgba(16,17,20,.22)";
-  const hl = readableAccent(tk.accent, usesPhotoBg ? "#101114" : pageBg, 3.2);
+  // No fundo da cor de destaque, o destaque do texto vira a própria cor da letra (com sublinhado).
+  const onAccent = fundo === "destaque";
+  const hl = onAccent ? ink : readableAccent(tk.accent, usesPhotoBg ? "#101114" : pageBg, 3.2);
+  const cardBg = dark ? "rgba(255,255,255,.07)" : "#FFFFFF";
   const handle = brand.handle.trim().replace(/^@+/, "");
   const at = handle ? `@${handle}` : brand.name.trim();
   const esquerda = (params.tokens?.esquerda ?? brand.name).trim();
@@ -281,6 +308,84 @@ export function renderEditorialSlide(params: {
       </div>`;
       break;
     }
+    case "revela": {
+      const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+      const items = editorialItems(params.body);
+      const open = Math.min(Math.max(0, Math.round(ed.ativo ?? 0)), Math.max(0, items.length - 1));
+      const size = tTitle([[30, 76], [60, 64], [110, 54]], 46);
+      const icon = ed.sinal === "nao" ? '<path d="M8 8l8 8M16 8l-8 8"/>' : '<path d="M6.5 12.5l3.5 3.5 7.5-8"/>';
+      const mark = (on: boolean) =>
+        `<span class="ic${on ? " on" : ""}"><svg viewBox="0 0 24 24" width="${on ? 34 : 26}" height="${on ? 34 : 26}" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></span>`;
+      inner = `<div class="col">
+        ${hasTitle ? `<h2 class="t" style="font-size:${size}px">${title}</h2>` : ""}
+        <div style="height:150px;flex:none"></div>
+        <div class="rev" style="--k:${items.length <= 2 ? 1.22 : items.length === 3 ? 1.1 : 1}">
+          ${items
+            .map((it, i) =>
+              i === open
+                ? `<div class="card">${mark(true)}<div><h3>${escapeHtml(it.label || it.text)}</h3>${it.label ? `<p>${formatRichText(cap(it.text))}</p>` : ""}</div></div>`
+                : `<div class="off">${mark(false)}<span>${escapeHtml(it.label || it.text)}</span></div>`,
+            )
+            .join("")}
+        </div>
+        <div class="fill"></div>
+      </div>`;
+      break;
+    }
+    case "checklist": {
+      const items = editorialItems(params.body);
+      const size = tTitle([[40, 66], [80, 58], [130, 50]], 44);
+      const longest = Math.max(0, ...items.map((i) => i.label.length + i.text.length));
+      const isz = longest <= 70 ? 40 : longest <= 110 ? 36 : 32;
+      inner = `<div class="col mid">
+        ${hasTitle ? `<h2 class="t" style="font-size:${size}px;margin-bottom:44px">${title}</h2>` : ""}
+        <ul class="check" style="font-size:${isz}px">
+          ${items.map((it) => `<li><span class="box"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 12.5l3.5 3.5 7.5-8"/></svg></span><span>${it.label ? `<b class="lab">${escapeHtml(it.label)},</b> ` : ""}${formatRichText(it.text)}</span></li>`).join("")}
+        </ul>
+      </div>`;
+      break;
+    }
+    case "frase": {
+      const quote = params.title.trim().replace(/^["“]+|["”]+$/g, "");
+      const size = sizeByLength(quote, [[60, 70], [110, 60], [170, 52], [240, 46]], 42);
+      const tag = (ed.etiqueta ?? "").trim();
+      inner = `<div class="col${photo ? "" : " mid"}">
+        ${tag ? `<div class="kick">${escapeHtml(tag)}</div>` : ""}
+        ${quote ? `<h2 class="t serif quote" style="font-size:${size}px"><span class="q">“</span>${formatRichText(quote)}<span class="q">”</span></h2>` : ""}
+        ${photo ? imgFrame(280, "margin:40px 0 0") : ""}
+        ${hasBody ? `<p class="s note" style="font-size:${tBody([[120, 32], [220, 29]], 27)}px">${formatRichText(params.body)}</p>` : ""}
+      </div>`;
+      break;
+    }
+    case "lacunas": {
+      const lines = params.body.split("\n").map((l) => l.replace(/^\s*(?:[-•*·–→]|\(?\d+[.)]\)?)\s*/, "").trim()).filter(Boolean).slice(0, 5);
+      const size = tTitle([[40, 58], [80, 52]], 46);
+      const longest = Math.max(0, ...lines.map((l) => l.length));
+      const isz = longest <= 60 ? 40 : longest <= 100 ? 36 : 32;
+      const gap = (l: string) => formatRichText(l).replace(/\[([^\]]{1,60})\]/g, '<span class="blank">[$1]</span>');
+      inner = `<div class="col">
+        ${hasTitle ? `<h2 class="t" style="font-size:${size}px;margin-bottom:30px">${title}</h2>` : ""}
+        <ol class="fill-in" style="font-size:${isz}px">
+          ${lines.map((l, i) => `<li><span class="big">${i + 1}</span><span>${gap(l)}</span></li>`).join("")}
+        </ol>
+      </div>`;
+      break;
+    }
+    case "equacao": {
+      const parts = editorialItems(params.body.replace(/^\s*=\s*/gm, ""));
+      const [a, b, r] = [parts[0], parts[1], parts[2]];
+      const size = tTitle([[80, 58], [140, 50], [220, 44]], 40);
+      const box = (it: { label: string; text: string } | undefined, cls: string) =>
+        it ? `<div class="eq ${cls}"><h3>${escapeHtml(it.label || it.text)}</h3>${it.label ? `<p>${formatRichText(it.text.charAt(0).toUpperCase() + it.text.slice(1))}</p>` : ""}</div>` : "";
+      inner = `<div class="col">
+        ${hasTitle ? `<h2 class="t" style="font-size:${size}px">${title}</h2>` : ""}
+        <div class="fill" style="min-height:50px"></div>
+        <div class="eqrow">${box(a, "dk")}<span class="op">+</span>${box(b, "dk")}</div>
+        ${r ? `<div class="op down">↓</div>${box(r, "lt")}` : ""}
+        <div class="fill"></div>
+      </div>`;
+      break;
+    }
   }
 
   const photoBg = usesPhotoBg && photo
@@ -332,10 +437,40 @@ body{background:${pageBg};color:${ink};font-family:"Inter",Arial,sans-serif;posi
 .bar .cursor{width:5px;height:64px;background:${readableAccent(tk.accent, "#FFFFFF", 3.2)};margin-left:-14px}
 .bar .go{margin-left:auto;width:96px;height:96px;border-radius:50%;background:${readableAccent(tk.accent, "#FFFFFF", 3)};display:inline-flex;align-items:center;justify-content:center;flex:none}
 .after{text-align:center;font-size:36px;letter-spacing:-.03em;margin-top:34px;line-height:1.25}
+.fonte{position:absolute;left:${W_PAD}px;bottom:22px;font-size:17px;color:${soft};z-index:2}
+${onAccent ? `.t strong,.s strong{text-decoration:underline;text-decoration-thickness:4px;text-underline-offset:6px}` : ""}
+.rev{display:flex;flex-direction:column;gap:calc(30px * var(--k,1))}
+.rev .ic{display:inline-flex;align-items:center;justify-content:center;flex:none;border-radius:50%;color:${soft};border:2px solid ${line};width:52px;height:52px}
+.rev .ic.on{width:72px;height:72px;border:none;background:${readableAccent(tk.accent, cardBg === "#FFFFFF" ? "#FFFFFF" : pageBg, 3)};color:#FFFFFF}
+.rev .off{display:flex;align-items:center;gap:26px;font-size:calc(40px * var(--k,1));letter-spacing:-.025em;color:${soft};opacity:.8;padding:0 10px}
+.rev .card{display:flex;gap:30px;align-items:flex-start;background:${cardBg};border-radius:26px;padding:calc(50px * var(--k,1)) 46px calc(54px * var(--k,1));${dark ? "" : "box-shadow:0 14px 40px rgba(0,0,0,.08);"}}
+.rev .card h3{font-size:calc(62px * var(--k,1));font-weight:700;letter-spacing:-.035em;line-height:1.06;color:${dark ? "#F6F6F4" : "#101114"};margin-bottom:22px;margin-top:2px}
+.rev .card p{font-size:calc(38px * var(--k,1));line-height:1.3;letter-spacing:-.02em;color:${dark ? "rgba(246,246,244,.76)" : "rgba(16,17,20,.72)"}}
+.check{list-style:none;border-top:2px solid ${line}}
+.check li{display:flex;gap:28px;align-items:flex-start;padding:30px 0;border-bottom:2px solid ${line};letter-spacing:-.025em;line-height:1.22}
+.check .box{flex:none;width:48px;height:48px;border-radius:8px;background:${readableAccent(tk.accent, pageBg, 3)};color:#FFFFFF;display:inline-flex;align-items:center;justify-content:center;margin-top:-2px}
+.check .lab{color:${hl};font-weight:400}
+.kick{font-size:28px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${hl};margin-bottom:26px}
+.t.quote .q{color:${hl};font-style:normal}
+.note{border-top:2px solid ${line};padding-top:30px;margin-top:40px}
+.fill-in{list-style:none;flex:1 1 0;display:flex;flex-direction:column;border-top:2px solid ${line};max-height:78%}
+.fill-in li{flex:1 1 0;display:flex;gap:40px;align-items:center;border-bottom:2px solid ${line};letter-spacing:-.025em;line-height:1.25;max-height:230px}
+.fill-in .big{font-size:2em;font-weight:700;color:${hl};width:60px;flex:none;letter-spacing:-.04em}
+.blank{color:${hl};text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:7px}
+.eqrow{display:flex;align-items:stretch;gap:18px}
+.eq{border-radius:24px;padding:42px 38px;display:flex;flex-direction:column}
+.eq.dk{flex:1 1 0;background:${tk.escuro};color:#F6F6F4;min-height:440px}
+.eq.lt{background:#FFFFFF;color:#101114;text-align:center;align-items:center}
+.eq h3{font-size:54px;font-weight:700;letter-spacing:-.035em;line-height:1.05}
+.eq.dk p{margin-top:auto;padding-top:26px;font-size:32px;line-height:1.28;color:rgba(246,246,244,.78)}
+.eq.lt p{margin-top:16px;font-size:33px;line-height:1.28;color:rgba(16,17,20,.7)}
+.op{align-self:center;font-size:64px;font-weight:700;color:${ink}}
+.op.down{text-align:center;margin:14px 0}
 `;
 
   const body = `${photoBg}
 <div class="faixa"><span>${escapeHtml(esquerda)}</span><span class="c">${escapeHtml(at)}</span><span class="r">${escapeHtml(direita)}</span></div>
-${inner}`;
+${inner}
+${ed.fonte?.trim() ? `<div class="fonte">Fonte: ${escapeHtml(ed.fonte.trim().replace(/^fonte:\s*/i, ""))}</div>` : ""}`;
   return htmlDocument({ width, height, fontCss: params.fontCss, css, body });
 }
