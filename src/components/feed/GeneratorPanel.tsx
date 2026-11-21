@@ -151,6 +151,7 @@ export function GeneratorPanel({
           interno: style === "revista" && interno && !estiloId ? interno : null,
           estiloId: style === "revista" && estiloId ? estiloId : null,
           editorial: style === "editorial",
+          imagens: style === "editorial" ? images : null,
         }),
       });
       const data = await response.json().catch(() => ({}));

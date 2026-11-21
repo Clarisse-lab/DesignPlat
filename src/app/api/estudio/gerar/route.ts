@@ -30,6 +30,8 @@ const schema = z
     estiloId: z.string().uuid().nullish(),
     /** Layout Editorial: a IA escreve cada tela já no formato do tipo dela. */
     editorial: z.boolean().nullish(),
+    /** Editorial: quais telas terão foto (a IA escreve a cena só nelas). */
+    imagens: z.enum(["nenhuma", "capa", "todas"]).nullish(),
   })
   .refine((v) => v.pautaId || (v.tema && v.tema.length >= 5), { message: "Escolha uma pauta ou escreva o tema." });
 
@@ -48,7 +50,7 @@ export async function POST(request: Request) {
 
   const parsed = schema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Pedido inválido." }, { status: 400 });
-  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno, estiloId, editorial } = parsed.data;
+  const { pautaId, tema, nome, handle, clienteSlug, slides, capa, interno, estiloId, editorial, imagens } = parsed.data;
 
   const estilo = estiloId ? await loadEstilo(estiloId).catch(() => null) : null;
   if (estiloId && !estilo) return NextResponse.json({ error: "Estilo não encontrado." }, { status: 404 });
@@ -77,6 +79,7 @@ export async function POST(request: Request) {
           slideCount: slides ?? null,
           pauta: pauta ? { titulo: pauta.titulo, formato: pauta.formato, angulo: pauta.angulo, copy: pauta.copy! } : null,
           tema: tema ?? null,
+          imagens: imagens ?? "nenhuma",
         })
       : await generateStudioCarousel({
       nome,

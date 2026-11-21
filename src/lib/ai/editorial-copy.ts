@@ -13,6 +13,14 @@ import { CAROUSEL_MODEL, PRICES } from "./carousel-from-copy";
 export const ROTEIROS = ["noticia", "caso", "ensaio", "novidades", "metodo"] as const;
 export type Roteiro = (typeof ROTEIROS)[number];
 
+/** O que a equipe pediu de fotos: sem isso a IA tende a escolher telas só de texto. */
+const FOTOS: Record<"nenhuma" | "capa" | "todas", string> = {
+  nenhuma: "FOTOS: nenhuma. Use capa-impacto na capa e deixe \"imagem\" vazio em todas as telas.",
+  capa: "FOTOS: só na capa. A capa é capa-foto, com a cena descrita em \"imagem\". Nas outras telas, \"imagem\" vazio.",
+  todas:
+    "FOTOS: a equipe vai gerar fotos. A capa é capa-foto, com a cena em \"imagem\". Além dela, de 2 a 4 telas do meio levam foto (foto-texto, frase-imagem, imagem-lista ou frase), cada uma com a cena em \"imagem\"; espalhe essas telas pelo carrossel. Nas telas sem foto, \"imagem\" vazio.",
+};
+
 export const editorialCarouselSchema = z.object({
   roteiro: z.enum(ROTEIROS).describe("Roteiro escolhido para o conteúdo"),
   molde: z.number().int().describe("Número do molde de capa usado (1 a 50), ou 0 se nenhum encaixou"),
@@ -115,6 +123,8 @@ export async function generateEditorialCarousel(input: {
   slideCount: number | null;
   pauta?: { titulo: string; formato: string | null; angulo: string | null; copy: string } | null;
   tema?: string | null;
+  /** Quais telas terão foto gerada: a IA escolhe os tipos com foto e escreve a cena nelas. */
+  imagens?: "nenhuma" | "capa" | "todas";
 }): Promise<{ carousel: { roteiro: Roteiro; molde: number; slides: EditorialGeneratedSlide[]; legenda: string }; costUsd: number; inputTokens: number; outputTokens: number; model: string }> {
   const source = input.pauta
     ? [
@@ -128,6 +138,7 @@ export async function generateEditorialCarousel(input: {
     : `TEMA: ${input.tema}`;
   const prompt = [
     `Cliente: ${input.nome}${input.handle ? ` (@${input.handle.replace(/^@+/, "")})` : ""}`,
+    FOTOS[input.imagens ?? "nenhuma"],
     input.slideCount ? `Número de telas: ${input.slideCount} (cada item de uma 'revela' conta como uma tela)` : "Número de telas: de 7 a 10 (cada item de uma 'revela' conta como uma tela).",
     "",
     source,
