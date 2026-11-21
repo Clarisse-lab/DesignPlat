@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { POST_CANVAS_SIZES } from "../formats";
 import { FEED_DECORS, FEED_LAYOUTS } from "../templates/feed";
+import { EDITORIAL_FUNDOS, EDITORIAL_TELAS } from "../templates/editorial";
 import { FREE_ANIMS, FREE_BACKGROUNDS, FREE_CHAT_STYLES, FREE_COLORS, FREE_ELEMENT_KINDS, FREE_GRIDS, FREE_HIGHLIGHTS, FREE_OVERLAYS, FREE_PROFILE_VARIANTS } from "../templates/free";
 import { ICON_IDS, type IconId } from "../templates/icons";
 import { TITLE_FONT_IDS, type TitleFontId } from "../templates/fonts";
@@ -71,6 +72,22 @@ export const freeSlideSchema = z.object({
     .max(40),
 });
 
+/** Layout Editorial: o tipo de tela e os poucos campos que não cabem em título, texto e imagem. */
+export const editorialSlideSchema = z.object({
+  tela: z.enum(EDITORIAL_TELAS),
+  fundo: z.enum(EDITORIAL_FUNDOS).optional(),
+  etiqueta: z.string().max(40).optional(),
+  palavra: z.string().max(24).optional(),
+  credito: z.string().max(80).optional(),
+});
+export const editorialTokensSchema = z.object({
+  esquerda: z.string().max(60).optional(),
+  direita: z.string().max(40).optional(),
+  claro: hexColor.optional(),
+  escuro: hexColor.optional(),
+  creme: hexColor.optional(),
+});
+
 export const feedRenderRequestSchema = z.object({
   brand: z.object({
     name: z.string().max(80),
@@ -88,6 +105,7 @@ export const feedRenderRequestSchema = z.object({
     decor: z.enum(FEED_DECORS),
     coverBackground: z.enum(["accent", "background"]),
     customLayout: customLayoutSchema.nullable(),
+    editorial: editorialTokensSchema.nullish(),
   }),
   slides: z
     .array(
@@ -99,6 +117,7 @@ export const feedRenderRequestSchema = z.object({
         icon: z.string().max(40).nullish(),
         notes: z.string().max(3000).nullish(),
         free: freeSlideSchema.nullish(),
+        editorial: editorialSlideSchema.nullish(),
       }),
     )
     .min(1)

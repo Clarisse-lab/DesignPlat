@@ -15,6 +15,7 @@ interface ImageJob {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardCheck, Download, MoreHorizontal, Redo2, Save, Shuffle, Sparkles, Undo2, Wand2 } from "lucide-react";
 import { fitSlides } from "@/lib/review/ajuste";
+import { mapToEditorial } from "@/lib/feed/editorial-map";
 import { ReviewDialog } from "./ReviewDialog";
 import { ApprovalDialog, StatusChip, useApprovals } from "./ApprovalDialog";
 import { useUndoHistory } from "@/components/editor/useUndoHistory";
@@ -378,6 +379,14 @@ export function FeedEditor({ mode = "feed" }: { mode?: PostMode }) {
     const jobs: ImageJob[] = [];
     const built = list.map((it, k) => {
       const base = { title: it.titulo, body: it.texto };
+      if (options.style === "editorial") {
+        const prompt = (it.imagem ?? "").trim();
+        const photoAvailable = prompt.length >= 5 && (options.images === "todas" || (options.images === "capa" && k === 0));
+        const m = mapToEditorial(it, k, list.length, photoAvailable);
+        const slide = newFeedSlide({ layout: "editorial", title: m.title, body: m.body, editorial: m.editorial });
+        if (m.foto) jobs.push({ id: slide.id, prompt, face: Boolean(it.rosto), zone: m.zone, style: options.estilo?.dados.imagem?.estilo ?? "auto" });
+        return slide;
+      }
       const layouts = options.estilo?.dados.layouts;
       if (options.style === "revista" && hasLayouts(layouts)) {
         // Estilo com telas próprias (salvas pela equipe): o desenho vem delas, a IA só escreveu o texto.

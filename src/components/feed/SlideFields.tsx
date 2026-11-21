@@ -13,6 +13,16 @@ import { ICON_IDS, ICONS } from "@/lib/templates/icons";
 import { EMPTY_FREE, FreeEditor, type PreviewContext } from "./FreeEditor";
 import type { FeedEditorSlide } from "./useFeedDraft";
 import { buildPreset } from "@/lib/templates/free";
+import {
+  EDITORIAL_FUNDO_LABELS,
+  EDITORIAL_FUNDOS,
+  EDITORIAL_TELA_HINTS,
+  EDITORIAL_TELA_LABELS,
+  EDITORIAL_TELAS,
+  type EditorialFundo,
+  type EditorialSlide,
+  type EditorialTela,
+} from "@/lib/templates/editorial";
 
 interface LayoutFields {
   title: string;
@@ -54,7 +64,14 @@ const FIELDS: Record<FeedLayout, LayoutFields> = {
   },
   referencia: { title: "Título", body: "Texto (opcional)", image: "Imagem (opcional)", icon: true },
   livre: { title: "", body: null, image: "Foto de fundo" },
+  editorial: { title: "Frase principal", body: "Apoio", image: "Imagem (opcional)" },
 };
+
+/** Campos do Editorial mudam conforme o tipo de tela. */
+function editorialFields(ed: EditorialSlide | null | undefined): LayoutFields {
+  const h = EDITORIAL_TELA_HINTS[ed?.tela ?? "frase-imagem"] ?? EDITORIAL_TELA_HINTS["frase-imagem"];
+  return { title: h.title, body: h.body, bodyRows: h.body ? 5 : undefined, image: h.image ?? undefined };
+}
 
 export function SlideFields({
   slide,
@@ -106,7 +123,9 @@ export function SlideFields({
   const [showIcons, setShowIcons] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [clientPhotos, setClientPhotos] = useState(false);
-  const fields = FIELDS[slide.layout];
+  const fields = slide.layout === "editorial" ? editorialFields(slide.editorial) : FIELDS[slide.layout];
+  const ed: EditorialSlide = slide.editorial ?? { tela: index === 0 ? "capa-foto" : "frase-imagem" };
+  const setEd = (patch: Partial<EditorialSlide>) => onChange({ editorial: { ...ed, ...patch } });
   const layouts = availableLayouts.filter((layout) => layout !== "referencia" || hasCustomLayout || slide.layout === "referencia");
 
   const imageBlock = (
@@ -157,6 +176,8 @@ export function SlideFields({
                 const hasText = Boolean(slide.title.trim() || slide.body.trim());
                 const free = buildPreset(index === 0 ? "capa-revista" : "interno-texto", { title: slide.title, body: slide.body, hasImage: Boolean(slide.image) }, { placeholders: !hasText });
                 onChange({ layout, free });
+              } else if (layout === "editorial" && !slide.editorial) {
+                onChange({ layout, editorial: { tela: index === 0 ? (slide.image ? "capa-foto" : "capa-impacto") : index === total - 1 ? "cta-comente" : "frase-imagem" } });
               } else onChange({ layout });
             }}
             className={`${inputClass} min-w-0 flex-1`}
@@ -203,6 +224,43 @@ export function SlideFields({
         />
       ) : (
         <>
+      {slide.layout === "editorial" && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Field label="Tipo de tela">
+            <select value={ed.tela} onChange={(e) => setEd({ tela: e.target.value as EditorialTela })} className={inputClass}>
+              {EDITORIAL_TELAS.map((t) => (
+                <option key={t} value={t}>
+                  {EDITORIAL_TELA_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Fundo">
+            <select value={ed.fundo ?? "auto"} onChange={(e) => setEd({ fundo: e.target.value as EditorialFundo })} className={inputClass}>
+              {EDITORIAL_FUNDOS.map((f) => (
+                <option key={f} value={f}>
+                  {EDITORIAL_FUNDO_LABELS[f]}
+                </option>
+              ))}
+            </select>
+          </Field>
+          {ed.tela === "passo" && (
+            <Field label="Etiqueta acima dos passos">
+              <input value={ed.etiqueta ?? ""} maxLength={40} placeholder="PASSO A PASSO" onChange={(e) => setEd({ etiqueta: e.target.value })} className={inputClass} />
+            </Field>
+          )}
+          {ed.tela === "cta-comente" && (
+            <Field label="Palavra para comentar">
+              <input value={ed.palavra ?? ""} maxLength={18} placeholder="Ex.: GUIA" onChange={(e) => setEd({ palavra: e.target.value })} className={inputClass} />
+            </Field>
+          )}
+          {slide.image && fields.image && (
+            <Field label="Crédito da foto (opcional)">
+              <input value={ed.credito ?? ""} maxLength={80} placeholder="Ex.: Foto: Pexels" onChange={(e) => setEd({ credito: e.target.value })} className={inputClass} />
+            </Field>
+          )}
+        </div>
+      )}
       <Field label={fields.title}>
         <textarea
           value={slide.title}

@@ -7,6 +7,7 @@ import { TITLE_FONTS, type TitleFontId } from "./fonts";
 import { iconSvg, markSvg } from "./icons";
 import { sanitizeLayoutCss, sanitizeLayoutHtml } from "./sanitize";
 import { renderFreeSlide, type FreeSlide } from "./free";
+import { renderEditorialSlide, type EditorialSlide, type EditorialTokens } from "./editorial";
 import { contrastText, escapeHtml, formatRichText, htmlDocument, initials, safeColor, safeImageSrc, sizeByLength } from "./utils";
 
 export const FEED_LAYOUTS = [
@@ -24,6 +25,7 @@ export const FEED_LAYOUTS = [
   "colunas",
   "referencia",
   "livre",
+  "editorial",
 ] as const;
 export type FeedLayout = (typeof FEED_LAYOUTS)[number];
 
@@ -42,6 +44,7 @@ export const FEED_LAYOUT_LABELS: Record<FeedLayout, string> = {
   colunas: "Colunas",
   referencia: "Da referência",
   livre: "Livre (editor)",
+  editorial: "Editorial (pronto)",
 };
 
 /** Layouts pensados para Story (aparecem só no editor de Story). */
@@ -101,6 +104,8 @@ export interface FeedSlide {
   notes?: string | null;
   /** Layout Livre: fundo, sombra e elementos posicionados (ver free.ts). */
   free?: FreeSlide | null;
+  /** Layout Editorial: tipo de tela, fundo, etiqueta, palavra do CTA (ver editorial.ts). */
+  editorial?: EditorialSlide | null;
 }
 
 export interface FeedBrand {
@@ -136,6 +141,8 @@ export interface FeedStyle {
   /** Fundo do layout Destaque (sem foto): a cor de destaque ou o fundo normal da paleta. */
   coverBackground: "accent" | "background";
   customLayout: CustomLayout | null;
+  /** Tokens do layout Editorial (faixa do topo e fundos); o que faltar sai do kit. */
+  editorial?: EditorialTokens | null;
 }
 
 export const FEED_PALETTES: { name: string; palette: FeedPalette }[] = [
@@ -263,6 +270,23 @@ export function renderFeedSlide(params: {
   let content = "";
 
   const layout: FeedLayout = slide.layout === "referencia" && !style.customLayout ? "texto" : slide.layout;
+
+  if (layout === "editorial") {
+    return renderEditorialSlide({
+      ed: slide.editorial ?? { tela: index === 0 ? "capa-foto" : "frase-imagem" },
+      title: slide.title,
+      body: slide.body,
+      image: slide.image,
+      brand,
+      palette: style.palette,
+      tokens: style.editorial,
+      width,
+      height,
+      index,
+      total,
+      fontCss,
+    });
+  }
 
   if (layout === "livre") {
     const free: FreeSlide = slide.free ?? { bg: "fundo", overlay: "nenhuma", elements: [] };

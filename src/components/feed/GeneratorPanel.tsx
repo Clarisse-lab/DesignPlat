@@ -31,7 +31,7 @@ export interface GeneratedSlide {
   variante?: number;
 }
 
-export type GeneratorStyle = "revista" | "classico";
+export type GeneratorStyle = "revista" | "classico" | "editorial";
 export type GeneratorImages = "nenhuma" | "capa" | "todas";
 export interface GeneratorOptions {
   style: GeneratorStyle;
@@ -73,9 +73,9 @@ export function GeneratorPanel({
   const [pautaId, setPautaId] = useState<number | null>(initialPautaId);
   const [tema, setTema] = useState("");
   const [count, setCount] = useState<number | null>(null);
-  // Sempre estilo revista (telas Livre, com modelos, imagens e estilo de referência). Os layouts
-  // clássicos continuam no seletor "Layout" de cada tela; só saíram da geração.
-  const style: GeneratorStyle = "revista";
+  // Editorial: telas prontas em fluxo (padrão quando o cliente não tem estilo próprio).
+  // Revista: telas Livre, com modelos, imagens e estilo de referência.
+  const [style, setStyle] = useState<GeneratorStyle>("editorial");
   const [capa, setCapa] = useState("");
   const [interno, setInterno] = useState("");
   const [images, setImages] = useState<GeneratorImages>("nenhuma");
@@ -95,7 +95,10 @@ export function GeneratorPanel({
         const list: Estilo[] = data.estilos ?? [];
         setEstilos(list);
         const prefer = preferEstilo && list.some((e) => e.id === preferEstilo.id) ? preferEstilo.id : null;
-        setEstiloId(prefer ?? list.find((e) => e.padrao && e.cliente_slug === clienteSlug)?.id ?? "");
+        const padrao = prefer ?? list.find((e) => e.padrao && e.cliente_slug === clienteSlug)?.id ?? "";
+        setEstiloId(padrao);
+        // Cliente com estilo próprio (ou estilo recém-salvo): continua no Livre com o estilo dele.
+        setStyle(padrao ? "revista" : "editorial");
       })
       .catch(() => !cancelled && setEstilos([]));
     return () => {
@@ -146,7 +149,7 @@ export function GeneratorPanel({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data?.error ?? "Erro ao gerar.");
       onInfo(`${data.slides.length} telas montadas (US$ ${String(data.custo_usd).replace(".", ",")}).`);
-      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "revista" ? images : "nenhuma", estilo: data.estilo ?? null, capaAnimada });
+      onGenerated(data.slides, data.legenda ?? "", { style, images: style === "classico" ? "nenhuma" : images, estilo: data.estilo ?? null, capaAnimada });
     } catch (error) {
       onError(error instanceof Error ? error.message : "Erro ao gerar.");
     } finally {
@@ -202,6 +205,26 @@ export function GeneratorPanel({
             </option>
           ))}
         </select>
+        <Segmented
+          value={style === "editorial" ? "editorial" : "revista"}
+          options={[
+            { value: "editorial", label: "Editorial (pronto)" },
+            { value: "revista", label: "Modelos do Livre" },
+          ]}
+          onChange={(v) => setStyle(v as GeneratorStyle)}
+        />
+        {style === "editorial" && (
+          <div className="space-y-2">
+            <p className="text-[11.5px] leading-relaxed text-ink-faint">
+              Telas em fluxo no estilo jornalístico: faixa no topo, uma cor de destaque, fundos que se alternam e CTA de comentário. Cores e @ vêm do kit do cliente.
+            </p>
+            <select value={images} onChange={(e) => setImages(e.target.value as GeneratorImages)} className={inputClass} aria-label="Imagens com IA">
+              <option value="nenhuma">Imagens com IA: não gerar</option>
+              <option value="capa">Imagens com IA: só a capa</option>
+              <option value="todas">Imagens com IA: todas as telas com foto</option>
+            </select>
+          </div>
+        )}
         {style === "revista" && (
           <div className="space-y-2">
             {estilos.length > 0 && (
