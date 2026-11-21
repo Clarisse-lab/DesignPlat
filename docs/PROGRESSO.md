@@ -237,3 +237,12 @@ Ideias que vieram do protótipo antigo (Prils) e da reunião de 02/10.
 ## Carrossel Tweet: tamanho do texto igual em todas as telas (PR #48)
 - Estilo → **Tamanho do texto**: "Automático" (como antes, letra menor nas telas com mais texto) ou "Igual em todas", com controle de 28 a 72 px.
 - Ao escolher "Igual em todas", começa no maior tamanho que cabe em todas as telas (o da tela com mais texto); acima dele, aviso de que a tela mais cheia pode estourar e botão para voltar ao tamanho que cabe.
+
+## Arrumar telas (21/11/2026)
+- Carrossel gerado saía com texto em cima de texto (título invadindo o @ ou o corpo), título passando da margem e corpo pequeno (32 px).
+- `src/lib/review/ajuste.ts`: monta cada tela Livre num iframe escondido (como a revisão), mede os elementos e corrige direto nos dados da tela (x, y, w, size):
+  - texto fora da margem (ou do cartão) volta para dentro; se a palavra for mais larga que a tela, a letra encolhe;
+  - corpo abaixo de 34 px sobe para 34 px;
+  - sobreposição: empurra para baixo o que vem depois; sem espaço, sobe o bloco de cima; por último encolhe aos poucos o maior texto envolvido (título até 45% do tamanho, mínimo 40 px; corpo até 75%, mínimo 30 px);
+  - rodapé (@, Arraste →, numeração abaixo de 82%) não se mexe.
+- Roda sozinho depois de **Gerar carrossel**, **Outra versão** e **Aplicar em todas as telas internas**, e no botão **Arrumar telas** do topo. Só aplica numa tela que não foi editada enquanto media. Dá para desfazer.
