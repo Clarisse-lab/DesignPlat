@@ -33,6 +33,7 @@ const SECOES: [SecaoId, string][] = [
   ["funcionou", "Funcionou / ajustar"],
   ["grafico", "Gráfico de alcance"],
   ["leads", "Leads"],
+  ["linkedin", "LinkedIn"],
   ["trafego", "Tráfego pago"],
   ["entregas", "Trabalho: feito e em andamento"],
   ["proximos", "Trabalho: o que vem por aí"],
@@ -654,6 +655,10 @@ export default function RelatoriosPage() {
                   />
                 </Bloco>
 
+                <Bloco titulo="LinkedIn" dica="Páginas e perfil do cliente. Valem para todos os relatórios dele; os números entram ao clicar em Gerar.">
+                  <LinkedinCliente cliente={cliente} noRelatorio={Boolean(rel.dados.linkedin)} />
+                </Bloco>
+
                 <Bloco titulo="Identidade e nicho" dica="Valem para todos os relatórios deste cliente.">
                   <ConfigCliente cliente={cliente} onTema={setTema} />
                   {rel.dados.nicho && (
@@ -922,6 +927,204 @@ function ConfigCliente({ cliente, onTema }: { cliente: string; onTema: (t: Tema 
         Salvar perfis
       </button>
       {estado && estado !== "salvando" && <p className="text-[11.5px] text-ink-faint">{estado === "salvo" ? "Salvo. Para o nicho entrar no relatório, clique em Gerar de novo." : estado}</p>}
+    </div>
+  );
+}
+
+interface ConexaoLi {
+  id: string;
+  nome: string | null;
+  tipo: "perfil" | "paginas";
+  cliente_slug: string | null;
+  expira_em: string;
+  ultimo_erro: string | null;
+}
+interface PaginaLi {
+  org_urn: string;
+  nome: string | null;
+  vanity: string | null;
+  cliente_slug: string | null;
+}
+
+/** LinkedIn do cliente: liga as páginas (conectadas por um admin) e conecta o perfil pessoal, por link enviado à pessoa. */
+function LinkedinCliente({ cliente, noRelatorio }: { cliente: string; noRelatorio: boolean }) {
+  const [info, setInfo] = useState<{ perfil: ConexaoLi | null; admins: ConexaoLi[]; paginas: PaginaLi[]; error?: string } | null>(null);
+  const [marcadas, setMarcadas] = useState<string[]>([]);
+  const [link, setLink] = useState<{ tipo: "perfil" | "paginas"; url: string } | null>(null);
+  const [estado, setEstado] = useState("");
+
+  const aplicar = useCallback(
+    (j: { perfil: ConexaoLi | null; admins: ConexaoLi[]; paginas: PaginaLi[]; error?: string }) => {
+      setInfo(j);
+      setMarcadas((j.paginas ?? []).filter((p) => p.cliente_slug === cliente).map((p) => p.org_urn));
+    },
+    [cliente],
+  );
+
+  useEffect(() => {
+    if (!cliente) return;
+    let vivo = true;
+    setInfo(null);
+    setLink(null);
+    setEstado("");
+    fetch(`/api/estudio/relatorios/linkedin?cliente=${cliente}`)
+      .then((r) => r.json())
+      .then((j) => vivo && aplicar({ perfil: j.perfil ?? null, admins: j.admins ?? [], paginas: j.paginas ?? [], error: j.error }))
+      .catch(() => vivo && aplicar({ perfil: null, admins: [], paginas: [], error: "Não foi possível ler o LinkedIn." }));
+    return () => {
+      vivo = false;
+    };
+  }, [cliente, aplicar]);
+
+  if (!info) return <p className="text-[12px] text-ink-faint">Lendo o LinkedIn…</p>;
+
+  const dias = (iso: string) => Math.floor((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  const situacao = (c: ConexaoLi) => {
+    const d = dias(c.expira_em);
+    if (c.ultimo_erro) return { texto: `precisa conectar de novo (${c.ultimo_erro})`, alerta: true };
+    if (d < 0) return { texto: "venceu, precisa conectar de novo", alerta: true };
+    return { texto: `vale mais ${d} dia${d === 1 ? "" : "s"}`, alerta: d <= 10 };
+  };
+  const salvas = info.paginas.filter((p) => p.cliente_slug === cliente).map((p) => p.org_urn);
+  const mudou = salvas.slice().sort().join() !== marcadas.slice().sort().join();
+
+  async function gerarLink(tipo: "perfil" | "paginas") {
+    setEstado("gerando");
+    const r = await fetch("/api/estudio/relatorios/linkedin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "link", tipo, cliente }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) return setEstado(j.error ?? "Não foi possível gerar o link.");
+    setLink({ tipo, url: j.url });
+    await navigator.clipboard?.writeText(j.url).catch(() => null);
+    setEstado("");
+  }
+
+  async function salvarPaginas() {
+    setEstado("salvando");
+    const r = await fetch("/api/estudio/relatorios/linkedin", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cliente, paginas: marcadas }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setEstado(j.error ?? "Não foi possível salvar.");
+    aplicar({ perfil: j.perfil ?? null, admins: j.admins ?? [], paginas: j.paginas ?? [] });
+    setEstado("Páginas salvas. Clique em Buscar números agora e depois em Gerar.");
+  }
+
+  async function coletar() {
+    setEstado("coletando");
+    const r = await fetch("/api/estudio/relatorios/linkedin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "coletar", dias: 120 }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) return setEstado(j.error ?? "A coleta falhou.");
+    const erros: string[] = j.erros ?? [];
+    setEstado(erros.length ? `Coleta ${j.status}: ${erros.slice(0, 3).join(" · ")}` : "Números buscados. Clique em Gerar para levar ao relatório.");
+  }
+
+  const ocupado = estado === "gerando" || estado === "salvando" || estado === "coletando";
+  const temFonte = Boolean(info.perfil) || salvas.length > 0;
+
+  return (
+    <div className="space-y-3 text-[12.5px]">
+      {info.error && <p className="text-red-700">{info.error}</p>}
+
+      <div className="space-y-1.5 rounded-xl bg-canvas p-2.5">
+        <p className="font-medium text-ink">Página da empresa</p>
+        {info.admins.map((a) => {
+          const s = situacao(a);
+          return (
+            <p key={a.id} className={s.alerta ? "text-red-700" : "text-ink-soft"}>
+              Páginas conectadas por {a.nome ?? "um admin"}: {s.texto}.
+            </p>
+          );
+        })}
+        {info.paginas.length === 0 ? (
+          <p className="text-ink-soft">Nenhuma página conectada ainda. Gere o link de admin e abra com o perfil que administra as páginas.</p>
+        ) : (
+          <div className="space-y-1">
+            {info.paginas.map((p) => {
+              const deOutro = p.cliente_slug && p.cliente_slug !== cliente;
+              return (
+                <label key={p.org_urn} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={marcadas.includes(p.org_urn)}
+                    onChange={(e) => setMarcadas(e.target.checked ? [...marcadas, p.org_urn] : marcadas.filter((x) => x !== p.org_urn))}
+                  />
+                  <span>
+                    {p.nome ?? p.vanity ?? p.org_urn}
+                    {deOutro && <span className="text-ink-faint"> · hoje em {p.cliente_slug}</span>}
+                  </span>
+                </label>
+              );
+            })}
+            {mudou && (
+              <button type="button" onClick={salvarPaginas} disabled={ocupado} className="rounded-lg border border-line px-2.5 py-1 hover:border-line-strong disabled:opacity-50">
+                Salvar páginas deste cliente
+              </button>
+            )}
+          </div>
+        )}
+        <button type="button" onClick={() => gerarLink("paginas")} disabled={ocupado} className="text-[12px] underline underline-offset-2 disabled:opacity-50">
+          {info.admins.length ? "Gerar link de admin de novo (renova a conexão)" : "Gerar link de admin das páginas"}
+        </button>
+      </div>
+
+      <div className="space-y-1.5 rounded-xl bg-canvas p-2.5">
+        <p className="font-medium text-ink">Perfil pessoal</p>
+        {info.perfil ? (
+          (() => {
+            const s = situacao(info.perfil);
+            return (
+              <p className={s.alerta ? "text-red-700" : "text-ink-soft"}>
+                Conectado: {info.perfil.nome ?? "perfil"}, {s.texto}.
+              </p>
+            );
+          })()
+        ) : (
+          <p className="text-ink-soft">Use quando o cliente posta no perfil dele. Só a própria pessoa consegue autorizar, pelo login dela.</p>
+        )}
+        <button type="button" onClick={() => gerarLink("perfil")} disabled={ocupado} className="text-[12px] underline underline-offset-2 disabled:opacity-50">
+          {info.perfil ? "Gerar link de novo (renova a conexão)" : "Gerar link para o cliente conectar o perfil"}
+        </button>
+      </div>
+
+      {link && (
+        <div className="space-y-1 rounded-xl border border-line p-2.5">
+          <p className="text-ink-soft">
+            Link copiado. Mande para {link.tipo === "perfil" ? "o cliente" : "quem administra as páginas"}: vale 7 dias e serve uma vez.
+          </p>
+          <div className="flex gap-1.5">
+            <input readOnly value={link.url} onFocus={(e) => e.currentTarget.select()} className={input} />
+            <button
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(link.url).catch(() => null)}
+              className="shrink-0 rounded-lg border border-line px-2 hover:border-line-strong"
+              aria-label="Copiar link"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {temFonte && (
+        <button type="button" onClick={coletar} disabled={ocupado} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 hover:border-line-strong disabled:opacity-50">
+          {estado === "coletando" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Buscar números agora
+        </button>
+      )}
+      {temFonte && !noRelatorio && !estado && (
+        <p className="text-[11.5px] text-ink-faint">Este relatório ainda não tem LinkedIn. Depois de buscar os números, clique em Gerar de novo.</p>
+      )}
+      {estado && !ocupado && <p className="text-[11.5px] text-ink-faint">{estado}</p>}
     </div>
   );
 }

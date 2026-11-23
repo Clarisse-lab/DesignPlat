@@ -996,6 +996,62 @@ function NichoCard({ view }: { view: View }) {
   );
 }
 
+/** LinkedIn: rede separada do Instagram, com os números dela e os posts das páginas que mais apareceram. */
+function LinkedinSec({ view }: { view: View }) {
+  const [ref, ativo] = useReveal<HTMLDivElement>();
+  const lk = view.semana.dados.linkedin;
+  const tipo = view.semana.tipo;
+  if (!lk) return null;
+  type Card = Parameters<typeof KpiCard>[0];
+  const interacoes = (lk.reacoes.valor ?? 0) + (lk.comentarios.valor ?? 0) + (lk.compartilhamentos.valor ?? 0);
+  const interacoesAnt =
+    lk.reacoes.anterior === null ? null : (lk.reacoes.anterior ?? 0) + (lk.comentarios.anterior ?? 0) + (lk.compartilhamentos.anterior ?? 0);
+  const cards: Omit<Card, "ativo" | "ordem" | "tipo">[] = [
+    { rotulo: "Impressões", k: lk.impressoes, destaque: true, detalhe: "vezes que seus posts apareceram para alguém no LinkedIn" },
+    { rotulo: "Novos seguidores", k: lk.novos_seguidores, sinal: true, detalhe: lk.seguidores !== null ? `${fmtNumero(lk.seguidores)} no total` : undefined },
+    {
+      rotulo: "Interações",
+      k: kpiDe(lk.reacoes.valor === null ? null : interacoes, interacoesAnt),
+      detalhe: `${fmtNumero(lk.reacoes.valor ?? 0)} reações · ${fmtNumero(lk.comentarios.valor ?? 0)} comentários · ${fmtNumero(lk.compartilhamentos.valor ?? 0)} compartilhamentos`,
+    },
+    { rotulo: "Taxa de engajamento", k: lk.engajamento, formato: (n) => `${decimal.format(Math.round(n * 10) / 10)}%`, detalhe: "interações a cada 100 impressões" },
+  ];
+  if (lk.cliques?.valor) cards.push({ rotulo: "Cliques", k: lk.cliques, detalhe: "cliques nos posts da página" });
+  if (lk.visualizacoes_pagina?.valor) cards.push({ rotulo: "Visitas à página", k: lk.visualizacoes_pagina, detalhe: "vezes que abriram a sua página" });
+  const visiveis = cards.filter((c) => c.k.valor !== null).slice(0, 6);
+  const nomes = lk.fontes.map((f) => (f.tipo === "pagina" ? `página ${f.nome}` : `perfil de ${f.nome}`)).join(" e ");
+  return (
+    <>
+      {visiveis.length > 0 && (
+        <div ref={ref} className={`rs-kpis rs-kpis-n${visiveis.length} ${ativo ? "is-in" : ""}`}>
+          {visiveis.map((c, i) => (
+            <KpiCard key={c.rotulo} {...c} ativo={ativo} ordem={i} tipo={tipo} />
+          ))}
+        </div>
+      )}
+      {lk.posts.length > 0 && (
+        <div className="rs-destaques rs-li-posts">
+          {lk.posts.map((p, i) => (
+            <article key={p.link} className="rs-destaque" style={{ "--i": i } as React.CSSProperties}>
+              <span className="rs-destaque-n">
+                {curtoData(p.publicado_em.slice(0, 10))} · {fmtNumero(p.impressoes)} impressões · {fmtNumero(p.interacoes)} interações
+              </span>
+              <p className="rs-li-texto">{p.texto || "Post sem texto"}</p>
+              <a href={p.link} target="_blank" rel="noopener noreferrer" className="rs-li-link">
+                Ver no LinkedIn
+              </a>
+            </article>
+          ))}
+        </div>
+      )}
+      <p className="rs-nota">
+        Números da {nomes}
+        {lk.ate ? `, até ${curtoData(lk.ate)} (o LinkedIn fecha cada dia com cerca de 2 dias de atraso)` : ""}.
+      </p>
+    </>
+  );
+}
+
 function AntesDepoisSec({ view }: { view: View }) {
   const ad = view.semana.dados.antes_depois;
   if (!ad) return null;
@@ -1521,6 +1577,12 @@ export function RelatorioView({ view, onSemana }: { view: View; onSemana?: (inic
       {mostra("leads") && leadsDe(semana.dados) && (
         <Secao id="leads" eyebrow="Captação" titulo="Leads que chegaram">
           <Leads view={view} />
+        </Secao>
+      )}
+
+      {mostra("linkedin") && semana.dados.linkedin && (
+        <Secao id="linkedin" eyebrow="LinkedIn" titulo={semana.tipo === "mes" ? "Como o LinkedIn foi no mês" : "Como o LinkedIn foi na semana"}>
+          <LinkedinSec view={view} />
         </Secao>
       )}
 
