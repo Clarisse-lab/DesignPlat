@@ -97,6 +97,9 @@
 .rs-destaque-n{font-size:13px;color:var(--rs-violet);font-variant-numeric:tabular-nums}
 .rs-destaque h3{font-size:clamp(24px,2.4vw,30px);line-height:1.1;letter-spacing:-.03em;font-weight:400;margin:22px 0 14px}
 .rs-destaque p{font-size:15px;line-height:1.65;color:var(--rs-soft)}
+.rs-li-posts{margin-top:44px}
+.rs-li-texto{margin-top:18px}
+.rs-li-link{display:inline-block;margin-top:14px;font-size:13px;color:var(--rs-violet);text-decoration:underline;text-underline-offset:3px}
 
 /* ---------- Melhores posts ---------- */
 .rs-posts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}

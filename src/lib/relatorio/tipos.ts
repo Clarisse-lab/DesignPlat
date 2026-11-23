@@ -91,7 +91,31 @@ export interface DadosSemana {
   antes_depois?: AntesDepois | null;
   /** Trabalho da Mantora no ClickUp. As listas de tarefas são internas (o link do cliente só recebe a contagem). */
   trabalho?: TrabalhoPeriodo | null;
+  /** LinkedIn (páginas e/ou perfil do cliente), lido das tabelas que o coletor diário preenche. */
+  linkedin?: LinkedinPeriodo | null;
   foto_perfil: string | null;
+}
+
+export interface LinkedinPeriodo {
+  /** Páginas e perfis somados neste relatório. */
+  fontes: { nome: string; tipo: "pagina" | "perfil" }[];
+  /** Total de seguidores na última leitura até o fim do período (soma das fontes). */
+  seguidores: number | null;
+  novos_seguidores: Kpi;
+  impressoes: Kpi;
+  reacoes: Kpi;
+  comentarios: Kpi;
+  compartilhamentos: Kpi;
+  /** Cliques nos posts (só páginas). */
+  cliques: Kpi | null;
+  /** Visualizações da página (só páginas). */
+  visualizacoes_pagina: Kpi | null;
+  /** Interações (reações, comentários, compartilhamentos e cliques) por impressão, em %. */
+  engajamento: Kpi;
+  /** Posts das páginas publicados no período, os de mais impressões primeiro (até 3). */
+  posts: { texto: string; publicado_em: string; impressoes: number; interacoes: number; link: string }[];
+  /** Último dia com número gravado (YYYY-MM-DD). */
+  ate: string | null;
 }
 
 export interface ContaIg {
@@ -233,7 +257,8 @@ export type SecaoId =
   | "publico"
   | "pendencias"
   | "palavras"
-  | "nicho";
+  | "nicho"
+  | "linkedin";
 
 export interface RelatorioSemana {
   id: string;

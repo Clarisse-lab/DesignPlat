@@ -44,6 +44,7 @@ REGRAS
 - Leads: se não vier o bloco de leads, não fale de leads.
 - CONTA: "pessoas alcançadas" da conta são pessoas diferentes (não soma dos posts); prefira esse número no resumo quando vier.
 - NICHO: se vier, use a comparação no resumo ou num destaque ("2x o engajamento médio de perfis parecidos com o seu"). Nunca cite o nome dos perfis.
+- LINKEDIN: se vier, trate como rede separada do Instagram (nunca some os números das duas). Impressões são vezes que o post apareceu, não pessoas. Pode virar um destaque quando houver variação clara ou um post que se destacou; sem o bloco, não fale de LinkedIn.
 - COMENTÁRIOS: escolha só os que um cliente teria orgulho de mostrar. Nada de reclamação, pergunta de preço, pedido de contato, religião, política, nem comentário que exponha a pessoa (doença, diagnóstico, acidente, vida íntima), mesmo que seja carinhoso.
 - Sem emoji, sem exclamação em excesso, sem "incrível", "explodiu", "bombou".
 - As notas da equipe são contexto interno: use a ideia, nunca copie nome de pessoa, valor de contrato ou assunto interno.`;
@@ -107,6 +108,26 @@ function contexto(input: {
     partes.push(
       `CONTA NO PERÍODO: ${fmt(c.alcance)} pessoas alcançadas${a ? ` (anterior: ${fmt(a.alcance)})` : ""}, ${fmt(c.visualizacoes)} visualizações, ${fmt(c.engajadas)} contas interagiram` +
         (c.seguiram !== null ? `, ${fmt(c.seguiram)} começaram a seguir e ${fmt(c.deixaram ?? 0)} deixaram de seguir` : ""),
+    );
+  }
+  const lk = dados.linkedin;
+  if (lk) {
+    partes.push(
+      [
+        `LINKEDIN (${lk.fontes.map((f) => `${f.tipo === "pagina" ? "página" : "perfil"} ${f.nome}`).join(", ")}${lk.ate ? `; números até ${lk.ate}, o LinkedIn fecha o dia com cerca de 2 dias de atraso` : ""})`,
+        lk.seguidores !== null ? `- Seguidores: ${fmt(lk.seguidores)}` : "",
+        linha("Novos seguidores", lk.novos_seguidores),
+        linha("Impressões", lk.impressoes),
+        linha("Reações", lk.reacoes),
+        linha("Comentários", lk.comentarios),
+        linha("Compartilhamentos", lk.compartilhamentos),
+        lk.cliques ? linha("Cliques", lk.cliques) : "",
+        lk.visualizacoes_pagina ? linha("Visitas à página", lk.visualizacoes_pagina) : "",
+        lk.engajamento.valor !== null ? `- Engajamento (interações por impressão): ${fmt(lk.engajamento.valor)}%${lk.engajamento.anterior !== null ? ` (anterior: ${fmt(lk.engajamento.anterior)}%)` : ""}` : "",
+        ...lk.posts.map((p) => `- Post ${p.publicado_em.slice(0, 10)}: ${fmt(p.impressoes)} impressões, ${fmt(p.interacoes)} interações. "${p.texto.slice(0, 140)}"`),
+      ]
+        .filter(Boolean)
+        .join("\n"),
     );
   }
   if (dados.nicho) partes.push(`NICHO: engajamento ${fmt(dados.nicho.cliente)}% contra média ${fmt(dados.nicho.media)}% de ${dados.nicho.total} perfis parecidos (${fmt(dados.nicho.vezes)}x); entre os ${dados.nicho.topo_pct}% com mais engajamento`);

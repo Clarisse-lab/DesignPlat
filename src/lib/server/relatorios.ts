@@ -26,6 +26,7 @@ import { hexValido, temaDaPaleta } from "../relatorio/tema";
 import type { DadosSemana, PostSemana, RelatorioSemana, Tema, TipoPeriodo } from "../relatorio/tipos";
 import { trabalhoDoCliente } from "./clickup";
 import { comentariosDosPosts, contaNoPeriodo, nichoDoCliente, publicoDoCliente } from "./instagram-conta";
+import { linkedinDoCliente } from "./linkedin";
 import { trafegoDoCliente } from "./meta-ads";
 import { callFunction, rest, signObjects, uploadObject } from "./supabase";
 
@@ -313,9 +314,10 @@ export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string
       return vazio;
     }
   };
-  const [comentarios, nicho] = await Promise.all([
+  const [comentarios, nicho, linkedin] = await Promise.all([
     seguro("comentarios", () => comentariosDosPosts(comPosts.map((p) => p.media_id)), []),
     seguro("nicho", () => nichoDoCliente(cliente, ig.ig?.contas[0]), null),
+    seguro("linkedin", () => linkedinDoCliente(cliente, tipo, inicio, fim), null),
   ]);
   const pendencias = await seguro("pendencias", () => pendenciasDe(tr?.aguardando ?? [], aprov, nome), []);
   const dados: DadosSemana = {
@@ -324,6 +326,7 @@ export async function coletar(cliente: string, tipo: TipoPeriodo, inicio: string
     leads: ld,
     aprovadas: ap,
     trabalho: tr?.trabalho ?? null,
+    linkedin,
     meta_ads: ma,
     conta_ig: contaAtual
       ? { atual: contaAtual, anterior: contaAnterior, tipico_alcance: alcancesAnteriores.length >= 3 ? mediana(alcancesAnteriores) : null }
